@@ -6,17 +6,26 @@
 
 兼容 **FloTHERM 2020.2** 及其他版本。
 
-## ⚠️ 重要说明
+## ⚠️ 重要发现
 
-**FloSCRIPT XML 和 FloXML 是两种完全不同的格式！**
+**无头模式只支持 FloXML 格式！**
 
-| 格式 | 用途 | 使用方式 |
+```bash
+flotherm -b file.floxml    ✅ 可以直接执行
+flotherm -b file.pack      ❌ 不支持
+flotherm -b file.ecxml     ❌ 不支持
+```
+
+**解决方案**：在 FloTHERM GUI 中将模型导出为 FloXML
+```
+File → Export → FloXML → 保存为 model.floxml
+```
+
+| 格式 | 用途 | 无头模式 |
 |-----|------|---------|
-| **FloSCRIPT XML** | 自动化脚本 | `flotherm -b -f script.xml` |
-| **FloXML** | 导入模型 | GUI 中 File → Import |
-| **ECXML** | 行业标准模型交换 | JEDEC JEP181 格式 |
-
-如果遇到错误 `Failed unknown file type No reader for this file type`，说明 XML 格式不正确。请使用 **GUI 录制宏** 的方式获取正确的 FloSCRIPT XML。
+| **FloXML** | FloTHERM 原生格式 | ✅ `flotherm -b file.floxml` |
+| **Pack** | 项目打包格式 | ❌ 需先导出为 FloXML |
+| **ECXML** | 行业标准交换格式 | ❌ 需先导出为 FloXML |
 
 ## 文件说明
 
@@ -75,62 +84,58 @@ python create_floscript_guide.py --create-template template.xml
 
 ---
 
-## ⭐ 推荐工作流：ECXML + 录制宏
+## ⭐ 推荐工作流：FloXML 直接执行
 
-这是最可靠的自动化方式，结合了 ECXML 参数修改和 FloSCRIPT 宏。
+**关键发现：`flotherm -b` 只支持 FloXML 格式！**
 
 ### 步骤概览
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Step 1: 在 GUI 中录制宏（一次性）                           │
+│  Step 1: GUI 导出 FloXML（一次性）                           │
 │  ─────────────────────────────────────────────────────────  │
-│  1. 打开 FloTHERM GUI                                       │
-│  2. 打开任意模型                                            │
-│  3. Tools → Macro → Record                                  │
-│  4. 执行: Reinitialize → Solve                              │
-│  5. Tools → Macro → Stop Recording                          │
-│  6. 保存为: solve_macro.xml                                 │
+│  1. FloTHERM GUI 打开模型（Pack/ECXML）                     │
+│  2. File → Export → FloXML                                  │
+│  3. 保存为: model.floxml                                     │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  Step 2: 使用 Python 自动化                                 │
+│  Step 2: Python 自动化                                      │
 │  ─────────────────────────────────────────────────────────  │
-│  # 修改 ECXML 功耗 + 自动求解                               │
-│  python floscript_runner.py model.ecxml solve_macro.xml \   │
-│      -o ./results --power U1_CPU 15.0                       │
+│  # 直接执行 FloXML                                          │
+│  python floscript_runner.py model.floxml -o ./results       │
+│                                                             │
+│  # 修改功耗后执行                                           │
+│  python floscript_runner.py model.floxml -o ./results \     │
+│      --power U1_CPU 15.0                                    │
 │                                                             │
 │  # 批量参数扫描                                             │
-│  python floscript_runner.py model.ecxml solve_macro.xml \   │
-│      -o ./results --power-range U1_CPU 5 10 15 20 25        │
+│  python floscript_runner.py model.floxml -o ./results \     │
+│      --power-range U1_CPU 5 10 15 20 25                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### 使用示例
 
 ```bash
-# 1. 基本用法：ECXML + 宏
-python floscript_runner.py model.ecxml solve_macro.xml -o ./results
+# 1. 基本用法：直接执行 FloXML
+python floscript_runner.py model.floxml -o ./results
 
-# 2. 修改功耗后求解
-python floscript_runner.py model.ecxml solve_macro.xml -o ./results \
+# 2. 修改功耗后执行
+python floscript_runner.py model.floxml -o ./results \
     --power U1_CPU 15.0 --power U2_GPU 25.0
 
 # 3. 批量参数扫描（5个功耗点）
-python floscript_runner.py model.ecxml solve_macro.xml -o ./results \
+python floscript_runner.py model.floxml -o ./results \
     --power-range U1_CPU 5 10 15 20 25
-
-# 4. Pack 文件也支持
-python floscript_runner.py model.pack solve_macro.xml -o ./results
 ```
 
 ### 输出目录结构
 
 ```
 ./results/
-├── solver_script.xml      # 生成的完整 FloSCRIPT
 ├── simulation.log         # 求解日志
-├── result.pack            # 求解结果
+├── modified_model.floxml  # 修改功耗后的模型（如果有修改）
 └── (批量时)
     ├── power_5W/
     ├── power_10W/
