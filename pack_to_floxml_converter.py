@@ -158,17 +158,24 @@ class PackToFloXMLConverter:
         """尝试使用命令行参数转换"""
         print("[INFO] 尝试命令行转换...")
 
+        # 先提取 Pack 内容，检查内部格式
+        extracted_info = self._analyze_pack_contents(pack_file)
+        pdml_file = extracted_info.get('pdml_file')
+
         # FloTHERM 可能的命令行参数
         cli_attempts = [
-            # 尝试 1: 直接指定输出格式
-            [self.flotherm_path, "-b", pack_file, "-export", "floxml", output_floxml],
-            # 尝试 2: 使用 -convert 参数
-            [self.flotherm_path, "-convert", pack_file, output_floxml, "-format", "floxml"],
-            # 尝试 3: 使用 -batchexport
-            [self.flotherm_path, "-batchexport", pack_file, output_floxml],
-            # 尝试 4: 使用 -e 参数导出
-            [self.flotherm_path, "-b", "-open", pack_file, "-exportfloxml", output_floxml],
+            # 尝试 1: 直接执行 Pack 文件
+            [self.flotherm_path, "-b", pack_file],
+            # 尝试 2: 直接执行 PDML（如果存在）
+            [self.flotherm_path, "-b", pdml_file] if pdml_file else None,
+            # 尝试 3: 使用 -nogui 参数
+            [self.flotherm_path, "-nogui", pack_file],
+            # 尝试 4: 使用 -batch 参数
+            [self.flotherm_path, "-batch", pack_file],
         ]
+
+        # 过滤掉 None
+        cli_attempts = [cmd for cmd in cli_attempts if cmd is not None]
 
         for i, cmd in enumerate(cli_attempts, 1):
             print(f"\n  尝试 {i}: {' '.join(cmd)}")
@@ -180,12 +187,14 @@ class PackToFloXMLConverter:
                     timeout=30
                 )
 
-                if result.returncode == 0 and os.path.exists(output_floxml):
-                    print(f"  [OK] 命令执行成功!")
-                    return True
-                else:
-                    if result.stderr:
-                        print(f"  [WARN] 错误: {result.stderr[:200]}")
+                print(f"  返回码: {result.returncode}")
+                if result.stdout:
+                    print(f"  输出: {result.stdout[:300]}")
+                if result.stderr:
+                    print(f"  错误: {result.stderr[:300]}")
+
+                # 检查是否有 FloTHERM 进程在运行
+                # 如果命令启动了 GUI，可能需要等待
 
             except subprocess.TimeoutExpired:
                 print(f"  [WARN] 超时")
@@ -195,7 +204,98 @@ class PackToFloXMLConverter:
             except Exception as e:
                 print(f"  [WARN] 错误: {e}")
 
+        # 尝试使用宏文件导出
+        print("\n[INFO] 尝试使用宏文件导出...")
+        if self._try_export_with_macro(pack_file, output_floxml):
+            return True
+
         print("\n[INFO] 命令行转换不支持")
+        return False
+
+    def _analyze_pack_contents(self, pack_file: str) -> dict:
+        """分析 Pack 文件内容"""
+        info = {'has_floxml': False, 'has_pdml': False, 'pdml_file': None}
+
+        try:
+            with zipfile.ZipFile(pack_file, 'r') as zf:
+                files = zf.namelist()
+                print(f"  [INFO] Pack 包含 {len(files)} 个文件")
+
+                for f in files:
+                    ext = Path(f).suffix.lower()
+                    if ext == '.floxml':
+                        info['has_floxml'] = True
+                        print(f"  [FOUND] FloXML: {f}")
+                    elif ext == '.pdml':
+                        info['has_pdml'] = True
+                        info['pdml_file'] = f
+                        print(f"  [FOUND] PDML: {f}")
+
+                # 列出主要文件
+                for f in files[:10]:
+                    print(f"    - {f}")
+                if len(files) > 10:
+                    print(f"    ... 还有 {len(files) - 10} 个文件")
+
+        except Exception as e:
+            print(f"  [ERROR] 分析 Pack 失败: {e}")
+
+        return info
+
+    def _try_export_with_macro(self, pack_file: str, output_floxml: str) -> bool:
+        """尝试使用宏文件导出 FloXML"""
+        abs_pack_path = os.path.abspath(pack_file)
+        abs_output_path = os.path.abspath(output_floxml)
+        output_dir = os.path.dirname(abs_output_path)
+
+        # 创建一个导出宏
+        macro_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<FloSCRIPT version="1.0">
+    <!-- 加载 Pack 文件 -->
+    <Command name="Open" file="{abs_pack_path}"/>
+
+    <!-- 等待加载 -->
+    <Wait seconds="3"/>
+
+    <!-- 保存为 FloXML（尝试） -->
+    <Command name="SaveAs" file="{abs_output_path}" format="FloXML"/>
+</FloSCRIPT>
+'''
+
+        macro_file = os.path.join(output_dir, "export_macro.xml")
+        with open(macro_file, 'w', encoding='utf-8') as f:
+            f.write(macro_content)
+
+        print(f"  [INFO] 创建宏文件: {macro_file}")
+
+        # 尝试执行宏
+        cmd = [self.flotherm_path, "-b", "-f", macro_file]
+        print(f"  [INFO] 执行: {' '.join(cmd)}")
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                cwd=output_dir
+            )
+
+            print(f"  返回码: {result.returncode}")
+            if result.stdout:
+                print(f"  输出: {result.stdout[:500]}")
+            if result.stderr:
+                print(f"  错误: {result.stderr[:500]}")
+
+            if os.path.exists(abs_output_path):
+                print(f"  [OK] 导出成功!")
+                return True
+
+        except subprocess.TimeoutExpired:
+            print(f"  [WARN] 超时")
+        except Exception as e:
+            print(f"  [ERROR] {e}")
+
         return False
 
     def _convert_com(self, pack_file: str, output_floxml: str) -> bool:
@@ -340,54 +440,112 @@ class PackToFloXMLConverter:
 
     def _show_guide(self, pack_file: str, output_floxml: str) -> bool:
         """显示手动转换指南"""
+        # 先分析 Pack 内容
+        info = self._analyze_pack_contents(pack_file)
+
         guide = f"""
 ================================================================================
-                    手动转换指南
+                    FloTHERM 格式转换问题
 ================================================================================
 
-由于自动转换方法不可用，请按照以下步骤手动转换:
+⚠️  重要发现：FloTHERM GUI 没有 FloXML 导出功能！
 
-步骤 1: 打开 FloTHERM GUI
-       - 双击 FloTHERM 图标启动应用程序
-
-步骤 2: 打开 Pack 文件
-       - File → Open → 选择: {os.path.abspath(pack_file)}
-       - 或直接双击 Pack 文件
-
-步骤 3: 导出为 FloXML
-       - File → Export → FloXML...
-       - 选择保存位置: {os.path.abspath(output_floxml)}
-       - 点击 Save
-
-步骤 4: 验证导出
-       - 确认文件已创建
-       - 可以用文本编辑器打开查看
+FloTHERM 的格式支持：
+  ✅ 导入 FloXML (File → Import → FloXML)
+  ❌ 导出 FloXML (无此功能)
+  ✅ 打开 Pack 文件
+  ✅ 保存为 Pack 文件
+  ✅ 导出 ECXML (部分版本支持)
 
 ================================================================================
-                    转换后的自动化工作流
+                    可行的解决方案
 ================================================================================
 
-一旦你有了 FloXML 文件，就可以使用 floscript_runner.py 进行自动化:
+方案 1: 直接使用 PDML 文件（如果可用）
+─────────────────────────────────────────
+"""
 
-    # 直接执行 FloXML
-    python floscript_runner.py {output_floxml} -o ./results
+        if info.get('pdml_file'):
+            guide += f"""✅ 你的 Pack 文件包含 PDML: {info['pdml_file']}
 
-    # 修改功耗后执行
-    python floscript_runner.py {output_floxml} -o ./results --power U1_CPU 15.0
+    # 解压 Pack 文件
+    python pack_editor.py {pack_file} --extract ./extracted
 
-    # 批量参数扫描
-    python floscript_runner.py {output_floxml} -o ./results --power-range U1_CPU 5 10 15 20 25
+    # 尝试直接使用 PDML
+    flotherm -b ./extracted/{info['pdml_file']}
+"""
+        else:
+            guide += """❌ Pack 文件中未找到 PDML 文件
+
+    # 先解压查看内容
+    python pack_editor.py {pack_file} --extract ./extracted
+"""
+
+        guide += f"""
+方案 2: 录制宏来自动化求解
+─────────────────────────────────────────
+由于无法转换为 FloXML，可以使用宏来批量处理 Pack 文件：
+
+    1. 在 FloTHERM GUI 中录制宏：
+       - Tools → Macro → Record...
+       - 打开 Pack 文件
+       - 执行求解操作
+       - 保存结果
+       - Tools → Macro → Stop Recording
+
+    2. 使用录制的宏进行批量处理：
+       flotherm -b -f recorded_macro.xml
+
+方案 3: 使用 ECXML（如果支持）
+─────────────────────────────────────────
+某些版本的 FloTHERM 支持 ECXML 导出：
+
+    1. 在 GUI 中打开 Pack 文件
+    2. File → Export → ECXML（如果有）
+    3. 使用 ECXML 进行后续处理
+
+方案 4: 使用 GUI 自动化工具
+─────────────────────────────────────────
+使用 PyAutoGUI 或类似工具自动化 GUI 操作：
+
+    pip install pyautogui
+
+    然后编写脚本自动点击菜单和按钮。
 
 ================================================================================
-                    批量转换多个 Pack 文件
+                    Pack 文件内容
+================================================================================
+"""
+
+        # 显示 Pack 内容
+        try:
+            with zipfile.ZipFile(pack_file, 'r') as zf:
+                files = zf.namelist()
+                for f in files[:20]:
+                    guide += f"  - {f}\n"
+                if len(files) > 20:
+                    guide += f"  ... 还有 {len(files) - 20} 个文件\n"
+        except:
+            pass
+
+        guide += f"""
+================================================================================
+                    建议的工作流
 ================================================================================
 
-如果你有多个 Pack 文件需要转换，可以使用 --batch 模式:
+由于 FloTHERM 的限制，建议：
 
-    python pack_to_floxml_converter.py *.pack --batch ./floxml_output/
+1. 如果只需要求解，使用录制的宏：
+   - 一次录制，多次使用
+   - 适合批量处理相同类型的模型
 
-这会生成一个转换脚本 (convert_all.bat 或 convert_all.sh)，你可以在完成
-手动转换后运行它来自动化后续步骤。
+2. 如果需要修改参数：
+   - 使用 pack_editor.py 修改 Pack 内的 PDML 文件
+   - 或使用 ecxml_editor.py 修改 ECXML（如果可以导出）
+
+3. 联系 Siemens 支持：
+   - 询问是否有命令行转换工具
+   - 或是否有 API 可以导出 FloXML
 
 ================================================================================
 """

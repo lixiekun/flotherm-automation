@@ -16,16 +16,21 @@ flotherm -b file.pack      ❌ 不支持
 flotherm -b file.ecxml     ❌ 不支持
 ```
 
-**解决方案**：在 FloTHERM GUI 中将模型导出为 FloXML
+**⚠️ 严重问题：FloTHERM GUI 没有 FloXML 导出功能！**
+
 ```
-File → Export → FloXML → 保存为 model.floxml
+File → Import → FloXML  ✅ 存在
+File → Export → FloXML  ❌ 不存在！
 ```
 
-| 格式 | 用途 | 无头模式 |
-|-----|------|---------|
-| **FloXML** | FloTHERM 原生格式 | ✅ `flotherm -b file.floxml` |
-| **Pack** | 项目打包格式 | ❌ 需先导出为 FloXML |
-| **ECXML** | 行业标准交换格式 | ❌ 需先导出为 FloXML |
+**可行的替代方案**：
+
+| 方案 | 说明 | 推荐度 |
+|-----|------|-------|
+| **录制宏** | 在 GUI 中录制操作宏，然后用 `flotherm -b -f macro.xml` 执行 | ⭐⭐⭐ |
+| **使用 PDML** | Pack 内部是 PDML 格式，可尝试直接修改 | ⭐⭐ |
+| **ECXML 导出** | 部分版本支持导出 ECXML（File → Export → ECXML） | ⭐⭐ |
+| **GUI 自动化** | 使用 PyAutoGUI 等工具自动化 GUI 操作 | ⭐ |
 
 ## 文件说明
 
@@ -143,63 +148,62 @@ python pack_to_floxml_converter.py model.pack -o output.floxml --method com
 
 ---
 
-## ⭐ 推荐工作流：FloXML 直接执行
+## ⭐ 推荐工作流：录制宏自动化
 
-**关键发现：`flotherm -b` 只支持 FloXML 格式！**
+由于 FloTHERM GUI 没有 FloXML 导出功能，推荐使用宏录制方式进行自动化。
 
-### 步骤概览
+### 方法 1: 录制宏（推荐）
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Step 1: GUI 导出 FloXML（一次性）                           │
+│  Step 1: 在 GUI 中录制宏                                     │
 │  ─────────────────────────────────────────────────────────  │
-│  1. FloTHERM GUI 打开模型（Pack/ECXML）                     │
-│  2. File → Export → FloXML                                  │
-│  3. 保存为: model.floxml                                     │
+│  1. FloTHERM GUI → Tools → Macro → Record...               │
+│  2. 打开 Pack 文件                                           │
+│  3. Model → Reinitialize（重新初始化）                       │
+│  4. Model → Solve（求解）                                    │
+│  5. File → Save As... 保存结果                               │
+│  6. Tools → Macro → Stop Recording                          │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  Step 2: Python 自动化                                      │
+│  Step 2: 批量执行宏                                          │
 │  ─────────────────────────────────────────────────────────  │
-│  # 直接执行 FloXML                                          │
-│  python floscript_runner.py model.floxml -o ./results       │
+│  flotherm -b -f recorded_macro.xml                          │
 │                                                             │
-│  # 修改功耗后执行                                           │
-│  python floscript_runner.py model.floxml -o ./results \     │
-│      --power U1_CPU 15.0                                    │
-│                                                             │
-│  # 批量参数扫描                                             │
-│  python floscript_runner.py model.floxml -o ./results \     │
-│      --power-range U1_CPU 5 10 15 20 25                     │
+│  或使用 Python 脚本批量处理：                                │
+│  python floscript_runner.py model.pack -o ./results         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 使用示例
+### 方法 2: 如果你有 FloXML 文件
+
+如果你通过某种方式获得了 FloXML 文件（例如从其他来源），可以直接使用：
 
 ```bash
-# 1. 基本用法：直接执行 FloXML
+# 直接执行 FloXML
 python floscript_runner.py model.floxml -o ./results
 
-# 2. 修改功耗后执行
+# 修改功耗后执行
 python floscript_runner.py model.floxml -o ./results \
-    --power U1_CPU 15.0 --power U2_GPU 25.0
+    --power U1_CPU 15.0
 
-# 3. 批量参数扫描（5个功耗点）
+# 批量参数扫描
 python floscript_runner.py model.floxml -o ./results \
     --power-range U1_CPU 5 10 15 20 25
 ```
 
-### 输出目录结构
+### 方法 3: 使用 ECXML（如果 GUI 支持导出）
 
-```
-./results/
-├── simulation.log         # 求解日志
-├── modified_model.floxml  # 修改功耗后的模型（如果有修改）
-└── (批量时)
-    ├── power_5W/
-    ├── power_10W/
-    ├── power_15W/
-    └── ...
+部分版本的 FloTHERM 支持 ECXML 导出：
+
+```bash
+# 1. 在 GUI 中：File → Export → ECXML
+# 2. 修改参数
+python ecxml_editor.py model.ecxml --set-power U1_CPU 15.0 -o modified.ecxml
+
+# 3. 尝试求解（可能需要 GUI）
+python simple_solver.py modified.ecxml -o ./results
 ```
 
 ---
