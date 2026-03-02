@@ -4,15 +4,25 @@ FloSCRIPT 运行器 - 整合模型和宏的完整流程
 
 将录制的宏操作与模型文件整合，生成完整的 FloSCRIPT XML 并执行。
 
+支持格式: .pack | .prj | .ecxml | .pdml
+
 使用方法:
-    # 基本用法
+    # 基本用法（ECXML + 宏）
+    python floscript_runner.py model.ecxml solve_macro.xml -o ./results
+
+    # 基本用法（Pack + 宏）
     python floscript_runner.py model.pack macro.xml -o ./results
 
-    # 指定 FloTHERM 路径
-    python floscript_runner.py model.pack macro.xml -o ./results --flotherm "C:\\...\\flotherm.exe"
+    # 修改功耗后运行
+    python floscript_runner.py model.ecxml macro.xml -o ./results --power U1_CPU 15.0
 
-    # 批量运行（修改功耗）
-    python floscript_runner.py model.pack macro.xml -o ./results --power U1_CPU 15.0
+    # 批量参数扫描
+    python floscript_runner.py model.ecxml macro.xml -o ./results --power-range U1_CPU 5 10 15 20 25
+
+推荐工作流:
+    1. 在 FloTHERM GUI 中录制宏（Tools → Macro → Record）
+    2. 执行 Reinitialize → Solve → Stop Recording
+    3. 使用本脚本整合 ECXML/Pack + 宏进行批量自动化
 """
 
 import os
@@ -52,13 +62,24 @@ class FloScriptRunner:
 
         return "flotherm"
 
+    def _get_file_type(self, file_path: str) -> str:
+        """识别文件类型"""
+        ext = Path(file_path).suffix.lower()
+        type_map = {
+            '.pack': 'pack',
+            '.ecxml': 'ecxml',
+            '.pdml': 'pdml',
+            '.prj': 'prj',
+        }
+        return type_map.get(ext, 'unknown')
+
     def create_floscript(self, model_file: str, macro_file: str,
                          output_file: str, result_pack: str = None) -> str:
         """
         创建完整的 FloSCRIPT XML
 
         Args:
-            model_file: 模型文件路径 (.pack 或 .prj)
+            model_file: 模型文件路径 (.pack, .prj, .ecxml)
             macro_file: 录制的宏文件路径 (.xml)
             output_file: 输出的 FloSCRIPT 文件路径
             result_pack: 结果保存路径（可选）
@@ -73,10 +94,20 @@ class FloScriptRunner:
         floscript = ET.Element("FloSCRIPT")
         floscript.set("version", "1.0")
 
-        # 1. 加载模型
-        load_cmd = ET.SubElement(floscript, "Command")
-        load_cmd.set("name", "Load")
-        load_cmd.set("file", os.path.abspath(model_file))
+        file_type = self._get_file_type(model_file)
+
+        # 1. 加载模型（根据文件类型使用不同命令）
+        if file_type == 'ecxml':
+            # ECXML 需要先导入
+            import_cmd = ET.SubElement(floscript, "Command")
+            import_cmd.set("name", "Import")
+            import_cmd.set("type", "ECXML")
+            import_cmd.set("file", os.path.abspath(model_file))
+        else:
+            # Pack/Prj/PDML 直接加载
+            load_cmd = ET.SubElement(floscript, "Command")
+            load_cmd.set("name", "Load")
+            load_cmd.set("file", os.path.abspath(model_file))
 
         # 2. 插入录制的宏操作
         for cmd in macro_commands:
@@ -91,7 +122,7 @@ class FloScriptRunner:
             else:
                 # 默认保存到模型同目录，添加 _solved 后缀
                 model_path = Path(model_file)
-                default_result = model_path.parent / f"{model_path.stem}_solved{model_path.suffix}"
+                default_result = model_path.parent / f"{model_path.stem}_solved.pack"
                 save_cmd.set("file", str(default_result))
 
         # 格式化并保存
@@ -170,7 +201,7 @@ class FloScriptRunner:
         执行完整流程
 
         Args:
-            model_file: 模型文件
+            model_file: 模型文件 (.pack, .prj, .ecxml)
             macro_file: 宏文件
             output_dir: 输出目录
             modify_power: 要修改的功耗 {组件名: 功耗值}
@@ -183,8 +214,11 @@ class FloScriptRunner:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        file_type = self._get_file_type(model_file)
+
         results = {
             "model": str(model_file),
+            "model_type": file_type,
             "macro": str(macro_file),
             "output_dir": str(output_dir),
             "start_time": start_time.isoformat(),
@@ -195,8 +229,19 @@ class FloScriptRunner:
         actual_model = model_file
         if modify_power:
             print(f"[INFO] 修改功耗: {modify_power}")
-            modified_model = output_dir / "modified_model.pack"
-            actual_model = self._modify_pack_power(model_file, modified_model, modify_power)
+
+            if file_type == 'ecxml':
+                # ECXML 文件直接修改
+                modified_model = output_dir / "modified_model.ecxml"
+                actual_model = self._modify_ecxml_power(model_file, modified_model, modify_power)
+            elif file_type == 'pack':
+                # Pack 文件需要解压修改
+                modified_model = output_dir / "modified_model.pack"
+                actual_model = self._modify_pack_power(model_file, modified_model, modify_power)
+            else:
+                print(f"[WARN] 不支持修改 {file_type} 格式的功耗")
+                actual_model = model_file
+
             if actual_model:
                 print(f"[INFO] 已创建修改后的模型: {actual_model}")
             else:
@@ -301,6 +346,40 @@ class FloScriptRunner:
 
         return results
 
+    def _modify_ecxml_power(self, ecxml_file: str, output_file: str,
+                            power_map: dict) -> str:
+        """修改 ECXML 文件中的功耗"""
+        try:
+            tree = ET.parse(ecxml_file)
+            root = tree.getroot()
+
+            modified = False
+            for elem in root.iter():
+                # 查找组件名称
+                name = elem.get('Name', elem.get('name', ''))
+
+                for comp_name, power in power_map.items():
+                    if name == comp_name or comp_name.lower() in name.lower():
+                        # 查找功耗字段
+                        for child in elem.iter():
+                            tag = self._strip_ns(child.tag).lower()
+                            if 'power' in tag or 'heat' in tag:
+                                if child.text and child.text.strip():
+                                    child.text = str(power)
+                                    modified = True
+                                    print(f"       {name}: {power}W")
+
+            if modified:
+                tree.write(output_file, encoding='utf-8', xml_declaration=True)
+                return output_file
+            else:
+                print(f"[WARN] 未找到要修改的组件")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] 修改 ECXML 失败: {e}")
+            return None
+
     def _modify_pack_power(self, pack_file: str, output_file: str,
                            power_map: dict) -> str:
         """修改 pack 文件中的功耗"""
@@ -392,7 +471,7 @@ def main():
         '''
     )
 
-    parser.add_argument('model', help='模型文件 (.pack 或 .prj)')
+    parser.add_argument('model', help='模型文件 (.pack, .prj, .ecxml)')
     parser.add_argument('macro', help='录制的宏文件 (.xml)')
     parser.add_argument('-o', '--output', required=True, help='输出目录')
     parser.add_argument('--flotherm', help='FloTHERM 可执行文件路径')

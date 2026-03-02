@@ -22,11 +22,12 @@
 
 | 文件 | 功能 |
 |-----|------|
-| `simple_solver.py` | **简易求解脚本**（推荐，支持 ECXML/Pack） |
-| `pack_editor.py` | **Pack 文件编辑器**（新增） |
-| `flotherm_solver.py` | 完整求解脚本（生成 FloSCRIPT XML） |
+| `floscript_runner.py` | **⭐ 推荐使用** - 整合模型 + 录制宏，自动求解 |
+| `simple_solver.py` | 简易求解脚本（支持 ECXML/Pack） |
+| `pack_editor.py` | Pack 文件编辑器 |
 | `ecxml_editor.py` | ECXML 文件解析和参数修改 |
 | `batch_simulation.py` | 批量仿真案例生成器 |
+| `create_floscript_guide.py` | FloSCRIPT 创建指南 |
 | `power_config.json` | 功耗配置示例 |
 
 ---
@@ -70,6 +71,71 @@ python create_floscript_guide.py --list-examples
 
 # 创建基本模板
 python create_floscript_guide.py --create-template template.xml
+```
+
+---
+
+## ⭐ 推荐工作流：ECXML + 录制宏
+
+这是最可靠的自动化方式，结合了 ECXML 参数修改和 FloSCRIPT 宏。
+
+### 步骤概览
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Step 1: 在 GUI 中录制宏（一次性）                           │
+│  ─────────────────────────────────────────────────────────  │
+│  1. 打开 FloTHERM GUI                                       │
+│  2. 打开任意模型                                            │
+│  3. Tools → Macro → Record                                  │
+│  4. 执行: Reinitialize → Solve                              │
+│  5. Tools → Macro → Stop Recording                          │
+│  6. 保存为: solve_macro.xml                                 │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  Step 2: 使用 Python 自动化                                 │
+│  ─────────────────────────────────────────────────────────  │
+│  # 修改 ECXML 功耗 + 自动求解                               │
+│  python floscript_runner.py model.ecxml solve_macro.xml \   │
+│      -o ./results --power U1_CPU 15.0                       │
+│                                                             │
+│  # 批量参数扫描                                             │
+│  python floscript_runner.py model.ecxml solve_macro.xml \   │
+│      -o ./results --power-range U1_CPU 5 10 15 20 25        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 使用示例
+
+```bash
+# 1. 基本用法：ECXML + 宏
+python floscript_runner.py model.ecxml solve_macro.xml -o ./results
+
+# 2. 修改功耗后求解
+python floscript_runner.py model.ecxml solve_macro.xml -o ./results \
+    --power U1_CPU 15.0 --power U2_GPU 25.0
+
+# 3. 批量参数扫描（5个功耗点）
+python floscript_runner.py model.ecxml solve_macro.xml -o ./results \
+    --power-range U1_CPU 5 10 15 20 25
+
+# 4. Pack 文件也支持
+python floscript_runner.py model.pack solve_macro.xml -o ./results
+```
+
+### 输出目录结构
+
+```
+./results/
+├── solver_script.xml      # 生成的完整 FloSCRIPT
+├── simulation.log         # 求解日志
+├── result.pack            # 求解结果
+└── (批量时)
+    ├── power_5W/
+    ├── power_10W/
+    ├── power_15W/
+    └── ...
 ```
 
 ---
