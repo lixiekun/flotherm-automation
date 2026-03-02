@@ -1,6 +1,8 @@
 # FloTHERM 自动化工具
 
-用于批量修改 ECXML 参数、自动求解和生成仿真案例的 Python 脚本。
+用于批量修改 ECXML/Pack 参数、自动求解和生成仿真案例的 Python 脚本。
+
+**支持格式**：`.ecxml` | `.pack` | `.pdml` | `.prj`
 
 兼容 **FloTHERM 2020.2** 及其他版本。
 
@@ -8,7 +10,8 @@
 
 | 文件 | 功能 |
 |-----|------|
-| `simple_solver.py` | **简易求解脚本**（推荐使用） |
+| `simple_solver.py` | **简易求解脚本**（推荐，支持 ECXML/Pack） |
+| `pack_editor.py` | **Pack 文件编辑器**（新增） |
 | `flotherm_solver.py` | 完整求解脚本（生成 FloSCRIPT XML） |
 | `ecxml_editor.py` | ECXML 文件解析和参数修改 |
 | `batch_simulation.py` | 批量仿真案例生成器 |
@@ -21,15 +24,21 @@
 ### 1. 自动求解（最常用）
 
 ```bash
-# 基本用法 - 输入 ecxml/pack 文件，自动求解
+# ECXML 文件
 python simple_solver.py model.ecxml -o ./results
 
-# 指定 FloTHERM 路径
-python simple_solver.py model.ecxml -o ./results --flotherm "C:\Program Files\FloTHERM\v2020.2\bin\flotherm.exe"
-
-# 使用 pack 文件
+# Pack 文件（自动解压并求解）
 python simple_solver.py model.pack -o ./results
+
+# 指定 FloTHERM 路径
+python simple_solver.py model.pack -o ./results --flotherm "C:\Program Files\FloTHERM\v2020.2\bin\flotherm.exe"
 ```
+
+**支持格式**：
+- `.ecxml` - ECXML 格式
+- `.pack` - Pack 格式（自动解压）
+- `.pdml` - PDML 格式
+- `.prj` - 项目文件
 
 **特性**：
 - ✅ 实时打印求解日志到命令行
@@ -68,7 +77,28 @@ python simple_solver.py model.pack -o ./results
 
 ---
 
-### 2. 分析 ECXML 结构
+### 2. Pack 文件操作（新增）
+
+```bash
+# 列出 pack 文件内容
+python pack_editor.py model.pack --list
+
+# 解压 pack 文件
+python pack_editor.py model.pack --extract ./extracted
+
+# 提取 XML 文件
+python pack_editor.py model.pack --to-ecxml output.xml
+
+# 修改 pack 中的功耗
+python pack_editor.py model.pack --set-power U1_CPU 15.0 -o modified.pack
+
+# 批量修改功耗
+python pack_editor.py model.pack --power-config power.json -o modified.pack
+```
+
+---
+
+### 3. 分析 ECXML 结构
 
 首次使用时，先分析你的 ECXML 文件结构：
 

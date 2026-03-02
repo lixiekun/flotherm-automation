@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
 FloTHERM 简易求解脚本（直接使用命令行模式）
-不依赖 FloSCRIPT XML 结构，直接使用 -batch -solve 参数
+支持 ECXML、Pack、PDML 格式
 
 使用方法:
     python simple_solver.py input.ecxml -o ./results
+    python simple_solver.py input.pack -o ./results
 """
 
 import os
@@ -12,13 +13,16 @@ import sys
 import subprocess
 import argparse
 import time
-import threading
+import zipfile
+import tempfile
+import shutil
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 
 
 class SimpleFloTHERMSolver:
-    """简易 FloTHERM 求解器"""
+    """简易 FloTHERM 求解器 - 支持 ECXML、Pack、PDML 格式"""
 
     def __init__(self, flotherm_path: str = None):
         self.flotherm_path = flotherm_path or self._auto_detect()
@@ -43,25 +47,33 @@ class SimpleFloTHERMSolver:
                 print(f"[INFO] 检测到 FloTHERM: {path}")
                 return path
 
-        return "flotherm"  # 假设已在 PATH 中
+        return "flotherm"
+
+    def _get_file_type(self, input_file: str) -> str:
+        """识别文件类型"""
+        ext = Path(input_file).suffix.lower()
+        if ext == '.pack':
+            return 'pack'
+        elif ext == '.ecxml':
+            return 'ecxml'
+        elif ext == '.pdml':
+            return 'pdml'
+        elif ext == '.prj':
+            return 'prj'
+        else:
+            return 'unknown'
 
     def solve(self, input_file: str, output_dir: str, timeout: int = 7200) -> dict:
         """
-        执行求解
-
-        Args:
-            input_file: 输入文件（.ecxml 或 .pack）
-            output_dir: 输出目录
-            timeout: 超时时间（秒）
-
-        Returns:
-            结果字典
+        执行求解 - 支持 ECXML、Pack、PDML 格式
         """
         start_time = time.time()
         output_dir = Path(output_dir).resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
 
         log_file = output_dir / "simulation.log"
+        temp_dir = None
+        actual_input = input_file
 
         results = {
             "input": str(input_file),
@@ -71,10 +83,15 @@ class SimpleFloTHERMSolver:
             "success": False,
         }
 
+        # 识别文件类型
+        file_type = self._get_file_type(input_file)
+        print(f"[INFO] 文件类型: {file_type.upper()}")
+
         print("\n" + "=" * 60)
         print("  FloTHERM 求解器")
         print("=" * 60)
         print(f"  输入文件: {input_file}")
+        print(f"  文件类型: {file_type.upper()}")
         print(f"  输出目录: {output_dir}")
         print(f"  日志文件: {log_file}")
         print(f"  FloTHERM: {self.flotherm_path}")
@@ -86,10 +103,32 @@ class SimpleFloTHERMSolver:
             results["error"] = "输入文件不存在"
             return results
 
+        # 如果是 pack 文件，解压后找到项目文件
+        if file_type == 'pack':
+            print("[INFO] 解压 Pack 文件...")
+            temp_dir = tempfile.mkdtemp(prefix="flotherm_")
+            try:
+                with zipfile.ZipFile(input_file, 'r') as zf:
+                    zf.extractall(temp_dir)
+                print(f"[INFO] 已解压到临时目录")
+
+                # 查找项目文件
+                actual_input = self._find_project_file(temp_dir)
+                if actual_input:
+                    print(f"[INFO] 找到项目文件: {Path(actual_input).name}")
+                else:
+                    # 使用目录作为输入
+                    actual_input = temp_dir
+                    print(f"[INFO] 使用目录作为输入")
+            except Exception as e:
+                print(f"[ERROR] 解压失败: {e}")
+                results["error"] = str(e)
+                return results
+
         # 构建命令
         cmd = [
             self.flotherm_path,
-            "-batch", str(input_file),
+            "-batch", str(actual_input),
             "-nogui",
             "-solve",
             "-out", str(log_file)
@@ -123,9 +162,7 @@ class SimpleFloTHERMSolver:
                         break
                     if line:
                         line = line.rstrip()
-                        # 打印到控制台
                         print(f"  {line}")
-                        # 写入日志文件
                         log_f.write(line + '\n')
                         log_f.flush()
                         line_count += 1
@@ -151,6 +188,12 @@ class SimpleFloTHERMSolver:
             print(f"\n[ERROR] 运行错误: {e}")
             results["error"] = str(e)
 
+        finally:
+            # 清理临时目录
+            if temp_dir and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                print("[INFO] 已清理临时目录")
+
         # 统计输出文件
         print(f"\n[INFO] 输出目录内容:")
         output_files = []
@@ -169,6 +212,22 @@ class SimpleFloTHERMSolver:
 
         return results
 
+    def _find_project_file(self, directory: str) -> Optional[str]:
+        """在解压目录中查找项目文件"""
+        priority_files = ['project.prj', 'group.pdml', 'model.pdml']
+
+        for pf in priority_files:
+            for root, dirs, files in os.walk(directory):
+                if pf in files:
+                    return os.path.join(root, pf)
+
+        for root, dirs, files in os.walk(directory):
+            for f in files:
+                if f.endswith(('.prj', '.pdml')):
+                    return os.path.join(root, f)
+
+        return None
+
     def _format_size(self, size: int) -> str:
         """格式化文件大小"""
         for unit in ['B', 'KB', 'MB', 'GB']:
@@ -180,16 +239,23 @@ class SimpleFloTHERMSolver:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='FloTHERM 简易求解脚本',
+        description='FloTHERM 简易求解脚本 - 支持 ECXML、Pack、PDML 格式',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
+支持的格式:
+  .ecxml  - ECXML 格式
+  .pack   - Pack 格式 (自动解压)
+  .pdml   - PDML 格式
+  .prj    - 项目文件
+
 示例:
   python simple_solver.py model.ecxml -o ./results
+  python simple_solver.py model.pack -o ./results
   python simple_solver.py model.pack -o ./results --flotherm "C:\\FloTHERM\\bin\\flotherm.exe"
         '''
     )
 
-    parser.add_argument('input', help='输入文件 (.ecxml 或 .pack)')
+    parser.add_argument('input', help='输入文件 (.ecxml, .pack, .pdml, .prj)')
     parser.add_argument('-o', '--output', required=True, help='输出目录')
     parser.add_argument('--flotherm', help='FloTHERM 可执行文件路径')
     parser.add_argument('--timeout', type=int, default=7200, help='超时时间（秒）')
@@ -203,7 +269,6 @@ def main():
         timeout=args.timeout
     )
 
-    # 返回状态码
     sys.exit(0 if results["success"] else 1)
 
 
