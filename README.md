@@ -2,42 +2,65 @@
 
 用于批量修改 ECXML/Pack 参数、自动求解和生成仿真案例的 Python 脚本。
 
-**支持格式**：`.ecxml` | `.pack` | `.pdml` | `.prj`
+**支持格式**：`.prj` | `.floxml` | `.xml` (FloSCRIPT)
 
 兼容 **FloTHERM 2020.2** 及其他版本。
 
-## ⚠️ 重要发现
+## ⚠️ 调研结论
 
-**无头模式只支持 FloXML 格式！**
+### 命令行参数（官方文档）
 
-```bash
-flotherm -b file.floxml    ✅ 可以直接执行
-flotherm -b file.pack      ❌ 不支持
-flotherm -b file.ecxml     ❌ 不支持
+| 参数 | 功能 | 示例 |
+|-----|------|------|
+| `-batch` | 批处理模式 | `flotherm.exe -batch "project.prj"` |
+| `-nogui` | 无界面模式 | `flotherm.exe -batch "project.prj" -nogui` |
+| `-solve` | 强制求解 | `flotherm.exe -batch "project.prj" -solve` |
+| `-out` | 日志输出 | `flotherm.exe -batch "project.prj" -out "log.txt"` |
+| `-b` | 批处理/无头模式 | `flotherm -b model.floxml` |
+| `-f` | 执行脚本文件 | `flotherm -b -f script.xml` |
+
+### 文件格式支持
+
+| 格式 | 说明 | 批处理命令 |
+|-----|------|----------|
+| **.prj** | 项目文件夹 | ✅ `flotherm -batch "project.prj" -nogui -solve` |
+| **.floxml** | FloXML 模型文件 | ✅ `flotherm -b model.floxml` |
+| **.xml** (FloSCRIPT) | 自动化脚本 | ✅ `flotherm -b -f script.xml` |
+| **.pack** | Pack 打包文件 | ❓ 需要先导入到项目 |
+| **.pdml** | PDML 模型文件 | ❓ 需要先导入到项目 |
+| **.ecxml** | ECXML 格式 | ❓ 需要先导入到项目 |
+
+### FloSCRIPT vs FloXML（重要！）
+
+**这两种 XML 格式完全不同，不能混用！**
+
+| 类型 | 用途 | 执行方式 |
+|-----|------|---------|
+| **FloSCRIPT** | 自动化脚本，包含操作命令 | `flotherm -b -f script.xml` |
+| **FloXML** | 模型数据，包含几何和参数 | `flotherm -b model.floxml` |
+
+**错误示例**：
 ```
-
-**⚠️ 严重问题：FloTHERM GUI 没有 FloXML 导出功能！**
-
+ERROR E/11029 - Failed unknown file type No reader for this file type
 ```
-File → Import → FloXML  ✅ 存在
-File → Export → FloXML  ❌ 不存在！
-```
+这是因为 FloSCRIPT XML 不能通过 FloXML 模块导入。
 
-**可行的替代方案**：
+### 推荐工作流
 
-| 方案 | 说明 | 推荐度 |
-|-----|------|-------|
-| **录制宏** | 在 GUI 中录制操作宏，然后用 `flotherm -b -f macro.xml` 执行 | ⭐⭐⭐ |
-| **使用 PDML** | Pack 内部是 PDML 格式，可尝试直接修改 | ⭐⭐ |
-| **ECXML 导出** | 部分版本支持导出 ECXML（File → Export → ECXML） | ⭐⭐ |
-| **GUI 自动化** | 使用 PyAutoGUI 等工具自动化 GUI 操作 | ⭐ |
+| 场景 | 推荐方案 |
+|-----|---------|
+| **有 .prj 项目文件** | `flotherm -batch "project.prj" -nogui -solve` |
+| **有 .floxml 文件** | `flotherm -b model.floxml` |
+| **有 .pack 文件** | 在 GUI 中录制宏，然后 `flotherm -b -f macro.xml` |
+| **需要修改参数** | 使用 FloSCRIPT 宏或修改 FloXML |
 
 ## 文件说明
 
 | 文件 | 功能 |
 |-----|------|
-| `floscript_runner.py` | **⭐ 推荐使用** - 整合模型 + 录制宏，自动求解 |
-| `pack_to_floxml_converter.py` | **🆕 Pack → FloXML 自动转换器** |
+| `flotherm_batch_solver.py` | **⭐ 推荐使用** - 基于官方文档的批处理求解器 |
+| `floscript_runner.py` | 整合模型 + 录制宏，自动求解 |
+| `pack_to_floxml_converter.py` | Pack → FloXML 自动转换器 |
 | `simple_solver.py` | 简易求解脚本（支持 ECXML/Pack） |
 | `pack_editor.py` | Pack 文件编辑器 |
 | `ecxml_editor.py` | ECXML 文件解析和参数修改 |
