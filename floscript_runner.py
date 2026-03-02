@@ -248,6 +248,78 @@ class FloScriptRunner:
             size /= 1024
         return f"{size:.1f} TB"
 
+    def _extract_from_pack(self, pack_file: str, output_dir: str) -> str:
+        """
+        从 Pack 文件中提取可用的模型文件
+
+        Pack 文件是 ZIP 格式，内部可能包含:
+        - .floxml (FloXML - 可直接执行)
+        - .pdml (PDML - 需要转换)
+        - .prj (项目文件)
+        - group.pdml (主模型文件)
+        """
+        import zipfile
+
+        output_dir = Path(output_dir)
+        extract_dir = output_dir / "extracted"
+        extract_dir.mkdir(parents=True, exist_ok=True)
+
+        print(f"[INFO] 解压 Pack 文件: {pack_file}")
+
+        try:
+            with zipfile.ZipFile(pack_file, 'r') as zf:
+                # 列出所有文件
+                files = zf.namelist()
+                print(f"[INFO] Pack 包含 {len(files)} 个文件")
+
+                # 优先级：FloXML > PDML > PRJ
+                floxml_files = [f for f in files if f.lower().endswith('.floxml')]
+                pdml_files = [f for f in files if f.lower().endswith('.pdml')]
+                prj_files = [f for f in files if f.lower().endswith('.prj')]
+
+                # 解压所有文件
+                zf.extractall(extract_dir)
+
+                # 查找可用的模型文件
+                if floxml_files:
+                    # 找到 FloXML，直接使用
+                    floxml_path = extract_dir / floxml_files[0]
+                    print(f"[INFO] 找到 FloXML: {floxml_files[0]}")
+                    return str(floxml_path)
+
+                elif pdml_files:
+                    # 找到 PDML，可能需要转换
+                    # 优先使用 group.pdml 或 project.pdml
+                    main_pdml = None
+                    for pdml in pdml_files:
+                        if 'group' in pdml.lower() or 'project' in pdml.lower():
+                            main_pdml = extract_dir / pdml
+                            break
+
+                    if main_pdml is None:
+                        main_pdml = extract_dir / pdml_files[0]
+
+                    print(f"[INFO] 找到 PDML: {main_pdml.name}")
+                    print("[WARN] PDML 格式需要转换为 FloXML")
+                    print("[INFO] 请在 FloTHERM GUI 中:")
+                    print("       1. File → Open → 选择解压后的 PDML")
+                    print("       2. File → Export → FloXML")
+                    return None
+
+                elif prj_files:
+                    print(f"[INFO] 找到项目文件: {prj_files[0]}")
+                    print("[WARN] PRJ 格式需要转换为 FloXML")
+                    return None
+
+                else:
+                    print("[WARN] Pack 中未找到可用的模型文件")
+                    print(f"[INFO] Pack 内容: {files[:10]}")
+                    return None
+
+        except Exception as e:
+            print(f"[ERROR] 解压 Pack 失败: {e}")
+            return None
+
     def run_with_macro(self, model_file: str, macro_file: str, output_dir: str,
                        modify_power: dict = None, timeout: int = 7200) -> dict:
         """
@@ -308,14 +380,31 @@ def main():
 
     # 检查文件类型
     if file_type != 'floxml':
-        print(f"\n[WARN] 文件类型: {file_type}")
-        print("[WARN] flotherm -b 只支持 .floxml 格式！")
-        print("[INFO] 请在 FloTHERM GUI 中导出为 FloXML:")
-        print("       1. 打开模型")
-        print("       2. File → Export → FloXML")
-        print("       3. 重新运行本脚本")
+        print(f"\n[INFO] 文件类型: {file_type}")
+        print("[INFO] flotherm -b 直接支持 .floxml 格式")
         print()
-        sys.exit(1)
+
+        if file_type == 'pack':
+            # Pack 文件：提取内部的模型文件
+            print("[INFO] 正在提取 Pack 文件内容...")
+            extracted = runner._extract_from_pack(args.model, args.output)
+            if extracted:
+                print(f"[INFO] 提取成功，找到模型文件")
+                print(f"[INFO] 使用提取的模型继续执行...")
+                args.model = extracted
+            else:
+                print("[WARN] 无法从 Pack 中提取可用模型")
+                print("[INFO] 请在 FloTHERM GUI 中:")
+                print("       1. 打开 Pack 文件")
+                print("       2. File → Export → FloXML")
+                print("       3. 重新运行本脚本")
+                sys.exit(1)
+        else:
+            print("[INFO] 请在 FloTHERM GUI 中导出为 FloXML:")
+            print("       1. 打开模型")
+            print("       2. File → Export → FloXML")
+            print("       3. 重新运行本脚本")
+            sys.exit(1)
 
     # 批量运行
     if args.power_range:
