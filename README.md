@@ -2,7 +2,7 @@
 
 用于批量修改 ECXML/Pack 参数、自动求解和生成仿真案例的 Python 脚本。
 
-**支持格式**：`.prj` | `.floxml` | `.xml` (FloSCRIPT)
+**支持格式**：`.prj` | `.floxml` | `.pdml` | `.xml` (FloSCRIPT)
 
 兼容 **FloTHERM 2020.2** 及其他版本。
 
@@ -27,7 +27,7 @@
 | **.floxml** | FloXML 模型文件 | ✅ `flotherm -b model.floxml` |
 | **.xml** (FloSCRIPT) | 自动化脚本 | ✅ `flotherm -b -f script.xml` |
 | **.pack** | Pack 打包文件 | ❓ 需要先导入到项目 |
-| **.pdml** | PDML 模型文件 | ❓ 需要先导入到项目 |
+| **.pdml** | PDML 模型文件 | ✅ `python flotherm_batch_solver.py model.pdml -o ./results --mode pdml` |
 | **.ecxml** | ECXML 格式 | ❓ 需要先导入到项目 |
 
 ### FloSCRIPT vs FloXML（重要！）
@@ -51,6 +51,7 @@ ERROR E/11029 - Failed unknown file type No reader for this file type
 |-----|---------|
 | **有 .prj 项目文件** | `flotherm -batch "project.prj" -nogui -solve` |
 | **有 .floxml 文件** | `flotherm -b model.floxml` |
+| **有 .pdml 文件** | `python flotherm_batch_solver.py model.pdml -o ./results --mode pdml` |
 | **有 .pack 文件** | 在 GUI 中录制宏，然后 `flotherm -b -f macro.xml` |
 | **需要修改参数** | 使用 FloSCRIPT 宏或修改 FloXML |
 | **多个 Pack 文件** | 使用 `batch_pack_solver.py` 批量处理 |
@@ -321,6 +322,33 @@ python simple_solver.py modified.ecxml -o ./results
 ---
 
 ## 快速开始
+
+### 0.1 PDML 无头求解（新增）
+
+```bash
+# 自动模式：优先尝试 -batch 直跑，失败后自动回退到 FloSCRIPT
+python flotherm_batch_solver.py model.pdml -o ./results --mode pdml
+
+# 指定 FloTHERM 可执行文件
+python flotherm_batch_solver.py model.pdml -o ./results --mode pdml \
+  --flotherm "C:\\Program Files\\Siemens\\SimcenterFlotherm\\2410\\bin\\flotherm.exe"
+
+# 可选：使用自定义 FloSCRIPT 模板（占位符: {pdml_file}, {output_pack}）
+python flotherm_batch_solver.py model.pdml -o ./results --mode pdml \
+  --pdml-macro-template pdml_template.xml
+```
+
+自定义 `pdml_template.xml` 示例：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<FloSCRIPT version="1.0">
+    <Command name="Open" file="{pdml_file}"/>
+    <Command name="Reinitialize"/>
+    <Command name="Solve"/>
+    <Command name="Save" file="{output_pack}"/>
+</FloSCRIPT>
+```
 
 ### 0. 自动求解（使用录制的 FloSCRIPT）
 

@@ -361,12 +361,14 @@ def main():
     parser.add_argument('--power', nargs=2, metavar=('NAME', 'POWER'),
                        action='append', default=[],
                        help='修改功耗 (可多次使用)')
-    parser.add_argument('--power-range', nargs='+',
-                       metavar=('NAME', 'P1', 'P2', ...),
-                       help='批量运行多个功耗点')
+    parser.add_argument('--power-range', nargs='+', metavar='ITEM',
+                       help='批量运行多个功耗点：第一个是组件名，后续是功耗值')
     parser.add_argument('--timeout', type=int, default=7200, help='超时时间（秒）')
 
     args = parser.parse_args()
+
+    if args.power_range and len(args.power_range) < 2:
+        parser.error("--power-range 至少需要 2 个参数：组件名 + 至少 1 个功耗值")
 
     runner = FloScriptRunner(flotherm_path=args.flotherm)
 

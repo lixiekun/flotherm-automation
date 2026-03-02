@@ -8,6 +8,7 @@ FloTHERM 批处理求解器
 1. 项目文件 (.prj) - 使用 -batch 参数
 2. FloXML 文件 (.floxml) - 使用 -b 参数
 3. FloSCRIPT 宏 (.xml) - 使用 -b -f 参数
+4. PDML 文件 (.pdml) - 先尝试 -batch，失败后自动回退到 FloSCRIPT
 
 使用方法:
     # 使用项目文件（推荐）
@@ -31,20 +32,28 @@ import os
 import sys
 import subprocess
 import argparse
-import tempfile
-import shutil
-import zipfile
 from pathlib import Path
 from datetime import datetime
 import xml.etree.ElementTree as ET
+from typing import Optional, Tuple
 
 
 class FlothermBatchSolver:
     """FloTHERM 批处理求解器"""
 
-    def __init__(self, flotherm_path: str = None):
+    DEFAULT_PDML_SCRIPT_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
+<FloSCRIPT version="1.0">
+    <Command name="Open" file="{pdml_file}"/>
+    <Command name="Reinitialize"/>
+    <Command name="Solve"/>
+    <Command name="Save" file="{output_pack}"/>
+</FloSCRIPT>
+"""
+
+    def __init__(self, flotherm_path: str = None, pdml_macro_template: str = None):
         self.flotherm_path = flotherm_path or self._auto_detect_flotherm()
         self.platform = sys.platform
+        self.pdml_macro_template = pdml_macro_template
 
     def _auto_detect_flotherm(self) -> str:
         """自动检测 FloTHERM 路径"""
@@ -88,7 +97,7 @@ class FlothermBatchSolver:
         Args:
             input_file: 输入文件路径
             output_dir: 输出目录
-            mode: 执行模式 (auto, project, floxml, floscript)
+            mode: 执行模式 (auto, project, floxml, floscript, pdml)
             modify_power: 要修改的功耗 {组件名: 功耗值}
             timeout: 超时时间
         """
@@ -114,6 +123,11 @@ class FlothermBatchSolver:
         print(f"  FloTHERM: {self.flotherm_path}")
         print(f"{'='*60}\n")
 
+        if not Path(input_file).exists():
+            print(f"[ERROR] 输入文件不存在: {input_file}")
+            results["error"] = f"输入文件不存在: {input_file}"
+            return results
+
         # 根据文件类型选择执行方式
         if mode == 'auto':
             if file_type == 'project':
@@ -122,9 +136,11 @@ class FlothermBatchSolver:
                 mode = 'floxml'
             elif file_type == 'floscript':
                 mode = 'floscript'
+            elif file_type == 'pdml':
+                mode = 'pdml'
             else:
                 print(f"[ERROR] 不支持的文件类型: {file_type}")
-                print("[INFO] 支持的格式: .prj, .floxml, .xml (FloSCRIPT)")
+                print("[INFO] 支持的格式: .prj, .floxml, .pdml, .xml (FloSCRIPT)")
                 results["error"] = f"不支持的文件类型: {file_type}"
                 return results
 
@@ -135,6 +151,8 @@ class FlothermBatchSolver:
             success = self._solve_floxml(input_file, output_dir, modify_power, timeout)
         elif mode == 'floscript':
             success = self._solve_floscript(input_file, output_dir, timeout)
+        elif mode == 'pdml':
+            success = self._solve_pdml(input_file, output_dir, timeout)
         else:
             print(f"[ERROR] 未知模式: {mode}")
             results["error"] = f"未知模式: {mode}"
@@ -173,11 +191,14 @@ class FlothermBatchSolver:
             "-out", str(log_file)
         ]
 
-        print(f"[INFO] 执行命令:")
-        print(f"       {' '.join(cmd)}")
-        print()
-
-        return self._run_command(cmd, output_dir, log_file, timeout)
+        success, _ = self._run_command(
+            cmd=cmd,
+            output_dir=output_dir,
+            log_file=log_file,
+            timeout=timeout,
+            label="Project Batch"
+        )
+        return success
 
     def _solve_floxml(self, floxml_file: str, output_dir: str,
                       modify_power: dict, timeout: int) -> bool:
@@ -208,11 +229,14 @@ class FlothermBatchSolver:
             "-b", str(actual_model)
         ]
 
-        print(f"[INFO] 执行命令:")
-        print(f"       {' '.join(cmd)}")
-        print()
-
-        return self._run_command(cmd, output_dir, log_file, timeout)
+        success, _ = self._run_command(
+            cmd=cmd,
+            output_dir=output_dir,
+            log_file=log_file,
+            timeout=timeout,
+            label="FloXML Batch"
+        )
+        return success
 
     def _solve_floscript(self, script_file: str, output_dir: str, timeout: int) -> bool:
         """
@@ -229,14 +253,97 @@ class FlothermBatchSolver:
             "-f", str(script_file)
         ]
 
-        print(f"[INFO] 执行 FloSCRIPT 宏:")
+        success, _ = self._run_command(
+            cmd=cmd,
+            output_dir=output_dir,
+            log_file=log_file,
+            timeout=timeout,
+            label="FloSCRIPT Batch"
+        )
+        return success
+
+    def _solve_pdml(self, pdml_file: str, output_dir: str, timeout: int) -> bool:
+        """
+        使用 PDML 文件无头求解。
+
+        策略:
+        1) 先尝试 -batch 直跑
+        2) 失败则自动回退到 FloSCRIPT
+        """
+        log_file = Path(output_dir) / "simulation.log"
+        pdml_path = Path(pdml_file).resolve()
+
+        direct_cmd = [
+            self.flotherm_path,
+            "-batch", str(pdml_path),
+            "-nogui",
+            "-solve",
+            "-out", str(log_file)
+        ]
+
+        direct_success, direct_return_code = self._run_command(
+            cmd=direct_cmd,
+            output_dir=output_dir,
+            log_file=log_file,
+            timeout=timeout,
+            label="PDML Direct Batch"
+        )
+        if direct_success:
+            return True
+
+        print(f"[WARN] PDML 直跑失败 (return_code={direct_return_code})，回退到 FloSCRIPT 模式")
+        fallback_log = Path(output_dir) / "simulation_floscript.log"
+        fallback_script = self._create_pdml_floscript(pdml_path, output_dir)
+        fallback_cmd = [
+            self.flotherm_path,
+            "-b",
+            "-f", str(fallback_script)
+        ]
+        fallback_success, _ = self._run_command(
+            cmd=fallback_cmd,
+            output_dir=output_dir,
+            log_file=fallback_log,
+            timeout=timeout,
+            label="PDML FloSCRIPT Fallback"
+        )
+        return fallback_success
+
+    def _create_pdml_floscript(self, pdml_path: Path, output_dir: Path) -> Path:
+        """生成用于 PDML 的 FloSCRIPT 脚本。"""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_pack = (output_dir / f"{pdml_path.stem}_solved.pack").resolve()
+
+        if self.pdml_macro_template:
+            template_path = Path(self.pdml_macro_template).expanduser().resolve()
+            if not template_path.exists():
+                raise FileNotFoundError(f"PDML 宏模板不存在: {template_path}")
+            template = template_path.read_text(encoding="utf-8")
+        else:
+            template = self.DEFAULT_PDML_SCRIPT_TEMPLATE
+
+        script_content = template.format(
+            pdml_file=str(pdml_path).replace("\\", "/"),
+            output_pack=str(output_pack).replace("\\", "/")
+        )
+
+        script_path = output_dir / "pdml_solve.xml"
+        script_path.write_text(script_content, encoding="utf-8")
+        print(f"[INFO] 已生成 PDML FloSCRIPT: {script_path}")
+        return script_path
+
+    def _run_command(
+        self,
+        cmd: list,
+        output_dir: str,
+        log_file: Path,
+        timeout: int,
+        label: str
+    ) -> Tuple[bool, Optional[int]]:
+        """执行命令并捕获输出（含超时控制）。"""
+        print(f"[INFO] {label} 执行命令:")
         print(f"       {' '.join(cmd)}")
         print()
-
-        return self._run_command(cmd, output_dir, log_file, timeout)
-
-    def _run_command(self, cmd: list, output_dir: str, log_file: Path, timeout: int) -> bool:
-        """执行命令并捕获输出"""
         try:
             # Windows 上隐藏窗口
             startupinfo = None
@@ -258,39 +365,43 @@ class FlothermBatchSolver:
                 creationflags=creationflags
             )
 
-            # 实时输出
-            print("-" * 60)
-            print("  实时日志")
-            print("-" * 60)
+            try:
+                stdout, _ = process.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                stdout, _ = process.communicate()
+                with open(log_file, 'w', encoding='utf-8') as log_f:
+                    log_f.write(stdout or "")
+                print(f"\n[ERROR] 求解超时 ({timeout} 秒)")
+                print(f"[INFO] 日志已写入: {log_file}")
+                return False, None
 
             with open(log_file, 'w', encoding='utf-8') as log_f:
-                while True:
-                    line = process.stdout.readline()
-                    if not line and process.poll() is not None:
-                        break
-                    if line:
-                        line = line.rstrip()
-                        print(f"  {line}")
-                        log_f.write(line + '\n')
-                        log_f.flush()
+                log_f.write(stdout or "")
 
-            return_code = process.poll()
+            if stdout:
+                print("-" * 60)
+                print("  命令输出（节选）")
+                print("-" * 60)
+                lines = stdout.splitlines()
+                preview = lines[-120:] if len(lines) > 120 else lines
+                for line in preview:
+                    print(f"  {line}")
+
+            return_code = process.returncode
             print("-" * 60)
             print(f"\n[INFO] 进程返回码: {return_code}")
+            print(f"[INFO] 日志文件: {log_file}")
 
-            return return_code == 0
+            return return_code == 0, return_code
 
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             print(f"\n[ERROR] 找不到 FloTHERM: {self.flotherm_path}")
-            return False
-
-        except subprocess.TimeoutExpired:
-            print(f"\n[ERROR] 求解超时 ({timeout} 秒)")
-            return False
+            return False, None
 
         except Exception as e:
             print(f"\n[ERROR] 运行错误: {e}")
-            return False
+            return False, None
 
     def _modify_floxml_power(self, floxml_file: str, output_file: str,
                              power_map: dict) -> str:
@@ -389,6 +500,9 @@ def main():
   # 使用 FloXML
   python flotherm_batch_solver.py model.floxml -o ./results
 
+  # 使用 PDML（无头）
+  python flotherm_batch_solver.py model.pdml -o ./results --mode pdml
+
   # 使用 FloSCRIPT 宏
   python flotherm_batch_solver.py macro.xml --mode floscript -o ./results
 
@@ -401,26 +515,34 @@ def main():
 命令行参数参考:
   flotherm.exe -batch "project.prj" -nogui -solve -out "log.txt"
   flotherm -b model.floxml
+  flotherm.exe -batch "model.pdml" -nogui -solve -out "log.txt"
   flotherm -b -f script.xml
         '''
     )
 
-    parser.add_argument('input', help='输入文件 (.prj, .floxml, .xml)')
+    parser.add_argument('input', help='输入文件 (.prj, .floxml, .pdml, .xml)')
     parser.add_argument('-o', '--output', required=True, help='输出目录')
     parser.add_argument('--flotherm', help='FloTHERM 可执行文件路径')
-    parser.add_argument('--mode', choices=['auto', 'project', 'floxml', 'floscript'],
+    parser.add_argument('--mode', choices=['auto', 'project', 'floxml', 'floscript', 'pdml'],
                        default='auto', help='执行模式')
     parser.add_argument('--power', nargs=2, metavar=('NAME', 'POWER'),
                        action='append', default=[],
                        help='修改功耗 (可多次使用)')
-    parser.add_argument('--power-range', nargs='+',
-                       metavar=('NAME', 'P1', 'P2', ...),
-                       help='批量运行多个功耗点')
+    parser.add_argument('--power-range', nargs='+', metavar='ITEM',
+                       help='批量运行多个功耗点：第一个是组件名，后续是功耗值')
+    parser.add_argument('--pdml-macro-template',
+                       help='PDML 回退 FloSCRIPT 模板路径（占位符: {pdml_file}, {output_pack}）')
     parser.add_argument('--timeout', type=int, default=7200, help='超时时间（秒）')
 
     args = parser.parse_args()
 
-    solver = FlothermBatchSolver(flotherm_path=args.flotherm)
+    if args.power_range and len(args.power_range) < 2:
+        parser.error("--power-range 至少需要 2 个参数：组件名 + 至少 1 个功耗值")
+
+    solver = FlothermBatchSolver(
+        flotherm_path=args.flotherm,
+        pdml_macro_template=args.pdml_macro_template
+    )
 
     # 处理功耗修改
     power_map = {}
@@ -432,22 +554,25 @@ def main():
     if args.power_range:
         comp_name = args.power_range[0]
         powers = [float(p) for p in args.power_range[1:]]
-        solver.batch_solve(
+        batch_results = solver.batch_solve(
             input_file=args.input,
             component=comp_name,
             powers=powers,
             output_dir=args.output,
             timeout=args.timeout
         )
+        all_success = all(r.get("success", False) for r in batch_results)
+        sys.exit(0 if all_success else 1)
     else:
         # 单次运行
-        solver.solve(
+        result = solver.solve(
             input_file=args.input,
             output_dir=args.output,
             mode=args.mode,
             modify_power=power_map if power_map else None,
             timeout=args.timeout
         )
+        sys.exit(0 if result.get("success") else 1)
 
 
 if __name__ == '__main__':
