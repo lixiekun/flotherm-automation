@@ -32,6 +32,7 @@ File → Export → FloXML → 保存为 model.floxml
 | 文件 | 功能 |
 |-----|------|
 | `floscript_runner.py` | **⭐ 推荐使用** - 整合模型 + 录制宏，自动求解 |
+| `pack_to_floxml_converter.py` | **🆕 Pack → FloXML 自动转换器** |
 | `simple_solver.py` | 简易求解脚本（支持 ECXML/Pack） |
 | `pack_editor.py` | Pack 文件编辑器 |
 | `ecxml_editor.py` | ECXML 文件解析和参数修改 |
@@ -81,6 +82,64 @@ python create_floscript_guide.py --list-examples
 # 创建基本模板
 python create_floscript_guide.py --create-template template.xml
 ```
+
+---
+
+## 🆕 Pack 到 FloXML 自动转换
+
+由于 `flotherm -b` 只支持 FloXML 格式，Pack 文件需要先转换为 FloXML。
+
+### 快速转换
+
+```bash
+# 单文件转换（自动尝试所有方法）
+python pack_to_floxml_converter.py model.pack -o output.floxml
+
+# 批量转换
+python pack_to_floxml_converter.py *.pack --batch ./floxml_output/
+
+# 仅显示手动转换指南
+python pack_to_floxml_converter.py model.pack -o output.floxml --method guide
+```
+
+### 转换方法
+
+| 方法 | 平台 | 说明 |
+|-----|------|------|
+| `auto` | 全部 | 自动尝试所有可用方法 |
+| `cli` | 全部 | 尝试命令行参数转换 |
+| `com` | Windows | 使用 COM 自动化控制 GUI |
+| `applescript` | macOS | 使用 AppleScript 控制应用 |
+| `guide` | 全部 | 显示手动转换指南 |
+
+### 批量转换工作流
+
+```bash
+# 1. 生成批量转换脚本
+python pack_to_floxml_converter.py *.pack --batch ./floxml_output/
+
+# 2. 运行生成的辅助脚本（会依次打开每个 Pack 文件）
+python ./floxml_output/batch_convert_helper.py
+
+# 3. 在 GUI 中导出每个文件为 FloXML
+
+# 4. 使用 floscript_runner.py 进行自动化求解
+python floscript_runner.py ./floxml_output/model.floxml -o ./results
+```
+
+### Windows COM 自动化
+
+如果你在 Windows 上安装了 `pywin32`，可以尝试 COM 自动化：
+
+```bash
+# 安装 pywin32
+pip install pywin32
+
+# 使用 COM 方法转换
+python pack_to_floxml_converter.py model.pack -o output.floxml --method com
+```
+
+**注意**: COM 自动化需要 FloTHERM 正确注册 COM 组件，不同版本可能有所不同。
 
 ---
 
