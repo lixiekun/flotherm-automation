@@ -3,25 +3,27 @@
 FloTHERM 求解脚本
 支持多种输入格式和求解模式
 
-模式说明：
-1. FloSCRIPT 模式（推荐，无头）
-   - 使用 -b 参数执行 FloSCRIPT XML
-   - 完全无头，无 GUI 弹出
-   - 需要先生成 FloSCRIPT XML 文件
-
-2. 批处理模式
-   - 使用 -batch 参数
-   - 可能会弹出 GUI
+重要说明：
+FloSCRIPT XML 和 FloXML 是两种完全不同的格式！
+- FloSCRIPT XML: 用于自动化脚本，通过 flotherm -b -f script.xml 执行
+- FloXML: 用于导入模型，格式完全不同
 
 使用方法:
-    # FloSCRIPT 模式（无头）
-    python simple_solver.py model.ecxml -o ./results --floscript
+    # 方法1: 使用已有的 FloSCRIPT XML 文件（推荐）
+    python simple_solver.py script.xml -o ./results --mode floscript
 
-    # 批处理模式
+    # 方法2: 批处理模式（使用 .pack 或 .prj 文件）
     python simple_solver.py model.pack -o ./results
 
-    # 使用已有的 FloSCRIPT XML
-    python simple_solver.py script.xml -o ./results --mode floscript
+    # 方法3: 使用宏录制
+    # 1. 在 FloTHERM GUI 中打开模型
+    # 2. 使用 Macro -> Record 录制操作
+    # 3. 保存录制的 .xml 文件
+    # 4. 使用 flotherm -b -f recorded.xml 执行
+
+官方示例位置（FloTHERM 2020.2）:
+    C:\\Program Files\\Siemens\\SimcenterFlotherm\\2020.2\\examples\\FloSCRIPT\\
+    C:\\Program Files\\Siemens\\SimcenterFlotherm\\2020.2\\docs\\Schema-Documentation\\FloSCRIPT\\
 """
 
 import os
@@ -272,14 +274,18 @@ class SimpleFloTHERMSolver:
 
         if mode == 'floscript':
             # FloSCRIPT 模式（无头）
-            # flotherm -b script.xml
+            # 使用 -b -f 参数执行 FloSCRIPT XML
+            # 参考: flotherm -b -f script.xml
             return [
                 self.flotherm_path,
                 "-b",
+                "-f",
                 str(input_file)
             ]
         else:
             # 批处理模式
+            # 注意：-nogui 参数可能不会完全禁用 GUI
+            # 对于真正的无头模式，建议使用 FloSCRIPT
             return [
                 self.flotherm_path,
                 "-batch", str(input_file),
@@ -289,39 +295,63 @@ class SimpleFloTHERMSolver:
             ]
 
     def _create_floscript(self, input_file: str, output_file: str, output_dir: Path):
-        """创建 FloSCRIPT XML 文件"""
+        """
+        创建 FloSCRIPT XML 文件
 
-        # FloSCRIPT XML 结构
+        警告: 自动生成的 FloSCRIPT XML 可能不被 FloTHERM 识别！
+        FloSCRIPT 有严格的 Schema 定义，建议使用以下方法：
+
+        方法1: 录制宏（推荐）
+        1. 在 FloTHERM GUI 中打开你的模型
+        2. 菜单 Tools -> Macro -> Record
+        3. 执行你想要的操作（Reinitialize, Solve 等）
+        4. 停止录制并保存 .xml 文件
+        5. 使用 flotherm -b -f your_macro.xml 执行
+
+        方法2: 参考官方示例
+        位置: FloTHERM安装目录\\examples\\FloSCRIPT\\
+        """
+
+        print("[WARN] 自动生成 FloSCRIPT XML 可能不被识别！")
+        print("[INFO] 建议使用 GUI 录制宏或参考官方示例")
+        print()
+
+        # 尝试创建简单的 FloSCRIPT（基于官方 Schema）
+        # 注意：这是基于有限信息的尝试，可能需要调整
         floscript = ET.Element("FloSCRIPT")
-        floscript.set("version", "2.0")
+        floscript.set("version", "1.0")
 
-        # 日志设置
-        log_elem = ET.SubElement(floscript, "xml_log_file")
-        log_elem.set("path", str(output_dir / "flotherm.log"))
+        # 添加注释
+        comment = ET.Comment("""
+            警告：此文件是自动生成的，可能不符合 FloTHERM Schema！
+            如果执行失败，请使用以下方法：
+            1. 在 FloTHERM GUI 中录制宏
+            2. 参考官方示例目录中的 .xml 文件
+            官方示例位置: FloTHERM安装目录\\examples\\FloSCRIPT\\
+        """)
+        floscript.append(comment)
 
-        # 导入模型
-        import_elem = ET.SubElement(floscript, "Import")
-        import_elem.set("type", "ECXML")
-        import_elem.set("path", os.path.abspath(input_file))
+        # 尝试基本的命令结构
+        # 注意：实际结构需要参考官方 Schema 文档
+        commands = ET.SubElement(floscript, "Commands")
 
-        # 重新初始化
-        reinit_elem = ET.SubElement(floscript, "Command")
-        reinit_elem.set("name", "Reinitialize")
+        # Load 命令
+        load_cmd = ET.SubElement(commands, "Command")
+        load_cmd.set("name", "Load")
+        load_cmd.set("file", os.path.abspath(input_file))
 
-        # 求解
-        solve_elem = ET.SubElement(floscript, "Command")
-        solve_elem.set("name", "Solve")
-        solve_elem.set("wait", "true")
+        # Reinitialize 命令
+        reinit_cmd = ET.SubElement(commands, "Command")
+        reinit_cmd.set("name", "Reinitialize")
 
-        # 导出结果
-        export_temp = ET.SubElement(floscript, "Export")
-        export_temp.set("type", "Temperature")
-        export_temp.set("format", "CSV")
-        export_temp.set("path", str(output_dir / "temperature_results.csv"))
+        # Solve 命令
+        solve_cmd = ET.SubElement(commands, "Command")
+        solve_cmd.set("name", "Solve")
 
-        # 保存项目
-        save_elem = ET.SubElement(floscript, "SaveProject")
-        save_elem.set("path", str(output_dir / "solved_project.pack"))
+        # Save 命令
+        save_cmd = ET.SubElement(commands, "Command")
+        save_cmd.set("name", "Save")
+        save_cmd.set("file", str(output_dir / "solved_project.pack"))
 
         # 格式化并保存
         self._indent(floscript)

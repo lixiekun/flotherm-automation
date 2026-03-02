@@ -6,6 +6,18 @@
 
 兼容 **FloTHERM 2020.2** 及其他版本。
 
+## ⚠️ 重要说明
+
+**FloSCRIPT XML 和 FloXML 是两种完全不同的格式！**
+
+| 格式 | 用途 | 使用方式 |
+|-----|------|---------|
+| **FloSCRIPT XML** | 自动化脚本 | `flotherm -b -f script.xml` |
+| **FloXML** | 导入模型 | GUI 中 File → Import |
+| **ECXML** | 行业标准模型交换 | JEDEC JEP181 格式 |
+
+如果遇到错误 `Failed unknown file type No reader for this file type`，说明 XML 格式不正确。请使用 **GUI 录制宏** 的方式获取正确的 FloSCRIPT XML。
+
 ## 文件说明
 
 | 文件 | 功能 |
@@ -19,7 +31,57 @@
 
 ---
 
+## 如何创建正确的 FloSCRIPT XML
+
+### 方法1: 在 FloTHERM GUI 中录制宏（推荐）
+
+1. 启动 FloTHERM GUI
+2. 打开你的模型（.pack 或 .prj 文件）
+3. 菜单 **Tools → Macro → Record...**
+4. 执行你想要的操作：
+   - Model → Reinitialize（重新初始化）
+   - Model → Solve（求解）
+   - File → Save As...（保存结果）
+5. 菜单 **Tools → Macro → Stop Recording**
+6. 测试录制的宏：
+   ```bash
+   flotherm -b -f recorded_macro.xml
+   ```
+
+### 方法2: 使用官方示例
+
+官方示例位置：
+```
+# FloTHERM 2020.2
+C:\Program Files\Siemens\SimcenterFlotherm\2020.2\examples\FloSCRIPT\
+
+# Schema 文档
+C:\Program Files\Siemens\SimcenterFlotherm\2020.2\docs\Schema-Documentation\FloSCRIPT\
+```
+
+### 方法3: 使用辅助脚本
+
+```bash
+# 显示 GUI 录制步骤
+python create_floscript_guide.py --show-gui-steps
+
+# 列出官方示例位置
+python create_floscript_guide.py --list-examples
+
+# 创建基本模板
+python create_floscript_guide.py --create-template template.xml
+```
+
+---
+
 ## 快速开始
+
+### 0. 自动求解（使用录制的 FloSCRIPT）
+
+```bash
+# 使用录制的 FloSCRIPT XML（推荐，真正无头）
+python simple_solver.py recorded_macro.xml -o ./results --mode floscript
+```
 
 ### 1. 自动求解（最常用）
 
