@@ -53,12 +53,14 @@ ERROR E/11029 - Failed unknown file type No reader for this file type
 | **有 .floxml 文件** | `flotherm -b model.floxml` |
 | **有 .pack 文件** | 在 GUI 中录制宏，然后 `flotherm -b -f macro.xml` |
 | **需要修改参数** | 使用 FloSCRIPT 宏或修改 FloXML |
+| **多个 Pack 文件** | 使用 `batch_pack_solver.py` 批量处理 |
 
 ## 文件说明
 
 | 文件 | 功能 |
 |-----|------|
 | `flotherm_batch_solver.py` | **⭐ 推荐使用** - 基于官方文档的批处理求解器 |
+| `batch_pack_solver.py` | **🆕 批量 Pack 文件求解器** |
 | `floscript_runner.py` | 整合模型 + 录制宏，自动求解 |
 | `pack_to_floxml_converter.py` | Pack → FloXML 自动转换器 |
 | `simple_solver.py` | 简易求解脚本（支持 ECXML/Pack） |
@@ -67,6 +69,93 @@ ERROR E/11029 - Failed unknown file type No reader for this file type
 | `batch_simulation.py` | 批量仿真案例生成器 |
 | `create_floscript_guide.py` | FloSCRIPT 创建指南 |
 | `power_config.json` | 功耗配置示例 |
+
+---
+
+## 🆕 批量处理多个 Pack 文件
+
+### 问题：宏录制需要先打开文件，如何批量处理？
+
+**解决方案**：用 Python 动态生成 FloSCRIPT XML，替换文件路径
+
+### 使用方法
+
+```bash
+# 批量处理多个 Pack 文件
+python batch_pack_solver.py pack1.pack pack2.pack pack3.pack -o ./results
+
+# 使用通配符
+python batch_pack_solver.py *.pack -o ./results
+
+# 并行执行（Windows）
+python batch_pack_solver.py *.pack -o ./results --parallel 4
+
+# 使用自定义宏模板
+python batch_pack_solver.py *.pack -o ./results --template my_macro.xml
+```
+
+### 工作原理
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Step 1: 准备 FloSCRIPT 模板                                │
+│  ─────────────────────────────────────────────────────────  │
+│  <?xml version="1.0" encoding="UTF-8"?>                     │
+│  <FloSCRIPT version="1.0">                                  │
+│      <Command name="Open" file="{pack_file}"/>              │
+│      <Command name="Reinitialize"/>                         │
+│      <Command name="Solve"/>                                │
+│      <Command name="Save" file="{output_file}"/>            │
+│  </FloSCRIPT>                                               │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  Step 2: Python 为每个 Pack 文件生成 FloSCRIPT              │
+│  ─────────────────────────────────────────────────────────  │
+│  floscript_model1.xml  →  打开 model1.pack → 求解 → 保存    │
+│  floscript_model2.xml  →  打开 model2.pack → 求解 → 保存    │
+│  floscript_model3.xml  →  打开 model3.pack → 求解 → 保存    │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  Step 3: 批量执行                                           │
+│  ─────────────────────────────────────────────────────────  │
+│  flotherm -b -f floscript_model1.xml                        │
+│  flotherm -b -f floscript_model2.xml                        │
+│  flotherm -b -f floscript_model3.xml                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 自定义宏模板
+
+你可以录制一个宏作为模板，确保包含占位符：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<FloSCRIPT version="1.0">
+    <!-- {pack_file} 会被替换为实际 Pack 文件路径 -->
+    <Command name="Open" file="{pack_file}"/>
+    <Command name="Reinitialize"/>
+    <Command name="Solve"/>
+    <!-- {output_file} 会被替换为输出文件路径 -->
+    <Command name="Save" file="{output_file}"/>
+</FloSCRIPT>
+```
+
+### 输出目录结构
+
+```
+./results/
+├── batch_report.txt           # 批量处理报告
+├── model1/
+│   ├── floscript_model1.xml   # 生成的 FloSCRIPT
+│   ├── simulation.log         # 求解日志
+│   └── model1_solved.pack     # 求解后的模型
+├── model2/
+│   └── ...
+└── model3/
+    └── ...
+```
 
 ---
 
