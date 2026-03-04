@@ -122,7 +122,7 @@ python batch_pack_solver.py pack1.pack pack2.pack pack3.pack -o ./macros
 
 ```bash
 # 单文件求解
-flotherm -b model.ecxml -z output.pack
+flotherm -b model.ecxml -z output.pack -r report.html
 
 # 批量求解（Python 脚本）
 python batch_ecxml_solver.py ./input_folder -o ./output_folder
@@ -134,27 +134,101 @@ python batch_ecxml_solver.py ./input -o ./output --flotherm "C:\Program Files\Si
 python batch_ecxml_solver.py ./input -o ./output --dry-run
 ```
 
-**输出示例**：
+#### 流程图
+
+```mermaid
+flowchart TB
+    subgraph Init["🚀 初始化阶段"]
+        A[开始] --> B[解析命令行参数]
+        B --> C[查找 FloTHERM 可执行文件]
+        C --> D{找到 FloTHERM?}
+        D -->|否| E[❌ 报错退出]
+        D -->|是| F[扫描输入文件夹]
+        F --> G{找到 ECXML 文件?}
+        G -->|否| H[❌ 报错退出]
+        G -->|是| I[创建输出子文件夹<br/>batch_时间戳]
+    end
+
+    subgraph Prepare["📋 准备阶段"]
+        I --> J[显示待处理文件列表]
+        J --> K{dry-run 模式?}
+        K -->|是| L[🔍 显示列表后退出]
+    end
+
+    subgraph Solve["⚙️ 求解阶段"]
+        K -->|否| M[初始化结果列表]
+        M --> N[遍历 ECXML 文件]
+        N --> O[生成输出路径<br/>model.pack + model_report.html]
+        O --> P[启动加载动画]
+        P --> Q[启动日志监控<br/>floerror.log]
+        Q --> R[执行 FloTHERM 命令]
+        R --> S["flotherm -b model.ecxml<br/>-z output.pack<br/>-r report.html"]
+        S --> T[停止动画和监控]
+        T --> U{求解成功?}
+        U -->|是| V[✅ 记录成功结果]
+        U -->|否| W[❌ 记录失败原因]
+        V --> X{还有文件?}
+        W --> X
+        X -->|是| N
+    end
+
+    subgraph Report["📊 报告阶段"]
+        X -->|否| Y[打印批量求解总结]
+        Y --> Z[生成 batch_report.txt]
+        Z --> AA[输出目录结构]
+        AA --> AB[✅ 结束]
+    end
+
+    style A fill:#e1f5fe
+    style AB fill:#c8e6c9
+    style E fill:#ffcdd2
+    style H fill:#ffcdd2
+    style L fill:#fff9c4
+    style S fill:#f3e5f5
+    style V fill:#c8e6c9
+    style W fill:#ffcdd2
+```
+
+#### 输出目录结构
+
+```
+output_folder/
+└── batch_20260304_153045/          # 带时间戳的子文件夹
+    ├── model1.pack                 # 求解结果
+    ├── model1_report.html          # HTML 求解报告
+    ├── model2.pack
+    ├── model2_report.html
+    ├── ...
+    └── batch_report.txt            # 批量求解总结报告
+```
+
+#### 输出示例
+
 ```
 ============================================================
   [1/5] 正在求解: model1.ecxml
 ============================================================
   输入: ./input/model1.ecxml
-  输出: ./output/model1_20260304_153045.pack
+  输出: ./output/batch_20260304_153045/model1.pack
   开始时间: 2026-03-04 15:30:45
+  (命令行会等待求解完成，请勿关闭)
 
-  ⏳ 求解中，请耐心等待...
-  (FloTHERM 会打开 GUI 窗口，求解完成后自动关闭)
+  ⠋ 求解中... 15秒
+    📋 Solving iteration 150...
+    📋 Convergence: 0.00123
 
   ✅ 求解完成!
      耗时: 125.3 秒
      文件大小: 15.23 MB
 ```
 
-**注意事项**：
-- 会打开 GUI 窗口，求解完成后自动关闭
-- 输出文件自动添加时间戳，避免覆盖
-- 生成详细的批处理报告
+#### 命令参数说明
+
+| 参数 | 说明 |
+|-----|------|
+| `-b` | 批处理模式 |
+| `-z` | 指定输出 PACK 文件路径 |
+| `-r` | 指定输出 HTML 报告路径 |
 
 ### 1. Pack 文件操作
 
