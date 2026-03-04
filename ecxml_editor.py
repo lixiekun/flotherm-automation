@@ -104,9 +104,12 @@ class ECXMLParser:
         try:
             name = elem.get('name', elem.get('Name', 'Unknown'))
 
-            # 查找功耗（根据实际结构调整）
+            # 查找功耗 (powerDissipation 是 JEDEC JEP181 标准字段)
             power = 0.0
-            power_elem = elem.find('.//Power') or elem.find('.//power')
+            power_elem = (elem.find('.//powerDissipation') or
+                          elem.find('.//PowerDissipation') or
+                          elem.find('.//Power') or
+                          elem.find('.//power'))
             if power_elem is not None and power_elem.text:
                 power = float(power_elem.text)
 
@@ -153,8 +156,11 @@ class ECXMLParser:
             print(f"未找到器件: {component_name}")
             return False
 
-        # 查找并设置功耗元素
-        power_elem = elem.find('.//Power') or elem.find('.//power')
+        # 查找并设置功耗元素 (powerDissipation 是 JEDEC JEP181 标准字段)
+        power_elem = (elem.find('.//powerDissipation') or
+                      elem.find('.//PowerDissipation') or
+                      elem.find('.//Power') or
+                      elem.find('.//power'))
         if power_elem is not None:
             power_elem.text = str(power)
             return True
@@ -260,8 +266,8 @@ class ECXMLParser:
             for attr in elem.attrib:
                 stats["attributes"][attr] = stats["attributes"].get(attr, 0) + 1
 
-            # 查找功耗相关
-            if any(kw in tag.lower() for kw in ['power', 'heat', 'source']):
+            # 查找功耗相关 (powerDissipation 是 JEDEC JEP181 标准字段)
+            if any(kw in tag.lower() for kw in ['power', 'dissipation']):
                 stats["power_related"].append({
                     "tag": tag,
                     "name": elem.get('name', elem.get('Name', '')),
