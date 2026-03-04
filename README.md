@@ -256,31 +256,6 @@ python batch_simulation.py template.ecxml \
 
 ---
 
-## 官方文档位置
-
-FloSCRIPT 相关文档在 FloTHERM 安装目录中：
-
-```
-# 示例脚本
-C:\Program Files\Siemens\SimcenterFlotherm\2020.2\examples\FloSCRIPT\
-
-# Schema 文档
-C:\Program Files\Siemens\SimcenterFlotherm\2020.2\docs\Schema-Documentation\FloSCRIPT\
-```
-
----
-
-## 学习资源
-
-| 资源 | 说明 | 链接 |
-|-----|------|------|
-| **热设计网** | 国内 Flotherm 教程和经验分享 | [resheji.com](https://www.resheji.com) |
-| **Siemens 社区** | 官方技术文章 | [community.sw.siemens.com](https://community.sw.siemens.com) |
-
-**QQ 交流群**：热设计网 319322744
-
----
-
 ## 总结
 
 **FloTHERM 2020.2 自动化现状**：
