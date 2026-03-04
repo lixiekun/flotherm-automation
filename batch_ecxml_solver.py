@@ -268,8 +268,10 @@ def main():
 
     print(f"✅ 找到 {len(ecxml_files)} 个 ECXML 文件")
 
-    # 创建输出文件夹
-    output_folder = Path(args.output)
+    # 创建输出文件夹（带时间戳的子文件夹）
+    base_output = Path(args.output)
+    batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_folder = base_output / f"batch_{batch_timestamp}"
     output_folder.mkdir(parents=True, exist_ok=True)
     print(f"✅ 输出文件夹: {output_folder}")
 
@@ -292,10 +294,9 @@ def main():
     total_start_time = time.time()
 
     for i, ecxml_path in enumerate(ecxml_files, 1):
-        # 生成输出文件名（带时间戳）
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # 生成输出文件名（不带时间戳，因为文件夹已有时间戳）
         base_name = ecxml_path.stem  # 不含扩展名的文件名
-        output_pack_name = f"{base_name}_{timestamp}.pack"
+        output_pack_name = f"{base_name}.pack"
         output_pack_path = output_folder / output_pack_name
 
         # 求解
@@ -339,7 +340,7 @@ def main():
         print(f"  {status:<6} {elapsed_str:<10} {filename:<40}")
 
     # 保存报告
-    report_path = output_folder / f"batch_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    report_path = output_folder / "batch_report.txt"
     with open(report_path, "w", encoding="utf-8") as f:
         f.write("FloTHERM ECXML 批量求解报告\n")
         f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
