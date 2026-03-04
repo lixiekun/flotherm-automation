@@ -19,8 +19,49 @@ import glob
 import subprocess
 import argparse
 import time
+import threading
 from datetime import datetime
 from pathlib import Path
+
+
+class LoadingAnimation:
+    """加载动画类"""
+
+    def __init__(self):
+        self.running = False
+        self.thread = None
+        self.start_time = None
+        # 动画帧：旋转光标
+        self.frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+
+    def _animate(self):
+        """动画循环"""
+        idx = 0
+        while self.running:
+            elapsed = time.time() - self.start_time
+            frame = self.frames[idx % len(self.frames)]
+            # 打印动画帧，显示已用时间
+            sys.stdout.write(f"\r  {frame} 求解中... {elapsed:.0f}秒 ")
+            sys.stdout.flush()
+            time.sleep(0.1)
+            idx += 1
+        # 清除动画行
+        sys.stdout.write("\r" + " " * 40 + "\r")
+        sys.stdout.flush()
+
+    def start(self):
+        """开始动画"""
+        self.running = True
+        self.start_time = time.time()
+        self.thread = threading.Thread(target=self._animate)
+        self.thread.daemon = True
+        self.thread.start()
+
+    def stop(self):
+        """停止动画"""
+        self.running = False
+        if self.thread:
+            self.thread.join(timeout=0.5)
 
 
 def find_ecxml_files(input_folder):
@@ -101,8 +142,7 @@ def solve_ecxml(flotherm_exe, ecxml_path, output_pack_path, index, total):
     print(f"  输入: {ecxml_path}")
     print(f"  输出: {output_pack_path}")
     print(f"  开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"\n  ⏳ 求解中，请耐心等待...")
-    print(f"     (命令行会等待求解完成，请勿关闭)")
+    print(f"  (命令行会等待求解完成，请勿关闭)\n")
 
     start_time = time.time()
 
@@ -115,14 +155,17 @@ def solve_ecxml(flotherm_exe, ecxml_path, output_pack_path, index, total):
         str(output_pack_path)
     ]
 
+    # 启动加载动画
+    animation = LoadingAnimation()
+
     try:
+        animation.start()
+
         # 运行 FloTHERM
-        # 注意：这个过程会打开 GUI 窗口
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            # 不设置超时，让用户自己控制
         )
 
         elapsed_time = time.time() - start_time
@@ -131,15 +174,15 @@ def solve_ecxml(flotherm_exe, ecxml_path, output_pack_path, index, total):
             # 检查输出文件是否存在
             if os.path.exists(output_pack_path):
                 file_size = os.path.getsize(output_pack_path) / (1024 * 1024)  # MB
-                print(f"\n  ✅ 求解完成!")
+                print(f"  ✅ 求解完成!")
                 print(f"     耗时: {elapsed_time:.1f} 秒")
                 print(f"     文件大小: {file_size:.2f} MB")
                 return (True, elapsed_time, "成功")
             else:
-                print(f"\n  ⚠️ 命令执行成功但未找到输出文件")
+                print(f"  ⚠️ 命令执行成功但未找到输出文件")
                 return (False, elapsed_time, "输出文件不存在")
         else:
-            print(f"\n  ❌ 求解失败!")
+            print(f"  ❌ 求解失败!")
             print(f"     返回码: {result.returncode}")
             if result.stderr:
                 print(f"     错误信息: {result.stderr[:500]}")
@@ -147,12 +190,15 @@ def solve_ecxml(flotherm_exe, ecxml_path, output_pack_path, index, total):
 
     except subprocess.TimeoutExpired:
         elapsed_time = time.time() - start_time
-        print(f"\n  ❌ 超时!")
+        print(f"  ❌ 超时!")
         return (False, elapsed_time, "超时")
     except Exception as e:
         elapsed_time = time.time() - start_time
-        print(f"\n  ❌ 异常: {e}")
+        print(f"  ❌ 异常: {e}")
         return (False, elapsed_time, str(e))
+    finally:
+        # 确保动画停止
+        animation.stop()
 
 
 def main():
