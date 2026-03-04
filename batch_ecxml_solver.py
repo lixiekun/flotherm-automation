@@ -102,7 +102,7 @@ def solve_ecxml(flotherm_exe, ecxml_path, output_pack_path, index, total):
     print(f"  输出: {output_pack_path}")
     print(f"  开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"\n  ⏳ 求解中，请耐心等待...")
-    print(f"     (FloTHERM 会打开 GUI 窗口，求解完成后自动关闭)")
+    print(f"     (命令行会等待求解完成，请勿关闭)")
 
     start_time = time.time()
 
