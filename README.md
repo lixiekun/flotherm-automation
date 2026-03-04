@@ -137,56 +137,17 @@ python batch_ecxml_solver.py ./input -o ./output --dry-run
 #### 流程图
 
 ```mermaid
-flowchart TB
-    subgraph Init["🚀 初始化阶段"]
-        A[开始] --> B[解析命令行参数]
-        B --> C[查找 FloTHERM 可执行文件]
-        C --> D{找到 FloTHERM?}
-        D -->|否| E[❌ 报错退出]
-        D -->|是| F[扫描输入文件夹]
-        F --> G{找到 ECXML 文件?}
-        G -->|否| H[❌ 报错退出]
-        G -->|是| I[创建输出子文件夹<br/>batch_时间戳]
-    end
+flowchart LR
+    A[📁 输入文件夹] --> B[🔍 扫描 ECXML]
+    B --> C[⚙️ 逐个求解]
+    C --> D[📊 生成报告]
+    D --> E[📁 输出结果]
 
-    subgraph Prepare["📋 准备阶段"]
-        I --> J[显示待处理文件列表]
-        J --> K{dry-run 模式?}
-        K -->|是| L[🔍 显示列表后退出]
-    end
-
-    subgraph Solve["⚙️ 求解阶段"]
-        K -->|否| M[初始化结果列表]
-        M --> N[遍历 ECXML 文件]
-        N --> O[生成输出路径<br/>model.pack + model_report.html]
-        O --> P[启动加载动画]
-        P --> Q[启动日志监控<br/>floerror.log]
-        Q --> R[执行 FloTHERM 命令]
-        R --> S["flotherm -b model.ecxml<br/>-z output.pack<br/>-r report.html"]
-        S --> T[停止动画和监控]
-        T --> U{求解成功?}
-        U -->|是| V[✅ 记录成功结果]
-        U -->|否| W[❌ 记录失败原因]
-        V --> X{还有文件?}
-        W --> X
-        X -->|是| N
-    end
-
-    subgraph Report["📊 报告阶段"]
-        X -->|否| Y[打印批量求解总结]
-        Y --> Z[生成 batch_report.txt]
-        Z --> AA[输出目录结构]
-        AA --> AB[✅ 结束]
-    end
-
-    style A fill:#e1f5fe
-    style AB fill:#c8e6c9
-    style E fill:#ffcdd2
-    style H fill:#ffcdd2
-    style L fill:#fff9c4
-    style S fill:#f3e5f5
-    style V fill:#c8e6c9
-    style W fill:#ffcdd2
+    style A fill:#e3f2fd
+    style B fill:#fff3e0
+    style C fill:#f3e5f5
+    style D fill:#e8f5e9
+    style E fill:#c8e6c9
 ```
 
 #### 输出目录结构
