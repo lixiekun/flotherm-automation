@@ -24,6 +24,56 @@ from datetime import datetime
 from pathlib import Path
 
 
+class LogMonitor:
+    """日志文件实时监控类"""
+
+    def __init__(self, log_path):
+        self.log_path = log_path
+        self.running = False
+        self.thread = None
+        self.last_size = 0
+        self.last_line_count = 0
+
+    def _monitor(self):
+        """监控日志文件变化"""
+        while self.running:
+            try:
+                if os.path.exists(self.log_path):
+                    current_size = os.path.getsize(self.log_path)
+                    if current_size > self.last_size:
+                        with open(self.log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            # 跳到上次读取的位置
+                            f.seek(self.last_size)
+                            new_content = f.read()
+                            if new_content.strip():
+                                # 只显示最后几行，避免刷屏
+                                lines = new_content.strip().split('\n')
+                                for line in lines[-3:]:  # 最多显示最后3行
+                                    if line.strip():
+                                        print(f"    📋 {line.strip()}")
+                        self.last_size = current_size
+            except Exception:
+                pass
+            time.sleep(0.5)
+
+    def start(self):
+        """开始监控"""
+        self.running = True
+        self.last_size = 0
+        # 如果文件已存在，先读取已有的大小
+        if os.path.exists(self.log_path):
+            self.last_size = os.path.getsize(self.log_path)
+        self.thread = threading.Thread(target=self._monitor)
+        self.thread.daemon = True
+        self.thread.start()
+
+    def stop(self):
+        """停止监控"""
+        self.running = False
+        if self.thread:
+            self.thread.join(timeout=0.5)
+
+
 class LoadingAnimation:
     """加载动画类"""
 
@@ -157,11 +207,18 @@ def solve_ecxml(flotherm_exe, ecxml_path, output_pack_path, output_html_path, in
         str(output_html_path)
     ]
 
-    # 启动加载动画
+    # 找到日志文件路径（flotherm.exe 同级目录下的 floerror.log）
+    flotherm_dir = Path(flotherm_exe).parent
+    log_path = flotherm_dir / "floerror.log"
+
+    # 启动加载动画和日志监控
     animation = LoadingAnimation()
+    log_monitor = LogMonitor(log_path) if log_path.exists() or True else None
 
     try:
         animation.start()
+        if log_monitor:
+            log_monitor.start()
 
         # 运行 FloTHERM
         result = subprocess.run(
@@ -176,12 +233,12 @@ def solve_ecxml(flotherm_exe, ecxml_path, output_pack_path, output_html_path, in
             # 检查输出文件是否存在
             if os.path.exists(output_pack_path):
                 file_size = os.path.getsize(output_pack_path) / (1024 * 1024)  # MB
-                print(f"  ✅ 求解完成!")
+                print(f"\n  ✅ 求解完成!")
                 print(f"     耗时: {elapsed_time:.1f} 秒")
                 print(f"     文件大小: {file_size:.2f} MB")
                 return (True, elapsed_time, "成功")
             else:
-                print(f"  ⚠️ 命令执行成功但未找到输出文件")
+                print(f"\n  ⚠️ 命令执行成功但未找到输出文件")
                 return (False, elapsed_time, "输出文件不存在")
         else:
             print(f"  ❌ 求解失败!")
@@ -192,15 +249,17 @@ def solve_ecxml(flotherm_exe, ecxml_path, output_pack_path, output_html_path, in
 
     except subprocess.TimeoutExpired:
         elapsed_time = time.time() - start_time
-        print(f"  ❌ 超时!")
+        print(f"\n  ❌ 超时!")
         return (False, elapsed_time, "超时")
     except Exception as e:
         elapsed_time = time.time() - start_time
-        print(f"  ❌ 异常: {e}")
+        print(f"\n  ❌ 异常: {e}")
         return (False, elapsed_time, str(e))
     finally:
-        # 确保动画停止
+        # 确保动画和日志监控停止
         animation.stop()
+        if log_monitor:
+            log_monitor.stop()
 
 
 def main():
