@@ -122,7 +122,7 @@ def find_flotherm_executable():
     return None
 
 
-def solve_ecxml(flotherm_exe, ecxml_path, output_pack_path, index, total):
+def solve_ecxml(flotherm_exe, ecxml_path, output_pack_path, output_html_path, index, total):
     """
     求解单个 ECXML 文件
 
@@ -152,7 +152,9 @@ def solve_ecxml(flotherm_exe, ecxml_path, output_pack_path, index, total):
         "-b",
         str(ecxml_path),
         "-z",
-        str(output_pack_path)
+        str(output_pack_path),
+        "-r",
+        str(output_html_path)
     ]
 
     # 启动加载动画
@@ -298,12 +300,15 @@ def main():
         base_name = ecxml_path.stem  # 不含扩展名的文件名
         output_pack_name = f"{base_name}.pack"
         output_pack_path = output_folder / output_pack_name
+        output_html_name = f"{base_name}_report.html"
+        output_html_path = output_folder / output_html_name
 
         # 求解
         success, elapsed, message = solve_ecxml(
             flotherm_exe,
             ecxml_path,
             output_pack_path,
+            output_html_path,
             i,
             len(ecxml_files)
         )
@@ -311,6 +316,7 @@ def main():
         results.append({
             "input": str(ecxml_path),
             "output": str(output_pack_path),
+            "html_report": str(output_html_path),
             "success": success,
             "elapsed": elapsed,
             "message": message
