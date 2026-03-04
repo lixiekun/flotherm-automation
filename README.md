@@ -10,18 +10,39 @@
 
 ### 核心发现
 
-经过实际测试，**FloTHERM 2020.2 的自动化能力非常有限**：
+经过实际测试，**FloTHERM 2020.2 的自动化能力**：
 
 | 方式 | 可行性 | 说明 |
 |-----|--------|------|
-| 命令行无头模式 | ❌ 不行 | 只支持 `.prj` 和 `.floxml`，Pack/PDML/ECXML 都会打开 GUI |
+| **`-z` 参数求解** | ✅ **可行** | `flotherm -b model.ecxml -z output.pack` |
+| 命令行无头模式 | ⚠️ 部分支持 | 只支持 `.prj` 和 `.floxml` 完全无头 |
 | COM API | ❌ 不可用 | 2020.2 版本不支持 |
 | Python API | ❌ 不可用 | 2020.2 版本不支持 |
-| FloSCRIPT 宏 | ⚠️ 部分可用 | **需要打开 GUI，然后手动点击运行** |
+| FloSCRIPT 宏 | ⚠️ 部分可用 | 需要打开 GUI，手动点击运行 |
 
-### 唯一可行方案：FloSCRIPT 宏 + 手动执行
+### ✅ 推荐方案：`-z` 参数批量求解
 
-**实际工作流程**：
+**命令格式**：
+```bash
+flotherm -b model.ecxml -z output.pack
+```
+
+**说明**：
+- `-b` 批处理模式
+- `-z` 指定输出 PACK 文件
+- 会打开 GUI 窗口，求解完成后自动关闭
+- 结果保存到指定的 PACK 文件
+
+**批量处理**：
+```bash
+python batch_ecxml_solver.py input_folder -o output_folder
+```
+
+### ⚠️ 备选方案：FloSCRIPT 宏 + 手动执行
+
+如果 `-z` 参数不可用，可以使用 FloSCRIPT 宏：
+
+**工作流程**：
 1. 打开 FloTHERM GUI
 2. 加载录制的 FloSCRIPT 宏
 3. **手动点击运行按钮**
@@ -29,8 +50,7 @@
 
 **限制**：
 - 必须打开 GUI
-- 必须手动点击运行（无法通过命令行自动触发）
-- 每次只能处理一个文件
+- 必须手动点击运行
 
 ---
 
@@ -84,16 +104,57 @@ python batch_pack_solver.py pack1.pack pack2.pack pack3.pack -o ./macros
 
 | 文件 | 功能 | 状态 |
 |-----|------|------|
+| `batch_ecxml_solver.py` | **⭐ ECXML 批量求解器（使用 -z 参数）** | ✅ 可用 |
+| `test_flotherm_api.py` | FloTHERM API 可用性测试脚本 | ✅ 可用 |
 | `pack_editor.py` | Pack 文件编辑器（解压、查看、修改功耗） | ✅ 可用 |
 | `ecxml_editor.py` | ECXML 文件解析和参数修改 | ✅ 可用 |
-| `batch_simulation.py` | 批量仿真案例生成器 | ✅ 可用（生成文件） |
+| `batch_simulation.py` | 批量仿真案例生成器 | ✅ 可用 |
 | `batch_pack_solver.py` | 批量生成 FloSCRIPT 宏 | ⚠️ 需配合手动执行 |
 | `flotherm_batch_solver.py` | 命令行批处理求解器 | ❌ 实际不可用 |
-| `simple_solver.py` | 简易求解脚本 | ❌ 实际不可用 |
 
 ---
 
 ## 可用功能
+
+### ⭐ 批量 ECXML 求解（推荐）
+
+使用 `-z` 参数批量求解 ECXML 文件：
+
+```bash
+# 单文件求解
+flotherm -b model.ecxml -z output.pack
+
+# 批量求解（Python 脚本）
+python batch_ecxml_solver.py ./input_folder -o ./output_folder
+
+# 指定 FloTHERM 路径
+python batch_ecxml_solver.py ./input -o ./output --flotherm "C:\Program Files\Siemens\SimcenterFlotherm\2020.2\bin\flotherm.exe"
+
+# 仅查看将要处理的文件（不执行）
+python batch_ecxml_solver.py ./input -o ./output --dry-run
+```
+
+**输出示例**：
+```
+============================================================
+  [1/5] 正在求解: model1.ecxml
+============================================================
+  输入: ./input/model1.ecxml
+  输出: ./output/model1_20260304_153045.pack
+  开始时间: 2026-03-04 15:30:45
+
+  ⏳ 求解中，请耐心等待...
+  (FloTHERM 会打开 GUI 窗口，求解完成后自动关闭)
+
+  ✅ 求解完成!
+     耗时: 125.3 秒
+     文件大小: 15.23 MB
+```
+
+**注意事项**：
+- 会打开 GUI 窗口，求解完成后自动关闭
+- 输出文件自动添加时间戳，避免覆盖
+- 生成详细的批处理报告
 
 ### 1. Pack 文件操作
 
@@ -185,12 +246,13 @@ C:\Program Files\Siemens\SimcenterFlotherm\2020.2\docs\Schema-Documentation\FloS
 
 **FloTHERM 2020.2 自动化现状**：
 
-- ❌ 无法真正无头运行 Pack/PDML/ECXML 文件
+- ✅ **`-z` 参数求解 ECXML**：`flotherm -b model.ecxml -z output.pack`
+- ⚠️ 会打开 GUI，但求解完成后自动关闭
+- ✅ 可以用 Python 脚本批量处理
 - ❌ COM/Python API 不可用
 - ⚠️ FloSCRIPT 宏可用，但需要手动点击运行
-- ✅ 可以用 Python 脚本修改参数、生成案例文件
 
 **推荐工作流**：
-1. 用 Python 脚本批量修改参数、生成多个案例文件
-2. 在 FloTHERM GUI 中逐个打开并手动运行宏求解
-3. 或者升级到更新版本的 Simcenter Flotherm（可能支持更好的自动化）
+1. 用 `batch_ecxml_solver.py` 批量求解 ECXML 文件
+2. 或者用 Python 脚本修改参数后批量求解
+3. 升级到更新版本可能支持更好的自动化
