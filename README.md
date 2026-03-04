@@ -137,18 +137,30 @@ python batch_ecxml_solver.py ./input -o ./output --dry-run
 #### 流程图
 
 ```mermaid
-flowchart LR
-    A[📁 输入文件夹] --> B[🔍 扫描 ECXML]
+flowchart TB
+    A[📁 输入文件夹<br/>包含多个 .ecxml 文件] --> B[🔍 扫描文件]
     B --> C[⚙️ 逐个求解]
-    C --> D[📊 生成报告]
-    D --> E[📁 输出结果]
+    C --> D["执行命令:<br/>flotherm -b model.ecxml<br/>-z output.pack<br/>-r report.html"]
+    D --> E[📋 实时日志输出]
+    E --> F{求解完成?}
+    F -->|是| G[📊 生成报告]
+    F -->|否| C
+    G --> H[📁 输出结果]
 
     style A fill:#e3f2fd
-    style B fill:#fff3e0
     style C fill:#f3e5f5
-    style D fill:#e8f5e9
-    style E fill:#c8e6c9
+    style D fill:#fff3e0
+    style H fill:#c8e6c9
 ```
+
+**命令参数说明：**
+
+| 参数 | 说明 |
+|-----|------|
+| `flotherm` | FloTHERM 可执行文件 |
+| `-b` | 批处理模式 |
+| `-z output.pack` | 指定输出 PACK 文件路径 |
+| `-r report.html` | 指定输出 HTML 报告路径 |
 
 #### 输出目录结构
 
@@ -182,14 +194,6 @@ output_folder/
      耗时: 125.3 秒
      文件大小: 15.23 MB
 ```
-
-#### 命令参数说明
-
-| 参数 | 说明 |
-|-----|------|
-| `-b` | 批处理模式 |
-| `-z` | 指定输出 PACK 文件路径 |
-| `-r` | 指定输出 HTML 报告路径 |
 
 ### 1. Pack 文件操作
 
