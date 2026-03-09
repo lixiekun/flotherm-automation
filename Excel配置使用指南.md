@@ -37,23 +37,18 @@ python excel_batch_simulation.py template.ecxml config.xlsx -o ./output
    - 例如：`case1`, `case2`, `high_power`, `low_temp` 等
 
 2. **列名必须与 ECXML 中的名称匹配**
-   - 器件名：对应 ECXML 中 `Component` 的 `name` 属性
-   - 边界条件名：对应 ECXML 中 `BoundaryCondition` 的 `name` 属性
+   - 器件名：对应 ECXML 中 Component 的名称
+   - 边界条件名：对应 ECXML 中 BoundaryCondition 的名称
 
 3. **数值自动识别类型**
    - 如果列名匹配到器件 → 设置功耗（W）
    - 如果列名匹配到边界条件 → 设置温度（°C）
 
-### 参数类型说明
+---
 
-| 参数类型 | Excel 列名 | ECXML 对应 | 单位 |
-|---------|-----------|-----------|------|
-| 器件功耗 | 器件的名称 | `<Component name="xxx">` 或 `<Component><name>xxx</name>` | W（瓦特） |
-| 环境温度 | 边界条件的名称 | `<BoundaryCondition name="xxx">` 或 `<BoundaryCondition><name>xxx</name>` | °C（摄氏度） |
+## 支持的 ECXML 名称格式
 
-**支持的名称格式：**
-
-ECXML 中元素名称可以是属性或子元素，两种都支持：
+ECXML 中元素名称可以是**属性**或**子元素**，两种都支持：
 
 ```xml
 <!-- 格式1: 属性 -->
@@ -68,9 +63,11 @@ ECXML 中元素名称可以是属性或子元素，两种都支持：
 </Component>
 ```
 
-Excel 中都用 `CPU` 或 `[CPU]` 即可。
+Excel 中都用 `CPU` 即可。
 
-### 路径格式（高级）
+---
+
+## 路径格式（高级）
 
 除了简单的名称匹配，还支持以下路径格式：
 
@@ -84,7 +81,9 @@ Excel 中都用 `CPU` 或 `[CPU]` 即可。
 | `[Material:1]` | 名称含特殊字符 | 用方括号包裹 |
 | `[Material:1].density` | 特殊名称 + 子元素 | 组合使用 |
 
-**注意：特殊字符处理**
+---
+
+## 特殊字符处理
 
 如果元素名称包含 `.` `:` `/` `@` 等特殊字符，需要用方括号 `[]` 包裹：
 
@@ -94,92 +93,23 @@ Excel 中都用 `CPU` 或 `[CPU]` 即可。
 | `Part.A` | `[Part.A]` |
 | `Fan/Radiator` | `[Fan/Radiator]` |
 
+**示例：**
 
-**示例：特殊名称处理**
-
-如果元素名称包含特殊字符（如 `:`, `/`, `.`, `@`），需用方括号 `[]` 包裹：
-
-| ECXML 中的名称 | Excel 列名写法 | 说明 |
-|---------------|---------------|------|
-| `Material:1` | `[Material:1]` | 包含冒号 |
-| `Part.A` | `[Part.A]` | 包含点号 |
-| `Fan/Radiator` | `[Fan/Radiator]` | 包含斜杠 |
-
-示例 ECXML：
+ECXML:
 ```xml
-<Component name="Material:1">
-  <Material name="Copper">
-    <density>8900</density>
+<Component>
+  <name>Material:1</name>
+  <Material>
+    <density>2700</density>
   </Material>
 </Component>
 ```
 
-Excel 配置：
+Excel 配置:
 | config_name | [Material:1] | [Material:1].Material.density |
 |-------------|--------------|-------------------------------|
-| case1       | 15           | 8900                          |
-| case2       | 20           | 2700                          |
-
----
-
-**示例：修改材料属性**
-
-假设 ECXML 结构：
-```xml
-<Component name="Heatsink">
-  <Material name="Aluminum">
-    <density>2700</density>
-    <specificHeat>900</specificHeat>
-  </Material>
-</Component>
-```
-
-Excel 配置：
-| config_name | Heatsink.Material.density | Heatsink.Material.specificHeat |
-|-------------|---------------------------|-------------------------------|
-| aluminum    | 2700                      | 900                           |
-| copper      | 8900                      | 385                           |
-
-**示例：修改尺寸属性**
-
-假设 ECXML 结构：
-```xml
-<Component name="PCB">
-  <Size width="0.1" height="0.002" depth="0.15"/>
-</Component>
-```
-
-Excel 配置：
-| config_name | PCB.Size@width | PCB.Size@height | PCB.Size@depth |
-|-------------|----------------|-----------------|----------------|
-| small       | 0.05           | 0.001           | 0.08           |
-| large       | 0.15           | 0.003           | 0.20           |
-
-### 示例
-
-假设 ECXML 模板结构如下：
-
-```xml
-<Model name="TestModel">
-  <Component name="CPU">
-    <powerDissipation>10.0</powerDissipation>
-  </Component>
-  <Component name="GPU">
-    <powerDissipation>5.0</powerDissipation>
-  </Component>
-  <BoundaryCondition name="Ambient">
-    <Temperature>25.0</Temperature>
-  </BoundaryCondition>
-</Model>
-```
-
-对应的 Excel 配置：
-
-| config_name | CPU | GPU | Ambient |
-|-------------|-----|-----|---------|
-| baseline    | 10  | 5   | 25      |
-| high_load   | 20  | 15  | 35      |
-| stress_test | 30  | 25  | 45      |
+| case1       | 15           | 2700                          |
+| case2       | 20           | 8900                          |
 
 ---
 
@@ -207,26 +137,38 @@ Excel 配置：
 | temp_40C    | 20  | 40      |
 | temp_55C    | 20  | 55      |
 
-### 示例 3：多器件综合测试
+### 示例 3：修改材料属性
 
-| config_name | CPU | GPU | DDR | PMIC | Ambient |
-|-------------|-----|-----|-----|------|---------|
-| case1       | 10  | 5   | 3   | 2    | 25      |
-| case2       | 15  | 8   | 4   | 3    | 30      |
-| case3       | 20  | 12  | 5   | 4    | 35      |
-| case4       | 25  | 15  | 6   | 5    | 40      |
+ECXML:
+```xml
+<Component name="Heatsink">
+  <Material name="Aluminum">
+    <density>2700</density>
+    <specificHeat>900</specificHeat>
+  </Material>
+</Component>
+```
 
-### 示例 4：命名规范建议
+Excel:
+| config_name | Heatsink.Material.density | Heatsink.Material.specificHeat |
+|-------------|---------------------------|-------------------------------|
+| aluminum    | 2700                      | 900                           |
+| copper      | 8900                      | 385                           |
 
-使用有意义的配置名称，便于后续分析：
+### 示例 4：修改尺寸属性
 
-| config_name | CPU | GPU | Ambient | 说明 |
-|-------------|-----|-----|---------|------|
-| idle_25C    | 5   | 2   | 25      | 待机状态，室温 |
-| normal_25C  | 15  | 10  | 25      | 正常负载，室温 |
-| heavy_25C   | 30  | 20  | 25      | 重负载，室温 |
-| normal_40C  | 15  | 10  | 40      | 正常负载，高温环境 |
-| stress_45C  | 40  | 25  | 45      | 压力测试，极限环境 |
+ECXML:
+```xml
+<Component name="PCB">
+  <Size width="0.1" height="0.002" depth="0.15"/>
+</Component>
+```
+
+Excel:
+| config_name | PCB.Size@width | PCB.Size@height | PCB.Size@depth |
+|-------------|----------------|-----------------|----------------|
+| small       | 0.05           | 0.001           | 0.08           |
+| large       | 0.15           | 0.003           | 0.20           |
 
 ---
 
@@ -303,7 +245,8 @@ output/
 
 **解决**：
 1. 使用 `ecxml_editor.py --info template.ecxml` 查看模板中的器件名称
-2. 确保 Excel 列名与器件名完全一致（区分大小写）
+2. 确保 Excel 列名与器件名完全一致
+3. 如果名称包含特殊字符（`:`, `.`, `/`, `@`），用方括号包裹：`[Material:1]`
 
 ### Q2: 功耗被设置成温度了
 
@@ -323,12 +266,13 @@ python ecxml_editor.py template.ecxml --analyze
 
 ### Q4: 可以配置其他参数吗（如尺寸、位置）？
 
-当前版本支持：
-- 器件功耗
-- 边界条件温度
-- 边界条件流量（flow_rate）
+可以！使用路径格式：
 
-如需配置其他参数，可以修改 `ecxml_editor.py` 添加相应方法。
+| 需求 | Excel 列名写法 |
+|-----|---------------|
+| 材料密度 | `Heatsink.Material.density` |
+| 尺寸宽度 | `PCB.Size@width` |
+| 位置坐标 | `CPU.Position@x` |
 
 ---
 
