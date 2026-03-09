@@ -176,24 +176,21 @@ class ECXMLParser:
 
     def set_value_by_path(self, path: str, value: Any) -> bool:
         """
-        通过路径设置值，支持灵活的定位方式
+        通过路径设置值，支持类似 XPath 的定位方式
 
         路径格式:
-            - "ComponentName"                    → 自动识别（功耗/温度）
-            - "ComponentName.child"              → 子元素的文本值
-            - "ComponentName/child/grandchild"   → 多层路径
-            - "ComponentName@attr"               → 元素的属性
-            - "ComponentName.child@attr"         → 子元素的属性
-            - "[Material:1]"                     → 名称包含特殊字符的元素
-            - "[Material:1].density"             → 名称包含特殊字符 + 子元素
+            - "ElementName"                      → 通过 name 属性/子元素定位
+            - "ElementName.child"                → 子元素的文本值
+            - "tag[name=xxx].child"              → 通过路径 + name 筛选
+            - "tag@attr"                         → 元素的属性
+            - "[Material:1]"                     → 名称包含特殊字符
 
         示例:
             - "CPU"                              → 设置功耗（自动）
             - "CPU.powerDissipation"             → 设置功耗
-            - "Heatsink.Material.density"        → 设置材料密度
-            - "[Material:1].density"             → 设置名称为 "Material:1" 的元素的 density 子元素
-            - "Fan@flowRate"                     → 设置风扇属性
-            - "PCB.Size@width"                   → 设置尺寸属性
+            - "materials.material[name=Copper].density"  → XPath 风格
+            - "Heatsink.Material.density"        → 简化路径
+            - "PCB.Size@width"                   → 设置属性
 
         Args:
             path: 路径字符串
@@ -207,63 +204,137 @@ class ECXMLParser:
         if '@' in path:
             path, attr_name = path.rsplit('@', 1)
 
-        # 解析元素名称和子路径
-        # 支持用 [name] 包裹包含特殊字符的元素名
-        elem_name = None
-        child_path = []
-
-        if path.startswith('[') and ']' in path:
-            # 格式: [ElementName].child.grandchild
-            close_bracket = path.index(']')
-            elem_name = path[1:close_bracket]
-            remaining = path[close_bracket + 1:]
-            if remaining.startswith('.'):
-                remaining = remaining[1:]
-            if remaining:
-                child_path = [p.strip() for p in remaining.replace('/', '.').split('.') if p.strip()]
-        else:
-            # 格式: ElementName.child.grandchild
-            parts = [p.strip() for p in path.replace('/', '.').split('.') if p.strip()]
-            if not parts:
-                print("错误: 路径为空")
-                return False
-            elem_name = parts[0]
-            child_path = parts[1:]
-
-        if not elem_name:
-            print("错误: 元素名称为空")
+        # 解析路径段
+        segments = self._parse_path(path)
+        if not segments:
+            print("错误: 路径为空")
             return False
 
-        # 查找元素
-        elem = self.find_element_by_name(elem_name)
+        # 遍历路径段，定位元素
+        elem = self.root
+        for i, seg in enumerate(segments):
+            tag_name = seg['tag']
+            filter_name = seg['filter']
 
-        if elem is None:
-            print(f"未找到元素: {elem_name}")
-            return False
-
-        # 如果只有元素名，自动识别类型
-        if not child_path and attr_name is None:
-            return self._auto_set_value(elem, elem_name, value)
-
-        # 遍历子路径
-        for child_name in child_path:
-            child_elem = self._find_child_by_tag(elem, child_name)
-            if child_elem is None:
-                print(f"未找到子元素: {child_name} (在 {self._strip_ns(elem.tag)} 下)")
-                return False
-            elem = child_elem
+            # 判断是简单的名称匹配还是路径遍历
+            if i == 0 and filter_name is None and '.' not in path.replace('/', '.') and '[' not in path:
+                # 简单格式：只有一个名称，通过 name 属性/子元素定位
+                found = self.find_element_by_name(tag_name)
+                if found is None:
+                    print(f"未找到元素: {tag_name}")
+                    return False
+                elem = found
+            else:
+                # 路径格式：通过标签名查找子元素
+                found = self._find_child_by_tag_with_filter(elem, tag_name, filter_name)
+                if found is None:
+                    if filter_name:
+                        print(f"未找到子元素: {tag_name}[name={filter_name}]")
+                    else:
+                        print(f"未找到子元素: {tag_name}")
+                    return False
+                elem = found
 
         # 设置值
         if attr_name:
-            # 设置属性
             elem.set(attr_name, str(value))
             print(f"    ✓ 设置属性: {path}@{attr_name} = {value}")
         else:
-            # 设置文本值
             elem.text = str(value)
             print(f"    ✓ 设置值: {path} = {value}")
 
         return True
+
+    def _parse_path(self, path: str) -> List[Dict]:
+        """
+        解析路径字符串
+
+        支持格式:
+        - "CPU" → [{tag: "CPU", filter: None}]
+        - "CPU.child" → [{tag: "CPU", filter: None}, {tag: "child", filter: None}]
+        - "[Material:1]" → [{tag: "Material:1", filter: None}]
+        - "materials.material[name=Copper]" → [{tag: "materials", filter: None}, {tag: "material", filter: "Copper"}]
+        """
+        segments = []
+
+        # 处理 [xxx] 开头的特殊名称
+        if path.startswith('[') and ']' in path:
+            close_bracket = path.index(']')
+            name = path[1:close_bracket]
+            segments.append({'tag': name, 'filter': None})
+            remaining = path[close_bracket + 1:]
+            if remaining.startswith('.'):
+                remaining = remaining[1:]
+            if remaining:
+                segments.extend(self._parse_path_segments(remaining))
+            return segments
+
+        # 普通路径解析
+        return self._parse_path_segments(path)
+
+    def _parse_path_segments(self, path: str) -> List[Dict]:
+        """解析路径段，支持 tag[name=xxx] 格式"""
+        segments = []
+
+        # 统一使用 . 作为分隔符
+        path = path.replace('/', '.')
+
+        # 使用正则表达式解析
+        # 匹配: tag 或 tag[name=xxx]
+        pattern = r'(\w+)(?:\[name=([^\]]+)\])?'
+
+        parts = path.split('.')
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+
+            match = re.match(pattern, part)
+            if match:
+                tag = match.group(1)
+                filter_name = match.group(2)
+                segments.append({'tag': tag, 'filter': filter_name})
+            else:
+                segments.append({'tag': part, 'filter': None})
+
+        return segments
+
+    def _find_child_by_tag_with_filter(self, parent: ET.Element, tag: str, filter_name: str = None) -> Optional[ET.Element]:
+        """
+        通过标签名和可选的 name 筛选查找子元素
+
+        Args:
+            parent: 父元素
+            tag: 标签名（忽略命名空间）
+            filter_name: 可选的 name 属性/子元素筛选值
+
+        Returns:
+            找到的元素或 None
+        """
+        tag_lower = tag.lower()
+
+        for child in parent:
+            child_tag = self._strip_ns(child.tag).lower()
+
+            # 标签名匹配（支持单数/复数形式）
+            if child_tag != tag_lower and child_tag.rstrip('s') != tag_lower.rstrip('s'):
+                continue
+
+            # 如果没有筛选条件，返回第一个匹配的
+            if filter_name is None:
+                return child
+
+            # 检查 name 属性
+            if child.get('name') == filter_name or child.get('Name') == filter_name:
+                return child
+
+            # 检查 <name> 子元素
+            for subchild in child:
+                sub_tag = self._strip_ns(subchild.tag).lower()
+                if sub_tag == 'name' and subchild.text and subchild.text.strip() == filter_name:
+                    return child
+
+        return None
 
     def _find_child_by_tag(self, parent: ET.Element, tag: str) -> Optional[ET.Element]:
         """通过标签名查找直接子元素（忽略命名空间）"""

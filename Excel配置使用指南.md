@@ -76,10 +76,37 @@ Excel 中都用 `CPU` 即可。
 | `ComponentName` | 自动识别（功耗/温度） | `CPU` → 设置功耗 |
 | `Name.child` | 子元素的文本值 | `CPU.powerDissipation` |
 | `Name/child/grandchild` | 多层路径 | `Heatsink.Material.density` |
+| `tag[name=xxx].child` | XPath 风格筛选 | `materials.material[name=Copper].density` |
 | `Name@attr` | 元素的属性 | `Fan@flowRate` |
 | `Name.child@attr` | 子元素的属性 | `PCB.Size@width` |
 | `[Material:1]` | 名称含特殊字符 | 用方括号包裹 |
-| `[Material:1].density` | 特殊名称 + 子元素 | 组合使用 |
+
+---
+
+## XPath 风格路径
+
+支持类似 XPath 的 `[name=xxx]` 筛选语法：
+
+**ECXML 结构：**
+```xml
+<materials>
+  <material>
+    <name>Copper</name>
+    <density>8900</density>
+    <conductivity>400</conductivity>
+  </material>
+  <material>
+    <name>Aluminum</name>
+    <density>2700</density>
+  </material>
+</materials>
+```
+
+**Excel 配置：**
+| config_name | materials.material[name=Copper].density | materials.material[name=Aluminum].density |
+|-------------|----------------------------------------|------------------------------------------|
+| case1       | 8900                                   | 2700                                     |
+| case2       | 8500                                   | 2600                                     |
 
 ---
 
