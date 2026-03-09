@@ -223,8 +223,20 @@ class ECXMLParser:
                 continue
 
             # 判断是简单的名称匹配还是路径遍历
-            if i == 0 and filter_name is None and '.' not in path.replace('/', '.') and '[' not in path:
-                # 简单格式：只有一个名称，通过 name 属性/子元素定位
+            # 简单格式：(1) 只有一个名称 (2) 没有 filter (3) 路径中没有 . 或 / (4) 路径中没有 [name=xxx] 筛选
+            # 但 [xxx] 开头的特殊名称也应该用 find_element_by_name
+            is_simple_name = (
+                i == 0 and
+                filter_name is None and
+                '.' not in path.replace('/', '.') and
+                '[' not in path.replace('[name=', '')  # 排除 [name=xxx] 但保留 [xxx] 格式
+            )
+
+            # 检查是否是 [xxx] 格式的特殊名称（元素名包含特殊字符）
+            is_bracketed_name = path.startswith('[') and ']' in path
+
+            if i == 0 and filter_name is None and (is_simple_name or is_bracketed_name):
+                # 简单格式或方括号格式：通过 name 属性/子元素定位
                 found = self.find_element_by_name(tag_name)
                 if found is None:
                     print(f"未找到元素: {tag_name}")
