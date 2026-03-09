@@ -157,10 +157,14 @@ class ECXMLParser:
             return False
 
         # 查找并设置功耗元素 (powerDissipation 是 JEDEC JEP181 标准字段)
-        power_elem = (elem.find('.//powerDissipation') or
-                      elem.find('.//PowerDissipation') or
-                      elem.find('.//Power') or
-                      elem.find('.//power'))
+        # 需要处理命名空间，使用 _strip_ns 匹配
+        power_elem = None
+        for child in elem.iter():
+            tag_name = self._strip_ns(child.tag).lower()
+            if tag_name in ['powerdissipation', 'power', 'power_dissipation']:
+                power_elem = child
+                break
+
         if power_elem is not None:
             power_elem.text = str(power)
             return True
@@ -178,12 +182,24 @@ class ECXMLParser:
             return False
 
         if temperature is not None:
-            temp_elem = elem.find('.//Temperature') or elem.find('.//temperature')
+            # 处理命名空间
+            temp_elem = None
+            for child in elem.iter():
+                tag_name = self._strip_ns(child.tag).lower()
+                if tag_name in ['temperature', 'temp']:
+                    temp_elem = child
+                    break
             if temp_elem is not None:
                 temp_elem.text = str(temperature)
 
         if flow_rate is not None:
-            flow_elem = elem.find('.//FlowRate') or elem.find('.//flowRate')
+            # 处理命名空间
+            flow_elem = None
+            for child in elem.iter():
+                tag_name = self._strip_ns(child.tag).lower()
+                if tag_name in ['flowrate', 'flow_rate', 'flow']:
+                    flow_elem = child
+                    break
             if flow_elem is not None:
                 flow_elem.text = str(flow_rate)
 

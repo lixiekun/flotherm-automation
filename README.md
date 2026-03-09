@@ -104,6 +104,7 @@ python batch_pack_solver.py pack1.pack pack2.pack pack3.pack -o ./macros
 
 | 文件 | 功能 | 状态 |
 |-----|------|------|
+| `excel_batch_simulation.py` | **⭐⭐ Excel 多配置批量仿真（推荐）** | ✅ 可用 |
 | `batch_ecxml_solver.py` | **⭐ ECXML 批量求解器（使用 -z 参数）** | ✅ 可用 |
 | `test_flotherm_api.py` | FloTHERM API 可用性测试脚本 | ✅ 可用 |
 | `pack_editor.py` | Pack 文件编辑器（解压、查看、修改功耗） | ✅ 可用 |
@@ -115,6 +116,80 @@ python batch_pack_solver.py pack1.pack pack2.pack pack3.pack -o ./macros
 ---
 
 ## 可用功能
+
+### ⭐⭐ Excel 多配置批量仿真（推荐）
+
+从 Excel 读取多个配置，自动修改 ECXML 模板并批量求解：
+
+```bash
+# 基本用法
+python excel_batch_simulation.py template.ecxml config.xlsx -o ./output
+
+# 指定 FloTHERM 路径
+python excel_batch_simulation.py template.ecxml config.xlsx -o ./output --flotherm "C:\...\flotherm.exe"
+
+# 仅生成 ECXML，不求解
+python excel_batch_simulation.py template.ecxml config.xlsx -o ./output --no-solve
+
+# 使用指定 sheet
+python excel_batch_simulation.py template.ecxml config.xlsx -o ./output --sheet "配置1"
+
+# 仅预览配置（不执行）
+python excel_batch_simulation.py template.ecxml config.xlsx -o ./output --dry-run
+```
+
+#### Excel 格式
+
+**简单格式（推荐）**：
+
+| config_name | U1_CPU | U2_GPU | Ambient |
+|-------------|--------|--------|---------|
+| case1       | 10     | 5      | 25      |
+| case2       | 15     | 8      | 35      |
+| case3       | 20     | 10     | 40      |
+
+- 第一列必须是 `config_name`（配置名称）
+- 其他列名对应 ECXML 中的器件名或边界条件名
+- 数值自动识别：功耗（W）或温度（°C）
+
+#### 流程图
+
+```mermaid
+flowchart LR
+    A[📊 Excel 配置] --> B[📝 修改 ECXML 模板]
+    B --> C[⚙️ 批量求解]
+    C --> D[📋 生成报告]
+
+    style A fill:#e8f5e9
+    style B fill:#fff3e0
+    style C fill:#e3f2fd
+    style D fill:#f3e5f5
+```
+
+#### 输出目录结构
+
+```
+output/
+└── batch_20260309_100000/
+    ├── case1.ecxml          # 修改后的 ECXML
+    ├── case1.pack           # 求解结果
+    ├── case1_report.html    # 单个报告
+    ├── case2.ecxml
+    ├── case2.pack
+    ├── case2_report.html
+    ├── ...
+    ├── batch_report.txt     # 批量求解报告
+    └── summary.xlsx         # 配置+结果汇总
+```
+
+#### 依赖
+
+```bash
+pip install openpyxl  # 或
+pip install pandas
+```
+
+---
 
 ### ⭐ 批量 ECXML 求解（推荐）
 
