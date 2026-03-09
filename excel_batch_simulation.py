@@ -465,6 +465,8 @@ Excel 格式示例:
         print(f"❌ 错误: 模板文件不存在: {args.template}")
         sys.exit(1)
 
+    # 转换为绝对路径
+    args.template = str(Path(args.template).resolve())
     print(f"✅ 模板文件: {args.template}")
 
     # 检查 Excel 文件
@@ -504,7 +506,7 @@ Excel 格式示例:
         sys.exit(0)
 
     # 创建输出文件夹（带时间戳的子文件夹）
-    base_output = Path(args.output)
+    base_output = Path(args.output).resolve()  # 转换为绝对路径
     batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_folder = base_output / f"batch_{batch_timestamp}"
     output_folder.mkdir(parents=True, exist_ok=True)
