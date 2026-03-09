@@ -48,8 +48,27 @@ python excel_batch_simulation.py template.ecxml config.xlsx -o ./output
 
 | 参数类型 | Excel 列名 | ECXML 对应 | 单位 |
 |---------|-----------|-----------|------|
-| 器件功耗 | 器件的 `name` 属性 | `<Component name="xxx">` | W（瓦特） |
-| 环境温度 | 边界条件的 `name` 属性 | `<BoundaryCondition name="xxx">` | °C（摄氏度） |
+| 器件功耗 | 器件的名称 | `<Component name="xxx">` 或 `<Component><name>xxx</name>` | W（瓦特） |
+| 环境温度 | 边界条件的名称 | `<BoundaryCondition name="xxx">` 或 `<BoundaryCondition><name>xxx</name>` | °C（摄氏度） |
+
+**支持的名称格式：**
+
+ECXML 中元素名称可以是属性或子元素，两种都支持：
+
+```xml
+<!-- 格式1: 属性 -->
+<Component name="CPU">
+  <powerDissipation>10.0</powerDissipation>
+</Component>
+
+<!-- 格式2: 子元素 -->
+<Component>
+  <name>CPU</name>
+  <powerDissipation>10.0</powerDissipation>
+</Component>
+```
+
+Excel 中都用 `CPU` 或 `[CPU]` 即可。
 
 ### 路径格式（高级）
 

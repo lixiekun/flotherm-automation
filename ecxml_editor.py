@@ -133,10 +133,24 @@ class ECXMLParser:
             return None
 
     def find_element_by_name(self, name: str) -> Optional[ET.Element]:
-        """按名称查找元素"""
+        """
+        按名称查找元素
+
+        支持两种格式:
+        1. 属性格式: <Component name="CPU">
+        2. 子元素格式: <Component><name>CPU</name></Component>
+        """
         for elem in self.root.iter():
+            # 方式1: 检查 name 属性
             if elem.get('name') == name or elem.get('Name') == name:
                 return elem
+
+            # 方式2: 检查 <name> 子元素
+            for child in elem:
+                tag = self._strip_ns(child.tag).lower()
+                if tag == 'name' and child.text and child.text.strip() == name:
+                    return elem
+
         return None
 
     def find_elements_by_pattern(self, pattern: str) -> List[ET.Element]:
@@ -144,9 +158,20 @@ class ECXMLParser:
         regex = re.compile(pattern, re.IGNORECASE)
         results = []
         for elem in self.root.iter():
+            # 检查属性
             name = elem.get('name', elem.get('Name', ''))
             if regex.search(name):
                 results.append(elem)
+                continue
+
+            # 检查子元素
+            for child in elem:
+                tag = self._strip_ns(child.tag).lower()
+                if tag == 'name' and child.text:
+                    if regex.search(child.text.strip()):
+                        results.append(elem)
+                        break
+
         return results
 
     def set_value_by_path(self, path: str, value: Any) -> bool:
