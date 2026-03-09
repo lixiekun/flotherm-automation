@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  示例 ECXML 模板文件
+  用于测试 excel_batch_simulation.py
+
+  使用方法:
+  python excel_batch_simulation.py examples/example_template.ecxml examples/example_config.xlsx -o ./output --no-solve
+-->
+<ECXML xmlns="http://www.jedec.org/ecxml" version="1.0">
+  <Model name="ThermalModel">
+    <!-- CPU 器件 -->
+    <Component name="CPU">
+      <Position x="0" y="0" z="0"/>
+      <Size width="0.02" height="0.002" depth="0.02"/>
+      <powerDissipation>10.0</powerDissipation>
+      <Material name="Silicon">
+        <density>2330</density>
+        <specificHeat>700</specificHeat>
+      </Material>
+    </Component>
+
+    <!-- GPU 器件 -->
+    <Component name="GPU">
+      <Position x="0.05" y="0" z="0"/>
+      <Size width="0.03" height="0.002" depth="0.03"/>
+      <powerDissipation>5.0</powerDissipation>
+      <Material name="Silicon">
+        <density>2330</density>
+        <specificHeat>700</specificHeat>
+      </Material>
+    </Component>
+
+    <!-- 散热器 -->
+    <Component name="Heatsink">
+      <Position x="0" y="0.01" z="0"/>
+      <Size width="0.05" height="0.01" depth="0.05"/>
+      <Material name="Aluminum">
+        <density>2700</density>
+        <specificHeat>900</specificHeat>
+      </Material>
+    </Component>
+
+    <!-- PCB 板 -->
+    <Component name="PCB">
+      <Position x="0" y="-0.002" z="0"/>
+      <Size width="0.1" height="0.002" depth="0.15"/>
+    </Component>
+
+    <!-- 环境边界条件 -->
+    <BoundaryCondition name="Ambient">
+      <Temperature>25.0</Temperature>
+    </BoundaryCondition>
+  </Model>
+</ECXML>
