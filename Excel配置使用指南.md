@@ -62,6 +62,46 @@ python excel_batch_simulation.py template.ecxml config.xlsx -o ./output
 | `Name/child/grandchild` | 多层路径 | `Heatsink.Material.density` |
 | `Name@attr` | 元素的属性 | `Fan@flowRate` |
 | `Name.child@attr` | 子元素的属性 | `PCB.Size@width` |
+| `[Material:1]` | 名称含特殊字符 | 用方括号包裹 |
+| `[Material:1].density` | 特殊名称 + 子元素 | 组合使用 |
+
+**注意：特殊字符处理**
+
+如果元素名称包含 `.` `:` `/` `@` 等特殊字符，需要用方括号 `[]` 包裹：
+
+| ECXML 中的名称 | Excel 列名写法 |
+|---------------|---------------|
+| `Material:1` | `[Material:1]` |
+| `Part.A` | `[Part.A]` |
+| `Fan/Radiator` | `[Fan/Radiator]` |
+
+
+**示例：特殊名称处理**
+
+如果元素名称包含特殊字符（如 `:`, `/`, `.`, `@`），需用方括号 `[]` 包裹：
+
+| ECXML 中的名称 | Excel 列名写法 | 说明 |
+|---------------|---------------|------|
+| `Material:1` | `[Material:1]` | 包含冒号 |
+| `Part.A` | `[Part.A]` | 包含点号 |
+| `Fan/Radiator` | `[Fan/Radiator]` | 包含斜杠 |
+
+示例 ECXML：
+```xml
+<Component name="Material:1">
+  <Material name="Copper">
+    <density>8900</density>
+  </Material>
+</Component>
+```
+
+Excel 配置：
+| config_name | [Material:1] | [Material:1].Material.density |
+|-------------|--------------|-------------------------------|
+| case1       | 15           | 8900                          |
+| case2       | 20           | 2700                          |
+
+---
 
 **示例：修改材料属性**
 
