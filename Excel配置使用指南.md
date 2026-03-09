@@ -51,6 +51,51 @@ python excel_batch_simulation.py template.ecxml config.xlsx -o ./output
 | 器件功耗 | 器件的 `name` 属性 | `<Component name="xxx">` | W（瓦特） |
 | 环境温度 | 边界条件的 `name` 属性 | `<BoundaryCondition name="xxx">` | °C（摄氏度） |
 
+### 路径格式（高级）
+
+除了简单的名称匹配，还支持以下路径格式：
+
+| Excel 列名格式 | 说明 | 示例 |
+|---------------|------|------|
+| `ComponentName` | 自动识别（功耗/温度） | `CPU` → 设置功耗 |
+| `Name.child` | 子元素的文本值 | `CPU.powerDissipation` |
+| `Name/child/grandchild` | 多层路径 | `Heatsink.Material.density` |
+| `Name@attr` | 元素的属性 | `Fan@flowRate` |
+| `Name.child@attr` | 子元素的属性 | `PCB.Size@width` |
+
+**示例：修改材料属性**
+
+假设 ECXML 结构：
+```xml
+<Component name="Heatsink">
+  <Material name="Aluminum">
+    <density>2700</density>
+    <specificHeat>900</specificHeat>
+  </Material>
+</Component>
+```
+
+Excel 配置：
+| config_name | Heatsink.Material.density | Heatsink.Material.specificHeat |
+|-------------|---------------------------|-------------------------------|
+| aluminum    | 2700                      | 900                           |
+| copper      | 8900                      | 385                           |
+
+**示例：修改尺寸属性**
+
+假设 ECXML 结构：
+```xml
+<Component name="PCB">
+  <Size width="0.1" height="0.002" depth="0.15"/>
+</Component>
+```
+
+Excel 配置：
+| config_name | PCB.Size@width | PCB.Size@height | PCB.Size@depth |
+|-------------|----------------|-----------------|----------------|
+| small       | 0.05           | 0.001           | 0.08           |
+| large       | 0.15           | 0.003           | 0.20           |
+
 ### 示例
 
 假设 ECXML 模板结构如下：

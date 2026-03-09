@@ -197,6 +197,13 @@ def apply_config_to_ecxml(template_path: str, config: Dict[str, Any], output_pat
     """
     将配置应用到 ECXML 模板
 
+    支持的 Excel 列名格式:
+        - "CPU"                        → 自动识别（功耗/温度）
+        - "CPU.powerDissipation"       → 设置功耗
+        - "Heatsink.Material.density"  → 多层路径
+        - "Fan@flowRate"               → 设置属性
+        - "PCB.Size@width"             → 子元素属性
+
     Args:
         template_path: 模板 ECXML 文件路径
         config: 配置字典
@@ -229,19 +236,11 @@ def apply_config_to_ecxml(template_path: str, config: Dict[str, Any], output_pat
         except (ValueError, TypeError):
             continue
 
-        # 尝试设置功耗
-        if parser.set_power(key, value):
-            print(f"    ✓ 设置功耗: {key} = {value}W")
+        # 使用路径定位设置值（支持多种格式）
+        if parser.set_value_by_path(key, value):
             modified_count += 1
-            continue
-
-        # 尝试设置温度（边界条件）
-        if parser.set_boundary_condition(key, temperature=value):
-            print(f"    ✓ 设置温度: {key} = {value}°C")
-            modified_count += 1
-            continue
-
-        print(f"    ⚠ 未找到参数: {key}")
+        else:
+            print(f"    ⚠ 未找到参数: {key}")
 
     # 保存修改
     parser.save(output_path)

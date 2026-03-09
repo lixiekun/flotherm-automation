@@ -149,6 +149,105 @@ class ECXMLParser:
                 results.append(elem)
         return results
 
+    def set_value_by_path(self, path: str, value: Any) -> bool:
+        """
+        通过路径设置值，支持灵活的定位方式
+
+        路径格式:
+            - "ComponentName"                    → 自动识别（功耗/温度）
+            - "ComponentName.child"              → 子元素的文本值
+            - "ComponentName/child/grandchild"   → 多层路径
+            - "ComponentName@attr"               → 元素的属性
+            - "ComponentName.child@attr"         → 子元素的属性
+
+        示例:
+            - "CPU"                              → 设置功耗（自动）
+            - "CPU.powerDissipation"             → 设置功耗
+            - "Heatsink.Material.density"        → 设置材料密度
+            - "Fan@flowRate"                     → 设置风扇属性
+            - "PCB.Size@width"                   → 设置尺寸属性
+
+        Args:
+            path: 路径字符串
+            value: 要设置的值
+
+        Returns:
+            是否成功
+        """
+        # 解析路径
+        attr_name = None
+        if '@' in path:
+            path, attr_name = path.rsplit('@', 1)
+
+        # 分割路径
+        parts = [p.strip() for p in path.replace('/', '.').split('.') if p.strip()]
+
+        if not parts:
+            print("错误: 路径为空")
+            return False
+
+        # 第一部分是元素名称（通过 name 属性定位）
+        elem_name = parts[0]
+        elem = self.find_element_by_name(elem_name)
+
+        if elem is None:
+            print(f"未找到元素: {elem_name}")
+            return False
+
+        # 如果只有元素名，自动识别类型
+        if len(parts) == 1 and attr_name is None:
+            return self._auto_set_value(elem, elem_name, value)
+
+        # 遍历子路径
+        for child_name in parts[1:]:
+            child_elem = self._find_child_by_tag(elem, child_name)
+            if child_elem is None:
+                print(f"未找到子元素: {child_name} (在 {self._strip_ns(elem.tag)} 下)")
+                return False
+            elem = child_elem
+
+        # 设置值
+        if attr_name:
+            # 设置属性
+            elem.set(attr_name, str(value))
+            print(f"    ✓ 设置属性: {path}@{attr_name} = {value}")
+        else:
+            # 设置文本值
+            elem.text = str(value)
+            print(f"    ✓ 设置值: {path} = {value}")
+
+        return True
+
+    def _find_child_by_tag(self, parent: ET.Element, tag: str) -> Optional[ET.Element]:
+        """通过标签名查找直接子元素（忽略命名空间）"""
+        tag_lower = tag.lower()
+        for child in parent:
+            child_tag = self._strip_ns(child.tag).lower()
+            if child_tag == tag_lower:
+                return child
+        return None
+
+    def _auto_set_value(self, elem: ET.Element, elem_name: str, value: Any) -> bool:
+        """自动识别并设置值（功耗或温度）"""
+        # 检查是否是边界条件（包含温度）
+        for child in elem.iter():
+            tag_name = self._strip_ns(child.tag).lower()
+            if tag_name in ['temperature', 'temp']:
+                child.text = str(value)
+                print(f"    ✓ 设置温度: {elem_name} = {value}°C")
+                return True
+
+        # 检查是否是器件（包含功耗）
+        for child in elem.iter():
+            tag_name = self._strip_ns(child.tag).lower()
+            if tag_name in ['powerdissipation', 'power', 'power_dissipation']:
+                child.text = str(value)
+                print(f"    ✓ 设置功耗: {elem_name} = {value}W")
+                return True
+
+        print(f"    ⚠ 无法自动识别参数类型: {elem_name}")
+        return False
+
     def set_power(self, component_name: str, power: float) -> bool:
         """设置器件功耗"""
         elem = self.find_element_by_name(component_name)
