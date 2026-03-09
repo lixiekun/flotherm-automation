@@ -212,9 +212,15 @@ class ECXMLParser:
 
         # 遍历路径段，定位元素
         elem = self.root
+        root_tag = self._strip_ns(self.root.tag)
+
         for i, seg in enumerate(segments):
             tag_name = seg['tag']
             filter_name = seg['filter']
+
+            # 如果第一段是根元素名称，跳过它
+            if i == 0 and tag_name.lower() == root_tag.lower():
+                continue
 
             # 判断是简单的名称匹配还是路径遍历
             if i == 0 and filter_name is None and '.' not in path.replace('/', '.') and '[' not in path:
