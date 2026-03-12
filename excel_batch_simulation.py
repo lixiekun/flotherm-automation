@@ -13,15 +13,21 @@ Excel 多配置批量仿真工具
     python excel_batch_simulation.py template.ecxml config.xlsx -o ./output --no-solve
     python excel_batch_simulation.py template.ecxml config.xlsx -o ./output --sheet "配置1"
 
-Excel 格式（简单格式）:
-    | config_name | U1_CPU | U2_GPU | Ambient |
-    |-------------|--------|--------|---------|
-    | case1       | 10     | 5      | 25      |
-    | case2       | 15     | 8      | 35      |
+Excel 格式（长格式，每个参数一行）:
+    | config_name | name     | attribute   | value |
+    |-------------|----------|-------------|-------|
+    | case1       | CPU      | powerDissipation | 10  |
+    | case1       | Heatsink | Material.density  | 8900|
+    | case1       | PCB      | Size@width       | 0.1 |
+    | case2       | CPU      | powerDissipation | 15  |
+    | case2       | Heatsink | Material.density  | 8500|
 
-    - 第一列必须是 config_name（配置名称）
-    - 其他列名对应 ECXML 中的器件名或边界条件名
-    - 数值自动识别：功耗（W）或温度（°C）
+    - config_name: 配置名称（同一配置的多行会被合并处理）
+    - name: 元素名称，用于在 materials.material 中查找 name={name} 的元素
+    - attribute: 要修改的属性路径，支持点分隔（如 Material.density）和 @ 属性（如 Size@width）
+    - value: 要设置的值
+
+    路径组合逻辑: materials.material[name={name}].{attribute} = value
 """
 
 import os
@@ -52,7 +58,7 @@ from ecxml_editor import ECXMLParser
 
 
 class ExcelConfigReader:
-    """Excel 配置读取器"""
+    """Excel 配置读取器（长格式）"""
 
     def __init__(self, filepath: str, sheet_name: str = None):
         """
@@ -64,28 +70,33 @@ class ExcelConfigReader:
         """
         self.filepath = filepath
         self.sheet_name = sheet_name
-        self.configs = []
+        self.raw_rows = []  # 原始行数据
+        self.configs = []   # 合并后的配置
 
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"Excel 文件不存在: {filepath}")
 
     def read(self) -> List[Dict[str, Any]]:
         """
-        读取 Excel 配置
+        读取 Excel 配置并按 config_name 分组
 
         Returns:
-            配置列表，每个配置是一个字典
+            配置列表，每个配置是一个字典，包含多个参数修改项
         """
         if HAS_OPENPYXL:
-            return self._read_with_openpyxl()
+            raw_rows = self._read_with_openpyxl()
         elif HAS_PANDAS:
-            return self._read_with_pandas()
+            raw_rows = self._read_with_pandas()
         else:
             raise ImportError("需要安装 openpyxl 或 pandas 来读取 Excel 文件\n"
                             "安装命令: pip install openpyxl 或 pip install pandas")
 
+        self.raw_rows = raw_rows
+        self.configs = self._group_by_config_name(raw_rows)
+        return self.configs
+
     def _read_with_openpyxl(self) -> List[Dict[str, Any]]:
-        """使用 openpyxl 读取"""
+        """使用 openpyxl 读取原始行"""
         wb = openpyxl.load_workbook(self.filepath)
 
         # 选择 sheet
@@ -100,71 +111,106 @@ class ExcelConfigReader:
         headers = []
         for cell in ws[1]:
             if cell.value:
-                headers.append(str(cell.value).strip())
+                headers.append(str(cell.value).strip().lower())
             else:
                 headers.append(f"col_{cell.column}")
 
-        # 验证第一列是 config_name
-        if headers[0].lower() != 'config_name':
-            print(f"⚠️ 警告: 第一列不是 'config_name'，使用 '{headers[0]}' 作为配置名称列")
+        # 验证必要列
+        required_cols = ['config_name', 'name', 'attribute', 'value']
+        for col in required_cols:
+            if col not in headers:
+                raise ValueError(f"Excel 缺少必要列: {col}，当前列: {headers}")
 
         # 读取数据行
-        configs = []
+        rows = []
         for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
             if not row[0]:  # 跳过空行
                 continue
 
-            config = {'_row': row_idx}
+            row_data = {'_row': row_idx}
             for i, header in enumerate(headers):
                 if i < len(row):
-                    config[header] = row[i]
+                    row_data[header] = row[i]
 
-            configs.append(config)
+            rows.append(row_data)
 
         wb.close()
-        self.configs = configs
-        return configs
+        return rows
 
     def _read_with_pandas(self) -> List[Dict[str, Any]]:
-        """使用 pandas 读取"""
+        """使用 pandas 读取原始行"""
         df = pd.read_excel(self.filepath, sheet_name=self.sheet_name or 0)
 
-        # 验证第一列
-        first_col = df.columns[0]
-        if first_col.lower() != 'config_name':
-            print(f"⚠️ 警告: 第一列不是 'config_name'，使用 '{first_col}' 作为配置名称列")
+        # 统一列名为小写
+        df.columns = [c.lower().strip() for c in df.columns]
+
+        # 验证必要列
+        required_cols = ['config_name', 'name', 'attribute', 'value']
+        for col in required_cols:
+            if col not in df.columns:
+                raise ValueError(f"Excel 缺少必要列: {col}，当前列: {list(df.columns)}")
 
         # 转换为字典列表
-        configs = []
+        rows = []
         for idx, row in df.iterrows():
-            config = {'_row': idx + 2}  # Excel 行号从 2 开始（1 是表头）
+            row_data = {'_row': idx + 2}
             for col in df.columns:
                 val = row[col]
                 if pd.isna(val):
                     continue
-                config[col] = val
-            configs.append(config)
+                row_data[col] = val
+            rows.append(row_data)
 
-        self.configs = configs
+        return rows
+
+    def _group_by_config_name(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        按 config_name 分组，将同一配置的多行合并
+
+        Returns:
+            配置列表，每个配置包含:
+            - config_name: 配置名称
+            - params: 参数列表，每个参数是 {name, attribute, value}
+        """
+        configs_dict = {}
+
+        for row in rows:
+            config_name = str(row.get('config_name', '')).strip()
+            if not config_name:
+                continue
+
+            if config_name not in configs_dict:
+                configs_dict[config_name] = {
+                    'config_name': config_name,
+                    'params': []
+                }
+
+            # 添加参数
+            param = {
+                'name': row.get('name', ''),
+                'attribute': row.get('attribute', ''),
+                'value': row.get('value'),
+                '_row': row.get('_row')
+            }
+
+            # 只添加有效参数
+            if param['name'] and param['attribute'] and param['value'] is not None:
+                configs_dict[config_name]['params'].append(param)
+
+        # 转换为列表，保持原始顺序
+        configs = []
+        seen = set()
+        for row in rows:
+            config_name = str(row.get('config_name', '')).strip()
+            if config_name and config_name not in seen and config_name in configs_dict:
+                configs.append(configs_dict[config_name])
+                seen.add(config_name)
+
         return configs
 
     def get_config_names(self) -> List[str]:
         """获取所有配置名称"""
-        name_col = None
-        if self.configs:
-            for key in self.configs[0]:
-                if key.lower() == 'config_name' or key == '_row':
-                    continue
-                name_col = key
-                break
-            if 'config_name' in self.configs[0]:
-                name_col = 'config_name'
-            elif self.configs:
-                name_col = list(self.configs[0].keys())[1] if len(self.configs[0]) > 1 else None
-
-        if name_col:
-            return [c.get(name_col, f"config_{i}") for i, c in enumerate(self.configs)]
-        return [f"config_{i}" for i in range(len(self.configs))]
+        return [c['config_name'] for c in self.configs]
 
 
 def find_flotherm_executable() -> Optional[str]:
@@ -193,21 +239,27 @@ def find_flotherm_executable() -> Optional[str]:
     return None
 
 
-def apply_config_to_ecxml(template_path: str, config: Dict[str, Any], output_path: str) -> bool:
+def apply_config_to_ecxml(template_path: str, config: Dict[str, Any], output_path: str,
+                           base_path: str = "materials.material") -> bool:
     """
     将配置应用到 ECXML 模板
 
-    支持的 Excel 列名格式:
-        - "CPU"                        → 自动识别（功耗/温度）
-        - "CPU.powerDissipation"       → 设置功耗
-        - "Heatsink.Material.density"  → 多层路径
-        - "Fan@flowRate"               → 设置属性
-        - "PCB.Size@width"             → 子元素属性
+    新格式配置:
+        config = {
+            'config_name': 'case1',
+            'params': [
+                {'name': 'CPU', 'attribute': 'powerDissipation', 'value': 10},
+                {'name': 'Heatsink', 'attribute': 'Material.density', 'value': 8900},
+            ]
+        }
+
+    路径组合: {base_path}[name={name}].{attribute} = value
 
     Args:
         template_path: 模板 ECXML 文件路径
-        config: 配置字典
+        config: 配置字典，包含 config_name 和 params
         output_path: 输出文件路径
+        base_path: 基础路径，默认为 "materials.material"
 
     Returns:
         是否成功
@@ -219,28 +271,41 @@ def apply_config_to_ecxml(template_path: str, config: Dict[str, Any], output_pat
     parser = ECXMLParser(output_path)
 
     modified_count = 0
+    params = config.get('params', [])
 
-    for key, value in config.items():
-        if key.startswith('_') or key.lower() == 'config_name':
-            continue
+    for param in params:
+        name = param.get('name', '')
+        attribute = param.get('attribute', '')
+        value = param.get('value')
 
-        if value is None:
+        if not name or not attribute or value is None:
             continue
 
         # 尝试转换为数值
         try:
             if isinstance(value, str):
-                value = float(value)
-            elif not isinstance(value, (int, float)):
-                continue
+                # 尝试转换为数值
+                try:
+                    value = float(value)
+                    if value == int(value):
+                        value = int(value)
+                except ValueError:
+                    pass  # 保留字符串
+            elif isinstance(value, (int, float)):
+                pass  # 保持原样
+            else:
+                value = str(value)
         except (ValueError, TypeError):
-            continue
+            value = str(value)
 
-        # 使用路径定位设置值（支持多种格式）
-        if parser.set_value_by_path(key, value):
+        # 构建完整路径: materials.material[name={name}].{attribute}
+        full_path = f"{base_path}[name={name}].{attribute}"
+
+        # 使用路径定位设置值
+        if parser.set_value_by_path(full_path, value):
             modified_count += 1
         else:
-            print(f"    ⚠ 未找到参数: {key}")
+            print(f"    ⚠ 未找到参数: {full_path}")
 
     # 保存修改
     parser.save(output_path)
@@ -361,10 +426,11 @@ def generate_summary_report(output_folder: Path, configs: List[Dict],
 
             # 写入配置参数
             config = r.get('config', {})
-            f.write(f"  配置参数:\n")
-            for key, val in config.items():
-                if not key.startswith('_') and key.lower() != 'config_name':
-                    f.write(f"    {key}: {val}\n")
+            params = config.get('params', [])
+            if params:
+                f.write(f"  配置参数:\n")
+                for p in params:
+                    f.write(f"    {p['name']}.{p['attribute']}: {p['value']}\n")
 
     print(f"\n📄 报告已保存: {report_path}")
 
@@ -381,11 +447,12 @@ def generate_summary_report(output_folder: Path, configs: List[Dict],
                 'pack': Path(r['pack_path']).name if r.get('pack_path') else '',
                 'message': r['message']
             }
-            # 添加配置参数
+            # 添加配置参数（将参数展开为列）
             config = r.get('config', {})
-            for key, val in config.items():
-                if not key.startswith('_') and key.lower() != 'config_name':
-                    row[key] = val
+            params = config.get('params', [])
+            for p in params:
+                col_name = f"{p['name']}.{p['attribute']}"
+                row[col_name] = p['value']
             summary_data.append(row)
 
         df = pd.DataFrame(summary_data)
@@ -398,11 +465,13 @@ def main():
         description="Excel 多配置批量仿真工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Excel 格式示例:
-    | config_name | U1_CPU | U2_GPU | Ambient |
-    |-------------|--------|--------|---------|
-    | case1       | 10     | 5      | 25      |
-    | case2       | 15     | 8      | 35      |
+Excel 格式示例（长格式，每个参数一行）:
+    | config_name | name     | attribute         | value |
+    |-------------|----------|-------------------|-------|
+    | case1       | CPU      | powerDissipation  | 10    |
+    | case1       | Heatsink | Material.density  | 8900  |
+    | case2       | CPU      | powerDissipation  | 15    |
+    | case2       | Heatsink | Material.density  | 8500  |
 
 示例命令:
     python excel_batch_simulation.py template.ecxml config.xlsx -o ./output
@@ -454,9 +523,10 @@ Excel 格式示例:
     # 打印标题
     print("""
 ╔════════════════════════════════════════════════════════════╗
-║          Excel 多配置批量仿真工具 v1.0                      ║
+║          Excel 多配置批量仿真工具 v2.0                      ║
 ║                                                            ║
-║  流程: Excel配置 → 修改ECXML → 批量求解                    ║
+║  流程: Excel长格式配置 → 修改ECXML → 批量求解              ║
+║  格式: config_name | name | attribute | value              ║
 ╚════════════════════════════════════════════════════════════╝
 """)
 
@@ -494,9 +564,12 @@ Excel 格式示例:
     # 显示配置预览
     print(f"\n📋 配置预览:")
     for i, config in enumerate(configs[:5], 1):  # 最多显示5个
-        config_name = config.get('config_name', config.get(list(config.keys())[1] if len(config) > 1 else f"config_{i}"))
-        params = [f"{k}={v}" for k, v in list(config.items())[:4] if not k.startswith('_')]
-        print(f"   {i}. {config_name}: {', '.join(params)}")
+        config_name = config.get('config_name', f"config_{i}")
+        params = config.get('params', [])
+        param_str = ', '.join([f"{p['name']}.{p['attribute']}={p['value']}" for p in params[:3]])
+        if len(params) > 3:
+            param_str += f" ... ({len(params)} 个参数)"
+        print(f"   {i}. {config_name}: {param_str}")
     if len(configs) > 5:
         print(f"   ... 还有 {len(configs) - 5} 个配置")
 
@@ -538,8 +611,7 @@ Excel 格式示例:
 
     for i, config in enumerate(configs, 1):
         # 获取配置名称
-        config_name = config.get('config_name',
-                     config.get(list(config.keys())[1] if len(config) > 1 else f"config_{i}"))
+        config_name = config.get('config_name', f"config_{i}")
 
         # 生成输出文件名
         ecxml_path = output_folder / f"{config_name}.ecxml"

@@ -12,13 +12,18 @@
 
 ### 2. 编写 Excel 配置文件
 
-创建一个 Excel 文件（.xlsx），格式如下：
+创建一个 Excel 文件（.xlsx），使用**长格式**（每个参数一行）：
 
-| config_name | U1_CPU | U2_GPU | U3_DDR | Ambient |
-|-------------|--------|--------|--------|---------|
-| case1       | 10     | 5      | 3      | 25      |
-| case2       | 15     | 8      | 5      | 35      |
-| case3       | 20     | 10     | 8      | 40      |
+| config_name | name     | attribute         | value |
+|-------------|----------|-------------------|-------|
+| case1       | CPU      | powerDissipation  | 10    |
+| case1       | GPU      | powerDissipation  | 5     |
+| case1       | Heatsink | Material.density  | 8900  |
+| case1       | Ambient  | temperature       | 25    |
+| case2       | CPU      | powerDissipation  | 15    |
+| case2       | GPU      | powerDissipation  | 8     |
+| case2       | Heatsink | Material.density  | 8500  |
+| case2       | Ambient  | temperature       | 35    |
 
 ### 3. 运行批量仿真
 
@@ -30,172 +35,121 @@ python excel_batch_simulation.py template.ecxml config.xlsx -o ./output
 
 ## Excel 格式详解
 
-### 必须遵循的规则
+### 必要列
 
-1. **第一列必须是 `config_name`**
-   - 这是配置的名称，用于命名输出文件
-   - 例如：`case1`, `case2`, `high_power`, `low_temp` 等
+| 列名 | 说明 |
+|-----|------|
+| `config_name` | 配置名称，同一配置的多行会被合并处理 |
+| `name` | 元素名称，用于在 `materials.material` 中查找 `name={name}` 的元素 |
+| `attribute` | 要修改的属性路径，支持点分隔和 @ 属性 |
+| `value` | 要设置的值 |
 
-2. **列名必须与 ECXML 中的名称匹配**
-   - 器件名：对应 ECXML 中 Component 的名称
-   - 边界条件名：对应 ECXML 中 BoundaryCondition 的名称
+### 路径组合逻辑
 
-3. **数值自动识别类型**
-   - 如果列名匹配到器件 → 设置功耗（W）
-   - 如果列名匹配到边界条件 → 设置温度（°C）
-
----
-
-## 支持的 ECXML 名称格式
-
-ECXML 中元素名称可以是**属性**或**子元素**，两种都支持：
-
-```xml
-<!-- 格式1: 属性 -->
-<Component name="CPU">
-  <powerDissipation>10.0</powerDissipation>
-</Component>
-
-<!-- 格式2: 子元素 -->
-<Component>
-  <name>CPU</name>
-  <powerDissipation>10.0</powerDissipation>
-</Component>
+```
+materials.material[name={name}].{attribute} = value
 ```
 
-Excel 中都用 `CPU` 即可。
+例如：
+- `name=Copper`, `attribute=density` → `materials.material[name=Copper].density`
+- `name=Heatsink`, `attribute=Material.conductivity` → `materials.material[name=Heatsink].Material.conductivity`
 
 ---
 
-## 路径格式（高级）
+## attribute 格式支持
 
-除了简单的名称匹配，还支持以下路径格式：
+### 1. 简单属性
 
-| Excel 列名格式 | 说明 | 示例 |
-|---------------|------|------|
-| `ComponentName` | 自动识别（功耗/温度） | `CPU` → 设置功耗 |
-| `Name.child` | 子元素的文本值 | `CPU.powerDissipation` |
-| `Name/child/grandchild` | 多层路径 | `Heatsink.Material.density` |
-| `tag[name=xxx].child` | XPath 风格筛选 | `materials.material[name=Copper].density` |
-| `Name@attr` | 元素的属性 | `Fan@flowRate` |
-| `Name.child@attr` | 子元素的属性 | `PCB.Size@width` |
-| `[Material:1]` | 名称含特殊字符 | 用方括号包裹 |
+直接写属性名：
 
----
+| name | attribute | value |
+|------|-----------|-------|
+| Copper | density | 8900 |
+| Copper | conductivity | 400 |
 
-## XPath 风格路径
+### 2. 多层路径（点分隔）
 
-支持类似 XPath 的 `[name=xxx]` 筛选语法：
+用 `.` 访问子元素：
 
-**ECXML 结构：**
-```xml
-<materials>
-  <material>
-    <name>Copper</name>
-    <density>8900</density>
-    <conductivity>400</conductivity>
-  </material>
-  <material>
-    <name>Aluminum</name>
-    <density>2700</density>
-  </material>
-</materials>
-```
+| name | attribute | value |
+|------|-----------|-------|
+| Heatsink | Material.density | 8900 |
+| Heatsink | Material.conductivity | 400 |
+| PCB | Size.width | 0.1 |
 
-**Excel 配置：**
-| config_name | materials.material[name=Copper].density | materials.material[name=Aluminum].density |
-|-------------|----------------------------------------|------------------------------------------|
-| case1       | 8900                                   | 2700                                     |
-| case2       | 8500                                   | 2600                                     |
+### 3. 属性访问（@符号）
 
----
+用 `@` 访问 XML 属性：
 
-## 特殊字符处理
+| name | attribute | value |
+|------|-----------|-------|
+| PCB | Size@width | 0.1 |
+| PCB | Size@height | 0.002 |
+| Fan | @flowRate | 0.05 |
 
-如果元素名称包含 `.` `:` `/` `@` 等特殊字符，需要用方括号 `[]` 包裹：
+### 4. 组合格式
 
-| ECXML 中的名称 | Excel 列名写法 |
-|---------------|---------------|
-| `Material:1` | `[Material:1]` |
-| `Part.A` | `[Part.A]` |
-| `Fan/Radiator` | `[Fan/Radiator]` |
+可以组合使用：
 
-**示例：**
-
-ECXML:
-```xml
-<Component>
-  <name>Material:1</name>
-  <Material>
-    <density>2700</density>
-  </Material>
-</Component>
-```
-
-Excel 配置:
-| config_name | [Material:1] | [Material:1].Material.density |
-|-------------|--------------|-------------------------------|
-| case1       | 15           | 2700                          |
-| case2       | 20           | 8900                          |
+| name | attribute | value |
+|------|-----------|-------|
+| Heatsink | Material.Size@width | 0.05 |
 
 ---
 
 ## 配置示例
 
-### 示例 1：简单功耗测试
+### 示例 1：功耗测试
 
 测试不同功耗水平下的热性能：
 
-| config_name | CPU | GPU |
-|-------------|-----|-----|
-| idle        | 5   | 2   |
-| normal      | 15  | 10  |
-| heavy       | 30  | 20  |
-| max         | 50  | 35  |
+| config_name | name | attribute | value |
+|-------------|------|-----------|-------|
+| idle | CPU | powerDissipation | 5 |
+| idle | GPU | powerDissipation | 2 |
+| normal | CPU | powerDissipation | 15 |
+| normal | GPU | powerDissipation | 10 |
+| heavy | CPU | powerDissipation | 30 |
+| heavy | GPU | powerDissipation | 20 |
 
-### 示例 2：温度扫描测试
+### 示例 2：材料扫描测试
+
+测试不同材料的热性能：
+
+| config_name | name | attribute | value |
+|-------------|------|-----------|-------|
+| aluminum | Heatsink | Material.density | 2700 |
+| aluminum | Heatsink | Material.conductivity | 200 |
+| copper | Heatsink | Material.density | 8900 |
+| copper | Heatsink | Material.conductivity | 400 |
+
+### 示例 3：温度扫描测试
 
 测试不同环境温度下的器件温度：
 
-| config_name | CPU | Ambient |
-|-------------|-----|---------|
-| temp_0C     | 20  | 0       |
-| temp_25C    | 20  | 25      |
-| temp_40C    | 20  | 40      |
-| temp_55C    | 20  | 55      |
+| config_name | name | attribute | value |
+|-------------|------|-----------|-------|
+| temp_0C | Ambient | temperature | 0 |
+| temp_0C | CPU | powerDissipation | 20 |
+| temp_25C | Ambient | temperature | 25 |
+| temp_25C | CPU | powerDissipation | 20 |
+| temp_40C | Ambient | temperature | 40 |
+| temp_40C | CPU | powerDissipation | 20 |
 
-### 示例 3：修改材料属性
+### 示例 4：完整配置
 
-ECXML:
-```xml
-<Component name="Heatsink">
-  <Material name="Aluminum">
-    <density>2700</density>
-    <specificHeat>900</specificHeat>
-  </Material>
-</Component>
-```
+一个包含多个参数的完整配置：
 
-Excel:
-| config_name | Heatsink.Material.density | Heatsink.Material.specificHeat |
-|-------------|---------------------------|-------------------------------|
-| aluminum    | 2700                      | 900                           |
-| copper      | 8900                      | 385                           |
-
-### 示例 4：修改尺寸属性
-
-ECXML:
-```xml
-<Component name="PCB">
-  <Size width="0.1" height="0.002" depth="0.15"/>
-</Component>
-```
-
-Excel:
-| config_name | PCB.Size@width | PCB.Size@height | PCB.Size@depth |
-|-------------|----------------|-----------------|----------------|
-| small       | 0.05           | 0.001           | 0.08           |
-| large       | 0.15           | 0.003           | 0.20           |
+| config_name | name | attribute | value |
+|-------------|------|-----------|-------|
+| case1 | CPU | powerDissipation | 10 |
+| case1 | GPU | powerDissipation | 5 |
+| case1 | DDR | powerDissipation | 3 |
+| case1 | Heatsink | Material.density | 8900 |
+| case1 | Heatsink | Material.conductivity | 400 |
+| case1 | PCB | Size@width | 0.1 |
+| case1 | PCB | Size@depth | 0.15 |
+| case1 | Ambient | temperature | 25 |
 
 ---
 
@@ -250,7 +204,7 @@ python excel_batch_simulation.py model.ecxml config.xlsx -o ./results --dry-run
 
 ```
 output/
-└── batch_20260309_100000/
+└── batch_20260312_100000/
     ├── case1.ecxml          # 修改后的 ECXML
     ├── case1.pack           # 求解结果（如果求解）
     ├── case1_report.html    # HTML 报告（如果求解）
@@ -266,24 +220,15 @@ output/
 
 ## 常见问题
 
-### Q1: 提示"未找到器件"或"未找到功耗字段"
+### Q1: 提示"未找到元素"
 
-**原因**：Excel 中的列名与 ECXML 中的器件名不匹配。
-
-**解决**：
-1. 使用 `ecxml_editor.py --info template.ecxml` 查看模板中的器件名称
-2. 确保 Excel 列名与器件名完全一致
-3. 如果名称包含特殊字符（`:`, `.`, `/`, `@`），用方括号包裹：`[Material:1]`
-
-### Q2: 功耗被设置成温度了
-
-**原因**：ECXML 模板中器件没有 `powerDissipation` 字段。
+**原因**：Excel 中的 `name` 与 ECXML 中的元素名不匹配。
 
 **解决**：
-1. 检查模板结构，确保器件包含功耗定义
-2. 参考 JEDEC JEP181 标准格式
+1. 使用 `ecxml_editor.py --info template.ecxml` 查看模板中的元素名称
+2. 确保 Excel 中的 `name` 与元素名完全一致
 
-### Q3: 如何查看模板中有哪些可配置参数？
+### Q2: 如何查看模板中有哪些可配置参数？
 
 ```bash
 python ecxml_editor.py template.ecxml --analyze
@@ -291,15 +236,15 @@ python ecxml_editor.py template.ecxml --analyze
 
 这会显示模板中的所有器件、功耗字段和边界条件。
 
-### Q4: 可以配置其他参数吗（如尺寸、位置）？
+### Q3: 可以修改其他参数吗（如尺寸、位置）？
 
-可以！使用路径格式：
+可以！使用 `attribute` 列指定路径：
 
-| 需求 | Excel 列名写法 |
+| 需求 | attribute 写法 |
 |-----|---------------|
-| 材料密度 | `Heatsink.Material.density` |
-| 尺寸宽度 | `PCB.Size@width` |
-| 位置坐标 | `CPU.Position@x` |
+| 材料密度 | `Material.density` |
+| 尺寸宽度（属性） | `Size@width` |
+| 位置坐标 | `Position@x` |
 
 ---
 
@@ -307,7 +252,7 @@ python ecxml_editor.py template.ecxml --analyze
 
 ```mermaid
 flowchart TB
-    A[准备 ECXML 模板] --> B[编写 Excel 配置]
+    A[准备 ECXML 模板] --> B[编写 Excel 长格式配置]
     B --> C[运行 excel_batch_simulation.py]
     C --> D{是否求解?}
     D -->|是| E[批量求解]
