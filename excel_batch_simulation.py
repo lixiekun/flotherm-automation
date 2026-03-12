@@ -5,13 +5,19 @@ Excel 多配置批量仿真工具
 
 功能:
     1. 从 Excel 读取多个测试配置
-    2. 根据每个配置修改 ECXML 模板文件
+    2. 根据每个配置修改模板文件（支持 ECXML、PDML、FloXML）
     3. 批量调用 FloTHERM 求解
 
 使用方法:
     python excel_batch_simulation.py template.ecxml config.xlsx -o ./output
-    python excel_batch_simulation.py template.ecxml config.xlsx -o ./output --no-solve
-    python excel_batch_simulation.py template.ecxml config.xlsx -o ./output --sheet "配置1"
+    python excel_batch_simulation.py template.pdml config.xlsx -o ./output
+    python excel_batch_simulation.py template.floxml config.xlsx -o ./output --no-solve
+    python excel_batch_simulation.py template.pdml config.xlsx -o ./output --sheet "配置1"
+
+支持的格式:
+    - ECXML (.ecxml): JEDEC JEP181 标准，中性格式，不含网格信息
+    - PDML (.pdml): FloTHERM 原生格式，包含完整模型定义（几何、网格、材料、边界条件）
+    - FloXML (.floxml): FloTHERM XML 格式，用于项目和装配体
 
 Excel 格式（长格式，每个参数一行）:
     | config_name | name     | attribute   | value |
@@ -53,8 +59,43 @@ try:
 except ImportError:
     HAS_PANDAS = False
 
-# 导入现有的 ECXML 编辑器
+# 导入现有的解析器
 from ecxml_editor import ECXMLParser
+from pdml_parser import PDMLParser
+
+
+def get_file_type(filepath: str) -> str:
+    """
+    识别文件类型
+
+    Returns:
+        'ecxml', 'pdml', 'floxml', 或 'unknown'
+    """
+    ext = Path(filepath).suffix.lower()
+    type_map = {
+        '.ecxml': 'ecxml',
+        '.pdml': 'pdml',
+        '.floxml': 'floxml',
+        '.xml': 'pdml',  # 可能是 FloXML 或 PDML，先当作 PDML 处理
+    }
+    return type_map.get(ext, 'unknown')
+
+
+def create_parser(filepath: str):
+    """
+    根据文件类型创建相应的解析器
+
+    Returns:
+        (parser, file_type) 元组
+    """
+    file_type = get_file_type(filepath)
+
+    if file_type == 'ecxml':
+        return ECXMLParser(filepath), 'ecxml'
+    elif file_type in ('pdml', 'floxml'):
+        return PDMLParser(filepath), file_type
+    else:
+        raise ValueError(f"不支持的文件类型: {filepath}，支持 .ecxml, .pdml, .floxml")
 
 
 class ExcelConfigReader:
@@ -239,10 +280,10 @@ def find_flotherm_executable() -> Optional[str]:
     return None
 
 
-def apply_config_to_ecxml(template_path: str, config: Dict[str, Any], output_path: str,
+def apply_config_to_model(template_path: str, config: Dict[str, Any], output_path: str,
                            base_path: str = "materials.material") -> bool:
     """
-    将配置应用到 ECXML 模板
+    将配置应用到模板文件（支持 ECXML、PDML、FloXML）
 
     新格式配置:
         config = {
@@ -256,7 +297,7 @@ def apply_config_to_ecxml(template_path: str, config: Dict[str, Any], output_pat
     路径组合: {base_path}[name={name}].{attribute} = value
 
     Args:
-        template_path: 模板 ECXML 文件路径
+        template_path: 模板文件路径（.ecxml, .pdml, .floxml）
         config: 配置字典，包含 config_name 和 params
         output_path: 输出文件路径
         base_path: 基础路径，默认为 "materials.material"
@@ -267,8 +308,8 @@ def apply_config_to_ecxml(template_path: str, config: Dict[str, Any], output_pat
     # 复制模板
     shutil.copy(template_path, output_path)
 
-    # 创建解析器并修改
-    parser = ECXMLParser(output_path)
+    # 根据文件类型创建解析器
+    parser, file_type = create_parser(output_path)
 
     modified_count = 0
     params = config.get('params', [])
@@ -313,14 +354,21 @@ def apply_config_to_ecxml(template_path: str, config: Dict[str, Any], output_pat
     return modified_count > 0
 
 
-def solve_ecxml(flotherm_exe: str, ecxml_path: str, output_pack_path: str,
+# 保留旧函数名以兼容
+def apply_config_to_ecxml(template_path: str, config: Dict[str, Any], output_path: str,
+                           base_path: str = "materials.material") -> bool:
+    """向后兼容的函数名"""
+    return apply_config_to_model(template_path, config, output_path, base_path)
+
+
+def solve_model(flotherm_exe: str, model_path: str, output_pack_path: str,
                 output_html_path: str, index: int, total: int) -> tuple:
     """
-    求解单个 ECXML 文件
+    求解单个模型文件（支持 ECXML、PDML、FloXML）
 
     Args:
         flotherm_exe: FloTHERM 可执行文件路径
-        ecxml_path: 输入的 ECXML 文件路径
+        model_path: 输入的模型文件路径
         output_pack_path: 输出的 PACK 文件路径
         output_html_path: 输出的 HTML 报告路径
         index: 当前索引（从1开始）
@@ -329,26 +377,44 @@ def solve_ecxml(flotherm_exe: str, ecxml_path: str, output_pack_path: str,
     Returns:
         (success, elapsed_time, message)
     """
+    file_type = get_file_type(model_path)
+
     print(f"\n{'='*60}")
-    print(f"  [{index}/{total}] 正在求解: {Path(ecxml_path).name}")
+    print(f"  [{index}/{total}] 正在求解: {Path(model_path).name}")
+    print(f"  文件类型: {file_type}")
     print(f"{'='*60}")
-    print(f"  输入: {ecxml_path}")
+    print(f"  输入: {model_path}")
     print(f"  输出: {output_pack_path}")
     print(f"  开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  (命令行会等待求解完成，请勿关闭)\n")
 
     start_time = time.time()
 
-    # 构建命令
-    cmd = [
-        flotherm_exe,
-        "-b",
-        str(ecxml_path),
-        "-z",
-        str(output_pack_path),
-        "-r",
-        str(output_html_path)
-    ]
+    # 根据文件类型构建不同的命令
+    if file_type == 'ecxml':
+        # ECXML 使用 -b 参数
+        cmd = [
+            flotherm_exe,
+            "-b", str(model_path),
+            "-z", str(output_pack_path),
+            "-r", str(output_html_path)
+        ]
+    elif file_type == 'pdml':
+        # PDML 使用 -batch 参数（无头模式）
+        cmd = [
+            flotherm_exe,
+            "-batch", str(model_path),
+            "-nogui",
+            "-solve"
+        ]
+    elif file_type == 'floxml':
+        # FloXML 使用 -b 参数
+        cmd = [
+            flotherm_exe,
+            "-b", str(model_path)
+        ]
+    else:
+        return (False, 0, f"不支持的文件类型: {file_type}")
 
     try:
         # 运行 FloTHERM
@@ -362,7 +428,18 @@ def solve_ecxml(flotherm_exe: str, ecxml_path: str, output_pack_path: str,
 
         if result.returncode == 0:
             # 检查输出文件是否存在
-            if os.path.exists(output_pack_path):
+            output_exists = os.path.exists(output_pack_path)
+
+            # 对于 PDML/FloXML，可能输出文件名不同
+            if not output_exists and file_type in ('pdml', 'floxml'):
+                # 尝试查找 .pack 文件
+                parent_dir = Path(output_pack_path).parent
+                pack_files = list(parent_dir.glob("*.pack"))
+                if pack_files:
+                    output_pack_path = str(pack_files[0])
+                    output_exists = True
+
+            if output_exists:
                 file_size = os.path.getsize(output_pack_path) / (1024 * 1024)  # MB
                 print(f"\n  ✅ 求解完成!")
                 print(f"     耗时: {elapsed_time:.1f} 秒")
@@ -386,6 +463,13 @@ def solve_ecxml(flotherm_exe: str, ecxml_path: str, output_pack_path: str,
         elapsed_time = time.time() - start_time
         print(f"\n  ❌ 异常: {e}")
         return (False, elapsed_time, str(e))
+
+
+# 保留旧函数名以兼容
+def solve_ecxml(flotherm_exe: str, ecxml_path: str, output_pack_path: str,
+                output_html_path: str, index: int, total: int) -> tuple:
+    """向后兼容的函数名"""
+    return solve_model(flotherm_exe, ecxml_path, output_pack_path, output_html_path, index, total)
 
 
 def generate_summary_report(output_folder: Path, configs: List[Dict],
@@ -465,6 +549,11 @@ def main():
         description="Excel 多配置批量仿真工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+支持的模板格式:
+    - ECXML (.ecxml): JEDEC JEP181 标准，中性格式，不含网格信息
+    - PDML (.pdml): FloTHERM 原生格式，包含完整模型定义（几何、网格、材料、边界条件）
+    - FloXML (.floxml): FloTHERM XML 格式，用于项目和装配体
+
 Excel 格式示例（长格式，每个参数一行）:
     | config_name | name     | attribute         | value |
     |-------------|----------|-------------------|-------|
@@ -475,14 +564,15 @@ Excel 格式示例（长格式，每个参数一行）:
 
 示例命令:
     python excel_batch_simulation.py template.ecxml config.xlsx -o ./output
-    python excel_batch_simulation.py template.ecxml config.xlsx -o ./output --no-solve
-    python excel_batch_simulation.py template.ecxml config.xlsx -o ./output --sheet "Sheet2"
+    python excel_batch_simulation.py template.pdml config.xlsx -o ./output
+    python excel_batch_simulation.py template.floxml config.xlsx -o ./output --no-solve
+    python excel_batch_simulation.py template.pdml config.xlsx -o ./output --sheet "Sheet2"
         """
     )
 
     parser.add_argument(
         "template",
-        help="ECXML 模板文件路径"
+        help="模板文件路径（支持 .ecxml, .pdml, .floxml）"
     )
 
     parser.add_argument(
@@ -509,7 +599,7 @@ Excel 格式示例（长格式，每个参数一行）:
     parser.add_argument(
         "--no-solve",
         action="store_true",
-        help="仅生成 ECXML 文件，不调用 FloTHERM 求解"
+        help="仅生成模型文件，不调用 FloTHERM 求解"
     )
 
     parser.add_argument(
@@ -520,13 +610,21 @@ Excel 格式示例（长格式，每个参数一行）:
 
     args = parser.parse_args()
 
+    # 检测文件类型
+    file_type = get_file_type(args.template)
+    if file_type == 'unknown':
+        print(f"❌ 错误: 不支持的文件类型: {args.template}")
+        print("   支持的格式: .ecxml, .pdml, .floxml")
+        sys.exit(1)
+
     # 打印标题
     print("""
 ╔════════════════════════════════════════════════════════════╗
-║          Excel 多配置批量仿真工具 v2.0                      ║
+║          Excel 多配置批量仿真工具 v2.1                      ║
 ║                                                            ║
-║  流程: Excel长格式配置 → 修改ECXML → 批量求解              ║
+║  流程: Excel长格式配置 → 修改模板 → 批量求解               ║
 ║  格式: config_name | name | attribute | value              ║
+║  支持: ECXML, PDML, FloXML                                 ║
 ╚════════════════════════════════════════════════════════════╝
 """)
 
@@ -601,9 +699,12 @@ Excel 格式示例（长格式，每个参数一行）:
 
         print(f"✅ FloTHERM: {flotherm_exe}")
 
+    # 获取模板文件扩展名
+    template_ext = Path(args.template).suffix.lower()
+
     # 开始处理
     print(f"\n{'='*60}")
-    print(f"  开始生成 ECXML 文件")
+    print(f"  开始生成 {file_type.upper()} 文件")
     print(f"{'='*60}")
 
     results = []
@@ -613,8 +714,8 @@ Excel 格式示例（长格式，每个参数一行）:
         # 获取配置名称
         config_name = config.get('config_name', f"config_{i}")
 
-        # 生成输出文件名
-        ecxml_path = output_folder / f"{config_name}.ecxml"
+        # 生成输出文件名（保持与模板相同的扩展名）
+        model_path = output_folder / f"{config_name}{template_ext}"
         pack_path = output_folder / f"{config_name}.pack"
         html_path = output_folder / f"{config_name}_report.html"
 
@@ -622,7 +723,7 @@ Excel 格式示例（长格式，每个参数一行）:
 
         # 应用配置到模板
         try:
-            success = apply_config_to_ecxml(args.template, config, str(ecxml_path))
+            success = apply_config_to_model(args.template, config, str(model_path))
             if not success:
                 print(f"    ⚠️ 没有修改任何参数")
         except Exception as e:
@@ -630,7 +731,7 @@ Excel 格式示例（长格式，每个参数一行）:
             results.append({
                 'config_name': config_name,
                 'config': config,
-                'ecxml_path': str(ecxml_path),
+                'ecxml_path': str(model_path),
                 'pack_path': '',
                 'html_path': '',
                 'success': False,
@@ -641,9 +742,9 @@ Excel 格式示例（长格式，每个参数一行）:
 
         # 求解（如果需要）
         if not args.no_solve and flotherm_exe:
-            solve_success, elapsed, message = solve_ecxml(
+            solve_success, elapsed, message = solve_model(
                 flotherm_exe,
-                str(ecxml_path),
+                str(model_path),
                 str(pack_path),
                 str(html_path),
                 i,
@@ -653,7 +754,7 @@ Excel 格式示例（长格式，每个参数一行）:
             results.append({
                 'config_name': config_name,
                 'config': config,
-                'ecxml_path': str(ecxml_path),
+                'ecxml_path': str(model_path),
                 'pack_path': str(pack_path) if solve_success else '',
                 'html_path': str(html_path) if solve_success else '',
                 'success': solve_success,
@@ -665,12 +766,12 @@ Excel 格式示例（长格式，每个参数一行）:
             results.append({
                 'config_name': config_name,
                 'config': config,
-                'ecxml_path': str(ecxml_path),
+                'ecxml_path': str(model_path),
                 'pack_path': '',
                 'html_path': '',
                 'success': True,
                 'elapsed': 0,
-                'message': '仅生成 ECXML'
+                'message': f'仅生成 {file_type.upper()}'
             })
 
     # 打印总结

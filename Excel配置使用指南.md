@@ -4,11 +4,28 @@
 
 ---
 
+## 支持的文件格式
+
+工具支持以下三种 FloTHERM 文件格式：
+
+| 格式 | 扩展名 | 说明 | 包含网格 |
+|------|--------|------|----------|
+| **ECXML** | `.ecxml` | JEDEC JEP181 标准，中性格式 | ❌ 不包含 |
+| **PDML** | `.pdml` | FloTHERM 原生格式 | ✅ 包含 |
+| **FloXML** | `.floxml` | FloTHERM XML 格式 | ✅ 包含 |
+
+### 格式选择建议
+
+- **使用 PDML/FloXML**：如果需要完整的模型定义（包括网格设置），推荐使用这两种格式
+- **使用 ECXML**：如果只需要热模型参数交换（供应商到最终用户），使用 ECXML
+
+---
+
 ## 快速开始
 
-### 1. 准备 ECXML 模板
+### 1. 准备模板文件
 
-首先需要一个包含器件和边界条件的 ECXML 模板文件。模板中的参数将被 Excel 配置覆盖。
+首先需要一个包含器件和边界条件的模板文件（`.ecxml`、`.pdml` 或 `.floxml`）。模板中的参数将被 Excel 配置覆盖。
 
 ### 2. 编写 Excel 配置文件
 
@@ -28,7 +45,14 @@
 ### 3. 运行批量仿真
 
 ```bash
+# 使用 ECXML 模板
 python excel_batch_simulation.py template.ecxml config.xlsx -o ./output
+
+# 使用 PDML 模板（包含网格信息）
+python excel_batch_simulation.py template.pdml config.xlsx -o ./output
+
+# 使用 FloXML 模板
+python excel_batch_simulation.py template.floxml config.xlsx -o ./output
 ```
 
 ---
@@ -163,7 +187,7 @@ python excel_batch_simulation.py <模板文件> <Excel文件> -o <输出目录> 
 
 | 参数 | 说明 |
 |-----|------|
-| `template` | ECXML 模板文件路径 |
+| `template` | 模板文件路径（支持 .ecxml, .pdml, .floxml） |
 | `excel` | Excel 配置文件路径 |
 | `-o, --output` | 输出文件夹路径 |
 
@@ -179,21 +203,27 @@ python excel_batch_simulation.py <模板文件> <Excel文件> -o <输出目录> 
 ### 使用示例
 
 ```bash
-# 基本用法
+# 使用 ECXML 模板
 python excel_batch_simulation.py model.ecxml config.xlsx -o ./results
 
+# 使用 PDML 模板（包含网格信息，推荐）
+python excel_batch_simulation.py model.pdml config.xlsx -o ./results
+
+# 使用 FloXML 模板
+python excel_batch_simulation.py model.floxml config.xlsx -o ./results
+
 # 指定 FloTHERM 路径
-python excel_batch_simulation.py model.ecxml config.xlsx -o ./results \
+python excel_batch_simulation.py model.pdml config.xlsx -o ./results \
   --flotherm "C:\Program Files\Siemens\SimcenterFlotherm\2020.2\bin\flotherm.exe"
 
 # 使用指定 Sheet
-python excel_batch_simulation.py model.ecxml config.xlsx -o ./results --sheet "测试配置"
+python excel_batch_simulation.py model.pdml config.xlsx -o ./results --sheet "测试配置"
 
-# 仅生成 ECXML（用于检查或手动求解）
-python excel_batch_simulation.py model.ecxml config.xlsx -o ./results --no-solve
+# 仅生成模型文件（用于检查或手动求解）
+python excel_batch_simulation.py model.pdml config.xlsx -o ./results --no-solve
 
 # 预览配置（检查 Excel 是否正确）
-python excel_batch_simulation.py model.ecxml config.xlsx -o ./results --dry-run
+python excel_batch_simulation.py model.pdml config.xlsx -o ./results --dry-run
 ```
 
 ---
@@ -205,16 +235,18 @@ python excel_batch_simulation.py model.ecxml config.xlsx -o ./results --dry-run
 ```
 output/
 └── batch_20260312_100000/
-    ├── case1.ecxml          # 修改后的 ECXML
+    ├── case1.pdml           # 修改后的模型文件（保持模板格式）
     ├── case1.pack           # 求解结果（如果求解）
     ├── case1_report.html    # HTML 报告（如果求解）
-    ├── case2.ecxml
+    ├── case2.pdml
     ├── case2.pack
     ├── case2_report.html
     ├── ...
     ├── batch_report.txt     # 批量处理报告
     └── summary.xlsx         # 汇总表格（含配置和状态）
 ```
+
+> **注意**：输出文件格式与输入模板保持一致。如果使用 `.pdml` 模板，输出也是 `.pdml`。
 
 ---
 
@@ -245,6 +277,26 @@ python ecxml_editor.py template.ecxml --analyze
 | 材料密度 | `Material.density` |
 | 尺寸宽度（属性） | `Size@width` |
 | 位置坐标 | `Position@x` |
+
+---
+
+## 格式差异说明
+
+### ECXML vs PDML/FloXML
+
+| 特性 | ECXML | PDML/FloXML |
+|-----|-------|-------------|
+| **标准** | JEDEC JEP181 | FloTHERM 原生 |
+| **网格信息** | ❌ 不包含 | ✅ 包含 |
+| **求解控制** | ❌ 不包含 | ✅ 包含 |
+| **材料库** | 基础 | 完整 |
+| **用途** | 供应商到最终用户的热模型交换 | 完整的仿真模型 |
+
+### 为什么推荐使用 PDML/FloXML？
+
+1. **包含网格设置**：ECXML 是中性格式，不包含网格划分信息
+2. **完整求解控制**：包含求解器设置、收敛标准等
+3. **更好的兼容性**：FloTHERM 直接处理原生格式
 
 ---
 
