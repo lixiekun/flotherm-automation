@@ -74,15 +74,100 @@ class SystemGrid:
 
 
 @dataclass
-class GridInfo:
-    """完整网格信息"""
-    system_grid: Optional[SystemGrid] = None
-    # 后续可扩展: localized_grids, grid_constraints 等
+class HighInflation:
+    """膨胀网格设置"""
+    inflation_type: str = ""
+    inflation_size: float = 0.0
+    number_cell_control: str = ""  # 可能是 "min_number" 或其他
+    min_number: int = 0
+    element: Optional[ET.Element] = None
 
     def to_dict(self) -> Dict:
         """转换为字典"""
         return {
-            "system_grid": self.system_grid.to_dict() if self.system_grid else None
+            "inflation_type": self.inflation_type,
+            "inflation_size": self.inflation_size,
+            "number_cell_control": self.number_cell_control,
+            "min_number": self.min_number
+        }
+
+    def get_summary(self, indent: str = "    ") -> str:
+        """获取摘要信息"""
+        lines = [f"{indent}=== High Inflation ==="]
+        lines.append(f"{indent}  inflation_type: {self.inflation_type}")
+        lines.append(f"{indent}  inflation_size: {self.inflation_size}")
+        lines.append(f"{indent}  number_cell_control: {self.number_cell_control}")
+        lines.append(f"{indent}  min_number: {self.min_number}")
+        return "\n".join(lines)
+
+
+@dataclass
+class GridConstraintAtt:
+    """网格约束属性"""
+    name: str = ""
+    enable_min_cell_size: str = ""  # "true" 或 "false"
+    number_cells_control: str = ""  # 网格数控制方式
+    min_number: int = 0
+    high_inflation: Optional[HighInflation] = None
+    element: Optional[ET.Element] = None
+
+    def to_dict(self) -> Dict:
+        """转换为字典"""
+        return {
+            "name": self.name,
+            "enable_min_cell_size": self.enable_min_cell_size,
+            "number_cells_control": self.number_cells_control,
+            "min_number": self.min_number,
+            "high_inflation": self.high_inflation.to_dict() if self.high_inflation else None
+        }
+
+    def get_summary(self, index: int = 0) -> str:
+        """获取摘要信息"""
+        lines = [f"\n=== Grid Constraint #{index + 1} ==="]
+        lines.append(f"  name: {self.name}")
+        lines.append(f"  enable_min_cell_size: {self.enable_min_cell_size}")
+        lines.append(f"  number_cells_control: {self.number_cells_control}")
+        lines.append(f"  min_number: {self.min_number}")
+        if self.high_inflation:
+            lines.append(self.high_inflation.get_summary("  "))
+        return "\n".join(lines)
+
+
+@dataclass
+class GridConstraints:
+    """网格约束集合"""
+    constraints: List[GridConstraintAtt] = field(default_factory=list)
+    element: Optional[ET.Element] = None
+
+    def to_dict(self) -> Dict:
+        """转换为字典"""
+        return {
+            "constraints": [c.to_dict() for c in self.constraints]
+        }
+
+    def get_summary(self) -> str:
+        """获取摘要信息"""
+        if not self.constraints:
+            return "No grid constraints defined"
+
+        lines = ["=" * 50, "Grid Constraints Summary", "=" * 50]
+        for i, constraint in enumerate(self.constraints):
+            lines.append(constraint.get_summary(i))
+        return "\n".join(lines)
+
+
+@dataclass
+class GridInfo:
+    """完整网格信息"""
+    system_grid: Optional[SystemGrid] = None
+    grid_constraints: Optional[GridConstraints] = None
+    # 后续可扩展: localized_grids 等
+
+    def to_dict(self) -> Dict:
+        """转换为字典"""
+        return {
+            "system_grid": self.system_grid.to_dict() if self.system_grid else None,
+            "grid_constraints": self.grid_constraints.to_dict() if self.grid_constraints else None
         }
 
 
@@ -197,10 +282,66 @@ class FloXMLGridParser:
 
         return system_grid
 
+    def parse_high_inflation(self, element: ET.Element) -> HighInflation:
+        """解析膨胀网格设置"""
+        inflation = HighInflation(element=element)
+
+        inflation.inflation_type = self._get_text(element, "inflation_type")
+        inflation.inflation_size = self._get_float(element, "inflation_size")
+        inflation.number_cell_control = self._get_text(element, "number_cell_control")
+        inflation.min_number = self._get_int(element, "min_number")
+
+        return inflation
+
+    def parse_grid_constraint(self, element: ET.Element) -> GridConstraintAtt:
+        """解析单个网格约束"""
+        constraint = GridConstraintAtt(element=element)
+
+        # 解析主属性
+        constraint.name = self._get_text(element, "name")
+        constraint.enable_min_cell_size = self._get_text(element, "enable_min_cell_size")
+        constraint.number_cells_control = self._get_text(element, "number_cells_control")
+        constraint.min_number = self._get_int(element, "min_number")
+
+        # 解析 high_inflation 子元素
+        hi_element = element.find("high_inflation")
+        if hi_element is None:
+            # 尝试忽略命名空间
+            for child in element:
+                if self._strip_ns(child.tag) == "high_inflation":
+                    hi_element = child
+                    break
+
+        if hi_element is not None:
+            constraint.high_inflation = self.parse_high_inflation(hi_element)
+
+        return constraint
+
+    def parse_grid_constraints(self) -> GridConstraints:
+        """解析网格约束集合"""
+        grid_constraints = GridConstraints()
+
+        # 查找 grid_constraints 元素
+        gc_element = self._find_element("grid", "grid_constraints")
+        if gc_element is None:
+            return grid_constraints
+
+        grid_constraints.element = gc_element
+
+        # 解析所有 grid_constraint_att 子元素
+        for child in gc_element:
+            tag_name = self._strip_ns(child.tag)
+            if tag_name == "grid_constraint_att":
+                constraint = self.parse_grid_constraint(child)
+                grid_constraints.constraints.append(constraint)
+
+        return grid_constraints
+
     def parse(self) -> GridInfo:
         """解析完整的网格信息"""
         self.grid_info = GridInfo()
         self.grid_info.system_grid = self.parse_system_grid()
+        self.grid_info.grid_constraints = self.parse_grid_constraints()
         return self.grid_info
 
     def print_grid_info(self):
@@ -208,10 +349,113 @@ class FloXMLGridParser:
         if self.grid_info is None:
             self.parse()
 
+        # 打印系统网格
         if self.grid_info and self.grid_info.system_grid:
             print(self.grid_info.system_grid.get_summary())
         else:
-            print("No grid information found")
+            print("No system grid information found")
+
+        # 打印网格约束
+        if self.grid_info and self.grid_info.grid_constraints:
+            print()
+            print(self.grid_info.grid_constraints.get_summary())
+
+    def get_grid_constraint_by_name(self, name: str) -> Optional[GridConstraintAtt]:
+        """根据名称获取网格约束"""
+        if self.grid_info is None:
+            self.parse()
+
+        if not self.grid_info or not self.grid_info.grid_constraints:
+            return None
+
+        for constraint in self.grid_info.grid_constraints.constraints:
+            if constraint.name == name:
+                return constraint
+
+        return None
+
+    def set_grid_constraint(self, name: str, **kwargs):
+        """
+        修改指定名称的网格约束
+
+        Args:
+            name: 网格约束名称
+            **kwargs: enable_min_cell_size, number_cells_control, min_number
+        """
+        constraint = self.get_grid_constraint_by_name(name)
+        if constraint is None:
+            print(f"Error: Grid constraint '{name}' not found")
+            return False
+
+        for key, value in kwargs.items():
+            if hasattr(constraint, key):
+                setattr(constraint, key, value)
+
+                # 更新 XML 元素
+                if constraint.element is not None:
+                    if key in constraint.element.attrib:
+                        constraint.element.attrib[key] = str(value)
+                    else:
+                        child = constraint.element.find(key)
+                        if child is not None:
+                            child.text = str(value)
+                        else:
+                            ET.SubElement(constraint.element, key).text = str(value)
+
+                print(f"Set grid_constraint['{name}'].{key} = {value}")
+            else:
+                print(f"Warning: Unknown attribute '{key}'")
+
+        return True
+
+    def set_high_inflation(self, constraint_name: str, **kwargs):
+        """
+        修改指定网格约束的膨胀设置
+
+        Args:
+            constraint_name: 网格约束名称
+            **kwargs: inflation_type, inflation_size, number_cell_control, min_number
+        """
+        constraint = self.get_grid_constraint_by_name(constraint_name)
+        if constraint is None:
+            print(f"Error: Grid constraint '{constraint_name}' not found")
+            return False
+
+        if constraint.high_inflation is None:
+            print(f"Error: No high_inflation in constraint '{constraint_name}'")
+            return False
+
+        inflation = constraint.high_inflation
+        for key, value in kwargs.items():
+            if hasattr(inflation, key):
+                setattr(inflation, key, value)
+
+                # 更新 XML 元素
+                if inflation.element is not None:
+                    if key in inflation.element.attrib:
+                        inflation.element.attrib[key] = str(value)
+                    else:
+                        child = inflation.element.find(key)
+                        if child is not None:
+                            child.text = str(value)
+                        else:
+                            ET.SubElement(inflation.element, key).text = str(value)
+
+                print(f"Set {constraint_name}.high_inflation.{key} = {value}")
+            else:
+                print(f"Warning: Unknown attribute '{key}'")
+
+        return True
+
+    def list_grid_constraints(self) -> List[str]:
+        """列出所有网格约束名称"""
+        if self.grid_info is None:
+            self.parse()
+
+        if not self.grid_info or not self.grid_info.grid_constraints:
+            return []
+
+        return [c.name for c in self.grid_info.grid_constraints.constraints]
 
     def export_to_json(self, output_path: str):
         """导出网格信息到 JSON"""
