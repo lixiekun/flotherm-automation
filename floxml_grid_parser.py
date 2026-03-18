@@ -321,9 +321,10 @@ class FloXMLGridParser:
         """解析网格约束集合"""
         grid_constraints = GridConstraints()
 
-        # 查找 grid_constraints 元素
-        gc_element = self._find_element("grid", "grid_constraints")
+        # 查找 grid_constraints 元素 (直接在根元素 xml_case 下)
+        gc_element = self._find_element("grid_constraints")
         if gc_element is None:
+            print("Warning: grid_constraints element not found")
             return grid_constraints
 
         grid_constraints.element = gc_element
