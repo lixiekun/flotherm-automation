@@ -102,16 +102,32 @@ python batch_pack_solver.py pack1.pack pack2.pack pack3.pack -o ./macros
 
 ## 文件说明
 
+### 核心脚本
+
 | 文件 | 功能 | 状态 |
 |-----|------|------|
 | `excel_batch_simulation.py` | **⭐⭐ Excel 多配置批量仿真（推荐）** | ✅ 可用 |
 | `batch_ecxml_solver.py` | **⭐ ECXML 批量求解器（使用 -z 参数）** | ✅ 可用 |
 | `test_flotherm_api.py` | FloTHERM API 可用性测试脚本 | ✅ 可用 |
-| `pack_editor.py` | Pack 文件编辑器（解压、查看、修改功耗） | ✅ 可用 |
-| `ecxml_editor.py` | ECXML 文件解析和参数修改 | ✅ 可用 |
 | `batch_simulation.py` | 批量仿真案例生成器 | ✅ 可用 |
 | `batch_pack_solver.py` | 批量生成 FloSCRIPT 宏 | ⚠️ 需配合手动执行 |
 | `flotherm_batch_solver.py` | 命令行批处理求解器 | ❌ 实际不可用 |
+
+### 文件解析器
+
+| 文件 | 支持格式 | 功能 |
+|-----|---------|------|
+| `ecxml_editor.py` | **ECXML** | JEDEC JEP181 标准器件热模型解析和修改 |
+| `pdml_parser.py` | **PDML** | FloTHERM 原生 PDML 项目文件解析 |
+| `floxml_grid_parser.py` | **FloXML** | FloXML 网格设置解析 (支持 high_inflation) |
+| `pack_editor.py` | **Pack** | Pack 压缩包解压、查看、修改功耗 |
+
+### 格式转换器
+
+| 文件 | 功能 | 状态 |
+|-----|------|------|
+| `ecxml_to_floxml_converter.py` | **⭐ ECXML → FloXML 转换器** | ✅ 可用 |
+| `wrap_geometry_floxml_as_project.py` | Assembly FloXML → Project FloXML 包装 | ✅ 可用 |
 
 ---
 
@@ -331,6 +347,74 @@ python batch_simulation.py template.ecxml \
 
 ---
 
+## ECXML to FloXML 转换器
+
+将 JEDEC JEP181 ECXML 器件热模型转换为完整的 FloTHERM FloXML 项目文件。
+
+### 背景
+
+ECXML 是器件级热模型交换格式，缺少：
+- 网格设置 (grid)
+- 求解器配置 (solve)
+- 模型设置 (model)
+- 求解域 (solution_domain)
+
+本工具自动补充这些配置，生成可直接导入 FloTHERM 的完整项目文件。
+
+### 使用方法
+
+```bash
+# 单文件转换
+python ecxml_to_floxml_converter.py input.ecxml -o output.xml
+
+# 批量转换
+python ecxml_to_floxml_converter.py *.ecxml --output-dir ./floxml/
+
+# 自定义参数
+python ecxml_to_floxml_converter.py input.ecxml -o output.xml \
+    --padding-ratio 0.15 \
+    --ambient-temp 308.15 \
+    --outer-iterations 1000
+```
+
+### CLI 参数
+
+| 参数 | 说明 | 默认值 |
+|-----|------|--------|
+| `-o, --output` | 输出文件路径 | `<input>_floxml.xml` |
+| `--output-dir` | 输出目录 (批量模式) | 当前目录 |
+| `--padding-ratio` | 求解域 padding 比例 | 0.1 |
+| `--minimum-padding` | 最小 padding (米) | 0.01 |
+| `--ambient-temp` | 环境温度 (K) | 300 |
+| `--outer-iterations` | 求解迭代次数 | 500 |
+| `-v, --verbose` | 详细输出 | - |
+
+### 转换映射
+
+| ECXML | FloXML | 说明 |
+|-------|--------|------|
+| `Component/@name` | `cuboid/name` | 组件名称 |
+| `Position/@x,y,z` | `position/x,y,z` | 位置坐标 |
+| `Size/@width,height,depth` | `size/x,y,z` | 尺寸 |
+| `powerDissipation` | `source` 属性 | 热源 |
+| `Material/@name` | `material` 引用 | 材料 |
+
+### 输出结构
+
+```xml
+<xml_case>
+  <name>{project_name}_Project</name>
+  <model>...</model>           <!-- 自动生成 -->
+  <solve>...</solve>           <!-- 自动生成 -->
+  <grid>...</grid>             <!-- 根据求解域自动计算 -->
+  <attributes>...</attributes> <!-- 材料、热源、环境、流体 -->
+  <geometry>...</geometry>     <!-- 从 ECXML 转换 -->
+  <solution_domain>...</solution_domain> <!-- 自动计算边界框+padding -->
+</xml_case>
+```
+
+---
+
 ## FloXML 包装工具
 
 有些官方 Excel 模板导出的不是完整项目 FloXML，而是 `geometry/assembly FloXML`。
@@ -385,6 +469,135 @@ python wrap_geometry_floxml_as_project.py ^
   "D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\floxml_output\windtunnel_advres\PCB_ADV_RES.xml" ^
   -o "D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\floxml_output\windtunnel_advres\PCB_ADV_RES_project.xml"
 ```
+
+---
+
+## 文件格式对比：ECXML vs FloXML
+
+### 基本定位
+
+| 特性 | ECXML | FloXML |
+|------|-------|--------|
+| **全称** | Electronics Cooling eXtensible Markup Language | FloTHERM XML |
+| **标准** | **JEDEC JEP181** (行业标准) | **Siemens/Mentor 私有格式** |
+| **目的** | 电子器件热模型**交换** | FloTHERM **项目/装配体**定义 |
+| **受众** | 芯片供应商 → 系统工程师 | FloTHERM 软件用户 |
+| **范围** | **器件级** (Package, Die, PCB) | **系统级** (完整仿真项目) |
+| **扩展名** | `.ecxml` | `.xml` |
+
+### 功能对比
+
+| 功能 | ECXML | FloXML |
+|------|:-----:|:------:|
+| 器件封装描述 | ✅ 核心功能 | ⚠️ 基本支持 |
+| Die/芯片细节 | ✅ 详细 | ❌ 无 |
+| 热阻网络 (CTM) | ✅ 支持 | ❌ 无 |
+| 求解器设置 | ❌ 无 | ✅ 完整 |
+| 网格设置 | ❌ 无 | ✅ 完整 |
+| 流体/风扇 | ❌ 无 | ✅ 完整 |
+| 边界条件 | ⚠️ 基础 | ✅ 完整 |
+| 瞬态分析 | ⚠️ 基础 | ✅ 完整 |
+| 辐射模型 | ❌ 无 | ✅ 支持 |
+| 跨软件兼容 | ✅ **行业标准** | ❌ 仅 FloTHERM |
+
+### 结构示例
+
+**ECXML** (器件热模型)：
+```xml
+<ecxml xmlns="http://www.jedec.org/ecxml">
+  <Component name="CPU_Package">
+    <Geometry>
+      <Size width="0.017" height="0.017" depth="0.001"/>
+    </Geometry>
+    <Material>
+      <Conductivity>150</Conductivity>
+    </Material>
+    <PowerDissipation>5.0</PowerDissipation>
+    <Die>
+      <Size width="0.006" height="0.005"/>
+    </Die>
+  </Component>
+</ecxml>
+```
+
+**FloXML** (完整仿真项目)：
+```xml
+<xml_case>
+  <name>My_Thermal_Simulation</name>
+  <model>
+    <modeling>
+      <solution>flow_heat</solution>
+      <radiation>on</radiation>
+    </modeling>
+  </model>
+  <grid>
+    <system_grid>
+      <x_grid><min_size>0.001</min_size></x_grid>
+    </system_grid>
+  </grid>
+  <solve>
+    <overall_control>
+      <outer_iterations>500</outer_iterations>
+    </overall_control>
+  </solve>
+  <attributes>
+    <materials>...</materials>
+  </attributes>
+  <solution_domain>
+    <size><x>0.3</x><y>0.2</y><z>0.1</z></size>
+  </solution_domain>
+  <geometry>
+    <cuboid>
+      <name>HeatSink</name>
+      <material>Aluminum</material>
+    </cuboid>
+  </geometry>
+</xml_case>
+```
+
+### 使用场景
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     供应链流程                               │
+├─────────────────────────────────────────────────────────────┤
+│   芯片供应商                      系统集成商                  │
+│  ┌──────────┐                    ┌──────────┐               │
+│  │ 芯片设计  │                    │ PCB设计   │               │
+│  │ 热测试    │  ──ECXML──►        │ 系统仿真  │               │
+│  └──────────┘                    └──────────┘               │
+│                                                             │
+│                    ┌──────────────────────┐                 │
+│                    │  FloTHERM 仿真项目    │                 │
+│                    │  (FloXML 格式)        │                 │
+│                    │  - 导入 ECXML 器件    │                 │
+│                    │  - 求解域、网格       │                 │
+│                    │  - 边界条件、风扇     │                 │
+│                    └──────────────────────┘                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### FloXML Schema 文件
+
+本项目的 `examples/` 目录包含完整的 FloXML Schema 定义：
+
+```
+examples/DCIM Development Toolkit/Schema Files/FloXML/
+├── xmlSchema.xsd         # 基础类型定义
+├── XmlDefinitions.xsd    # 根元素定义
+├── XmlAttributes.xsd     # 属性定义 (材料、表面、热源等)
+├── XmlGeometry.xsd       # 几何实体 (cuboid, prism, cylinder等)
+└── XmlEntities.xsd       # 模型/求解/网格设置
+```
+
+### FloXML 两种类型
+
+| 类型 | 说明 | 根元素内容 |
+|------|------|-----------|
+| **Assembly FloXML** | 几何装配体 | 仅 `<attributes>` + `<geometry>` |
+| **Project FloXML** | 完整项目 | `<model>` + `<solve>` + `<grid>` + `<attributes>` + `<geometry>` + `<solution_domain>` |
+
+**注意**：Assembly FloXML 需要包装成 Project FloXML 才能作为项目导入。
 
 ---
 
