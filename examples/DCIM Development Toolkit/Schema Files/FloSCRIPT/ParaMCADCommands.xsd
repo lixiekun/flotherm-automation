@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1.0">
+
+  <xs:complexType name="mcadGeometryIDNode">
+    <xs:choice minOccurs="0" maxOccurs="1">
+      <xs:element name="geometry" type="mcadGeometryIDNode" />
+    </xs:choice>
+    <xs:attribute name="name"/>
+    <xs:attribute name="position_in_parent" type="xs:int"/>
+  </xs:complexType>
+  <xs:complexType name="mcadGeometryID">
+    <xs:sequence>
+      <xs:element name="geometry" type="mcadGeometryIDNode" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="newMcadValue">
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="new_value" type="xs:string" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="severalNewMcadValues">
+    <xs:sequence>
+      <xs:element name="new_value" type="newMcadValue"  minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="mcadTrueFalse">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="true" />
+      <xs:enumeration value="false" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="mcadOneToManyGeom">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="mcadGeometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="mcadChangeSelectionModeCommand">
+    <xs:attribute name="selection_mode" type="xs:string" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="mcadExportCommand">
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+    <xs:attribute name="export_type" type="xs:string" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="mcadImportCommand">
+    <xs:sequence>
+      <xs:element name="new_value" type="newMcadValue" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+    <xs:attribute name="import_type" type="xs:string" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="mcadRenameCommand">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="mcadGeometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="new_name" type="xs:string" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="mcadSelectCommand">
+    <xs:sequence>
+      <xs:choice maxOccurs="unbounded">
+        <xs:element name="selected_name" type="mcadGeometryID"/>
+        <xs:element name="deselected_name" type="mcadGeometryID"/>
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="mcadGDASelectCommand">
+    <xs:attribute name="direction_x" type="xs:double" use="required"/>
+    <xs:attribute name="direction_y" type="xs:double" use="required"/>
+    <xs:attribute name="direction_z" type="xs:double" use="required"/>
+    <xs:attribute name="location_x" type="xs:double" use="required"/>
+    <xs:attribute name="location_y" type="xs:double" use="required"/>
+    <xs:attribute name="location_z" type="xs:double" use="required"/>
+    <xs:attribute name="multi_select" type="mcadTrueFalse" use="required"/>
+    <xs:attribute name="offset_distance" type="xs:double" use="required"/>
+    <xs:attribute name="view_volume_x" type="xs:double" use="required"/>
+    <xs:attribute name="view_volume_y" type="xs:double" use="required"/>
+  </xs:complexType>
+  
+</xs:schema>

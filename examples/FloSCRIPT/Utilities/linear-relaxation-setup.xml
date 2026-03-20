@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xml_log_file version="1.0">
+    <!--Copyright 2014 Mentor Graphics Corporation-->
+    <!--All Rights Reserved-->
+    <!--THIS WORK CONTAINS TRADE SECRET AND PROPRIETARY-->
+    <!--INFORMATION WHICH IS THE PROPERTY OF MENTOR-->
+    <!--GRAPHICS CORPORATION OR ITS LICENSORS AND IS-->
+    <!--SUBJECT TO LICENSE TERMS.-->
+	<modify_solver_control new_value="pressure" property_name="variable"/>
+	<modify_solver_control new_value="0.999" property_name="linearRelaxation" group_name="pressure"/>
+    <modify_solver_control new_value="xVelocity" property_name="variable"/>
+    <modify_solver_control new_value="0.999" property_name="linearRelaxation" group_name="xVelocity"/>
+    <modify_solver_control new_value="yVelocity" property_name="variable"/>
+    <modify_solver_control new_value="0.999" property_name="linearRelaxation" group_name="yVelocity"/>
+    <modify_solver_control new_value="zVelocity" property_name="variable"/>
+    <modify_solver_control new_value="0.999" property_name="linearRelaxation" group_name="zVelocity"/>
+    <modify_solver_control new_value="temperature" property_name="variable"/>
+    <modify_solver_control new_value="0.999" property_name="linearRelaxation" group_name="temperature"/>
+    <modify_solver_control new_value="turbVis" property_name="variable"/>
+    <modify_solver_control new_value="0.999" property_name="linearRelaxation" group_name="turbVis"/>
+	<modify_solver_control new_value="pressure" property_name="variable"/>
+</xml_log_file>

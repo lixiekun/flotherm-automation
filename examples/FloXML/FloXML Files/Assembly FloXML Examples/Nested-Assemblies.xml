@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<!-- This file contains an XML description of three nested assemblies.  Note the presence of a <geometry> element inside each assembly.  These geometry tabs enclose all of the individual 
+assembly contents, including other assemblies -->
+<xml_case>
+<name>Nested Assemblies Example</name>
+<attributes>
+<materials>
+<isotropic_material_att>
+<name>Aluminum</name>
+<conductivity>180</conductivity>
+<density>2300</density>
+<specific_heat>455</specific_heat>
+</isotropic_material_att>
+</materials>
+</attributes>
+<geometry>
+<assembly>
+<name>Assembly Level 1</name>
+<active>true</active>
+<position><x>1</x><y>1</y><z>1</z></position>
+<orientation>
+<local_x><i>1</i><j>0</j><k>0</k></local_x>
+<local_y><i>0</i><j>1</j><k>0</k></local_y>
+<local_z><i>0</i><j>0</j><k>1</k></local_z>
+</orientation>
+<material>Aluminum</material>
+<localized_grid>false</localized_grid>
+<geometry>
+<assembly>
+<name>Assembly Level 2</name>
+<active>true</active>
+<position><x>1</x><y>1</y><z>1</z></position>
+<orientation>
+<local_x><i>1</i><j>0</j><k>0</k></local_x>
+<local_y><i>0</i><j>1</j><k>0</k></local_y>
+<local_z><i>0</i><j>0</j><k>1</k></local_z>
+</orientation>
+<material>Aluminum</material>
+<localized_grid>false</localized_grid>
+<geometry>
+<assembly>
+<name>Assembly Level 3</name>
+<active>true</active>
+<position><x>1</x><y>1</y><z>1</z></position>
+<orientation>
+<local_x><i>1</i><j>0</j><k>0</k></local_x>
+<local_y><i>0</i><j>1</j><k>0</k></local_y>
+<local_z><i>0</i><j>0</j><k>1</k></local_z>
+</orientation>
+<material>Aluminum</material>
+<localized_grid>false</localized_grid>
+<geometry>
+<cuboid>
+<name>Cuboid in Level 3</name>
+<active>true</active>
+<position><x>0</x><y>0</y><z>0</z></position>
+<size><x>1</x><y>1</y><z>1</z></size>
+<orientation>
+<local_x><i>1</i><j>0</j><k>0</k></local_x>
+<local_y><i>0</i><j>1</j><k>0</k></local_y>
+<local_z><i>0</i><j>0</j><k>1</k></local_z>
+</orientation>
+<localized_grid>false</localized_grid>
+</cuboid>
+</geometry>
+</assembly>
+</geometry>
+</assembly>
+</geometry>
+</assembly>
+</geometry>
+</xml_case>

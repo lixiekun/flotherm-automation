@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1.0">
+
+  <xs:include schemaLocation="CommonCommands.xsd" />
+  <xs:include schemaLocation="CCCommands.xsd" />
+  <xs:include schemaLocation="FloGdaPostFloviewCommands.xsd" />
+
+  <xs:element name="cc_xml_log_file">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="abort_all"/>
+        <xs:element name="abort_solve_scenario" type="ccOneToManyScenarios"/>
+        <xs:element name="add_variables" type ="ccCreateScenariosCommand"/>
+        <xs:element name="adjust_flotherm_to_t3ster"/>
+        <xs:element name="calculate_compact_model"/>
+        <xs:element name="calibrate_model"/>
+        <xs:element name="calibration_design_experiments"/>
+        <xs:element name="calibration_idle_event"/>
+        <xs:element name="change_visibility" type ="ccChangeVisibilityCommand"/>
+        <xs:element name="clear_select_geometry"/>
+        <xs:element name="clear_filter_geometry"/>
+        <xs:element name="collapse_geometry" type ="commonOneGeom"/>
+        <xs:element name="create_input_variable_value" type ="ccVariableValueRow"/>
+        <xs:element name="create_response_surface_plot" type ="ccResponseParameterID"/>
+        <xs:element name="create_chart"/>
+        <xs:element name="create_response_surface_scenario"/>
+        <xs:element name="delete_chart" type ="ccDeleteChartCommand"/>
+        <xs:element name="delete_input_variable_value" type ="ccVariableValueRow"/>
+        <xs:element name="delete_response_surface_plot" type ="ccResponseParameterID"/>
+        <xs:element name="delete_scenario" type="ccOneToManyScenarios"/>
+        <xs:element name="design_of_experiments" type ="ccDesignOfExperimentsCommand"/>
+        <xs:element name="expand_all_geometry"/>
+        <xs:element name="expand_geometry" type ="commonOneGeom"/>
+        <xs:element name="export_all_scenarios" type="commonDirectoryCommand"/>
+        <xs:element name="export_compact_model_floxml" type="ccExportCompactModelFloxml"/>
+        <xs:element name="export_scenario_table" type="commonFilenameCommand"/>
+        <xs:element name="find" type ="commonFindCommand"/>
+        <xs:element name="find_cycle_select" type ="commonFindCycleSelectCommand"/>
+        <xs:element name="import_t3ster_measurement" type ="ccImportT3sterMeasurement"/>
+        <xs:element name="insert_after" type="ccScenarioId"/>
+        <xs:element name="interrupt_all"/>
+        <xs:element name="interrupt_solve_scenario" type="ccOneToManyScenarios"/>
+        <xs:element name="linear_sweep" type ="ccCreateScenariosCommand"/>
+        <xs:element name="message" type ="commonMessage"/>
+        <xs:element name="modify_all_initialize_from" type ="ccmodifyInitializeFromAllScenarioCommand"/>
+        <xs:element name="modify_all_store_results" type ="ccmodifyStoreResultsAllScenarioCommand"/>
+        <xs:element name="modify_attribute" type ="ccNoneToManyAttOneValue"/>
+        <xs:element name="modify_calibration" type ="ccNewValue"/>
+        <xs:element name="modify_chart" type ="ccModifyChartCommand"/>
+        <xs:element name="modify_dependent_expression" type ="ccModifyDependentExpression"/>
+        <xs:element name="modify_geometry" type ="ccNoneToManyGeomOneValue"/>
+        <xs:element name="modify_initialize_from_scenario" type ="ccmodifyInitializeFromScenarioCommand"/>
+        <xs:element name="modify_input_variable" type ="ccOneToManyVarOneValue"/>
+        <xs:element name="modify_input_variable_value" type ="ccModifyVariableValue"/>
+        <xs:element name="modify_model_config" type ="ccNewValue"/>
+        <xs:element name="modify_output_variable" type ="ccOneToManyVarOneValue"/>
+        <xs:element name="modify_response_surface" type ="ccModifyResponseSurfaceCommand"/>
+        <xs:element name="modify_response_surface_plot" type ="ccModifyResponseSurfacePlotCommand"/>
+        <xs:element name="modify_solver_control" type ="ccNewValue"/>
+        <xs:element name="modify_store_scenario_results" type ="ccmodifyStoreScenarioResultsCommand"/>
+        <xs:element name="modify_target_temperature_point" type ="ccmodifyTargetTemperaturePoint"/>
+        <xs:element name="modify_user_preferences" type ="ccManyNewValues"/>
+        <xs:element name="multiply_variables" type ="ccCreateScenariosCommand"/>
+        <xs:element name="nominate_attribute_input_variables" type ="ccNoneToManyAttOneValue"/>
+        <xs:element name="nominate_field_summary_output_variables" type ="ccNewValue"/>        
+        <xs:element name="nominate_geometry_input_variables" type ="ccNoneToManyGeomOneValue"/>
+        <xs:element name="nominate_geometry_output_variables" type ="ccNoneToManyGeomOneValue"/>
+        <xs:element name="nominate_metrics_output_variables" type ="ccNewValue"/>        
+        <xs:element name="nominate_model_config_input_variables" type ="ccNewValue"/>
+        <xs:element name="nominate_solar_input_variables" type ="ccNewValue"/>
+        <xs:element name="nominate_solver_control_input_variables" type ="ccNewValue"/>
+        <xs:element name="nominate_transient_input_variables" type ="ccNewValue"/>
+        <xs:element name="nominate_user_variables_input_variables" type ="ccNewValue"/>
+        <xs:element name="optimize" type ="ccOptimizeCommand"/>
+        <xs:element name="optimize_finished_event"/>
+        <xs:element name="paste_scenario_table" type ="ccPasteScenarioTable"/>
+        <xs:element name="pause_record_script"/>
+        <xs:element name="project_run_script" type ="commonFileNameCommand"/>
+        <xs:element name="quit"/>
+        <xs:element name="redo"/>
+        <xs:element name="reinitialize_scenario" type="ccOneToManyScenarios"/>        
+        <xs:element name="reinitialize_all"/>
+        <xs:element name="remove_input_variable" type ="ccOneToManyVariable"/>
+        <xs:element name="remove_output_variable" type ="ccOneToManyVariable"/>
+        <xs:element name="rename_scenario" type="ccRenameScenarioCommand"/>
+        <xs:element name="request_correlation_chart" type="ccRequestCorellationChartCommand"/>
+        <xs:element name="reset"/>        
+        <xs:element name="reset_geometry"/>
+        <xs:element name="resume_record_script"/>
+        <xs:element name="save"/>
+        <xs:element name="save_scenario_project" type="ccSaveScenarioProjectCommand"/>
+        <xs:element name="select_geometry" type="commonSelectCommand"/>
+        <xs:element name="select_scenario" type="ccOneToManyScenarios"/>
+        <xs:element name="select_scenarios_from_variable" type="ccSelectScenariosFromVariableCommand"/>
+        <xs:element name="solve_all"/>
+        <xs:element name="solve_idle_event"/>
+        <xs:element name="solve_scenario" type="ccOneToManyScenarios"/>
+        <xs:element name="start_record_script" type ="commonFileNameCommand"/>
+        <xs:element name="stop_record_script"/>
+        <xs:element name="superposition" type ="ccCreateScenariosCommand"/>
+        <xs:element name="table_nominate_attribute_input_variables" type ="ccNoneToManyAttOneTableValue"/>
+        <xs:element name="table_nominate_geometry_input_variables" type ="ccNoneToManyGeomOneTableValue"/>
+        <xs:element name="table_nominate_solver_control_input_variables" type ="ccNewTableValue"/>
+        <xs:element name="timer_start" type ="commonNameCommand"/>
+        <xs:element name="timer_stop" type ="commonNameCommand"/>
+        <xs:element name="top_geometry" type ="commonOneGeom"/>
+        <xs:element name="transparency" type ="commonTransparencyCommand"/>
+        <xs:element name="undo"/>
+        <xs:element name="up_to_parent_geometry"/>
+        <xs:element name="viewport_camera_mode" type ="commonCameraModeCommand"/>
+        <xs:element name="viewport_defined_view_manipulation" type ="commonDefinedViewManipulationCommand"/>
+        <xs:element name="viewport_output_snapshot" type ="commonOutputSnapshotCommand"/>
+        <xs:element name="viewport_standard_view" type ="commonStandardViewCommand"/>
+        <xs:element name="visualization_state" type ="commonVisualizationStateCommand"/>
+        <xs:element name="wait" type="commonWaitCommand"/>
+
+        <xs:element name="animation" type ="animation"/>
+        <xs:element name="change_results_mode" type ="changeResultsMode"/>
+        <xs:element name="copy_results_plot" type ="oneToManyResultsNodes"/>
+        <xs:element name="create_annotation_from_tooltip" type ="createAnnotationFromTooltip"/>
+        <xs:element name="create_min_max_annotation" type ="createMinMaxAnnotation"/>
+        <xs:element name="create_results_plot" type ="createResultsPlot"/>
+        <xs:element name="delete_results_plot" type ="oneToManyResultsNodes"/>
+        <xs:element name="jump_to_viewpoint" type ="oneToManyResultsNodes"/>
+        <xs:element name="manipulate_particle_source" type ="manipulateParticleSource"/>
+        <xs:element name="modify_results_node" type ="modifyResultsNode"/>
+        <xs:element name="modify_results_node_associated_geometry" type ="modifyResultsNodeAssociatedGeometry"/>
+        <xs:element name="modify_results_node_associated_plot" type ="modifyResultsNodeAssociatedPlot"/>
+        <xs:element name="move_plane_plot" type ="movePlanePlot"/>
+        <xs:element name="output_animation" type ="commonOutputSnapshotCommand"/>
+        <xs:element name="rename_results_node" type ="renameResultsNode"/>
+        <xs:element name="reposition_plane_plot" type ="repositionPlanePlot"/>
+        <xs:element name="results_state_save_as" type ="commonFilenameCommand"/>
+        <xs:element name="results_state_reinitialize"/>
+        <xs:element name="results_state_load" type ="commonFilenameCommand"/>
+        <xs:element name="save_results_setting" type ="saveResultsSetting"/>
+        <xs:element name="select_associated_geometry" type ="oneToManyResultsNodes"/>
+        <xs:element name="select_results_node" type ="noneToManyResultsNodes"/>
+        <xs:element name="toggle_results_plot_grid_shown" type ="oneToManyResultsNodes"/>
+      </xs:choice>
+      <xs:attribute name="version" type="xs:double" use="required"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

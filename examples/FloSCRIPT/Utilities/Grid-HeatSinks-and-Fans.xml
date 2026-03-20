@@ -1,0 +1,104 @@
+<xml_log_file version="1.0">
+	<!--Copyright 2014 Mentor Graphics Corporation -->
+	<!--All Rights Reserved -->
+	<!--THIS WORK CONTAINS TRADE SECRET AND PROPRIETARY -->
+	<!--INFORMATION WHICH IS THE PROPERTY OF MENTOR -->
+	<!--GRAPHICS CORPORATION OR ITS LICENSORS AND IS -->
+	<!--SUBJECT TO LICENSE TERMS. -->
+    	<create_attribute attribute_type="gridConstraint" id="Heat Sink Grid"/>
+    <modify_attribute new_value="Heat Sink Grid" property_name="name">
+    <attribute_name id="Heat Sink Grid"/>
+    </modify_attribute>
+    <modify_attribute new_value="true" property_name="minimumSize">
+    <attribute_name id="Heat Sink Grid"/>
+    </modify_attribute>
+    <modify_attribute new_value="mm" property_name="lengthUnit">
+    <attribute_name id="Heat Sink Grid"/>
+    </modify_attribute>
+    <modify_attribute new_value="0.01" property_name="minimumSizeValue">
+    <attribute_name id="Heat Sink Grid"/>
+    </modify_attribute>
+    <modify_attribute new_value="12" property_name="minimumNumber">
+    <attribute_name id="Heat Sink Grid"/>
+    </modify_attribute>
+    <modify_attribute group_name="lowSideInflation" new_value="size" property_name="inflation">
+    <attribute_name id="Heat Sink Grid"/>
+    </modify_attribute>
+    <modify_attribute group_name="lowSideInflation" new_value="3" property_name="size">
+    <attribute_name id="Heat Sink Grid"/>
+    </modify_attribute>
+    <modify_attribute group_name="lowSideInflation" new_value="5" property_name="minimumNumber">
+    <attribute_name id="Heat Sink Grid"/>
+    </modify_attribute>
+    <modify_attribute group_name="highSideInflation" new_value="size" property_name="inflation">
+    <attribute_name id="Heat Sink Grid"/>
+    </modify_attribute>
+    <modify_attribute group_name="highSideInflation" new_value="3" property_name="size">
+    <attribute_name id="Heat Sink Grid"/>
+    </modify_attribute>
+    <modify_attribute group_name="highSideInflation" new_value="5" property_name="minimumNumber">
+    <attribute_name id="Heat Sink Grid"/>
+    </modify_attribute>
+    <find filter="false" match="all" select_mode="all">
+    <enum_query_constraint criteria_type="common" is_positive="true">
+    <value property_name="geometryType" value="heatSink"/>
+    </enum_query_constraint>
+    <enum_query_constraint criteria_type="geometry" is_positive="true" node_type="heatSink">
+    <value property_name="findModelingMethod" value="detailed"/>
+    </enum_query_constraint>
+    </find>
+    <modify_geometry new_value="5" property_name="cellsBetweenFins"/>
+    <modify_geometry new_value="2" property_name="cellsWithinFins"/>
+    <modify_geometry new_value="Heat Sink Grid" property_name="gridConstraintAttachment"/>
+    <modify_geometry new_value="true" property_name="localizeGrid"/>
+    <create_attribute attribute_type="gridConstraint" id="3D Fan Grid"/>
+    <modify_attribute new_value="3D Fan Grid" property_name="name">
+    <attribute_name id="3D Fan Grid"/>
+    </modify_attribute>
+    <modify_attribute new_value="true" property_name="minimumSize">
+    <attribute_name id="3D Fan Grid"/>
+    </modify_attribute>
+    <modify_attribute new_value="mm" property_name="lengthUnit">
+    <attribute_name id="3D Fan Grid"/>
+    </modify_attribute>
+    <modify_attribute new_value="0.01" property_name="minimumSizeValue">
+    <attribute_name id="3D Fan Grid"/>
+    </modify_attribute>
+    <modify_attribute new_value="10" property_name="minimumNumber">
+    <attribute_name id="3D Fan Grid"/>
+    </modify_attribute>
+    <modify_attribute group_name="lowSideInflation" new_value="size" property_name="inflation">
+    <attribute_name id="3D Fan Grid"/>
+    </modify_attribute>
+    <modify_attribute group_name="lowSideInflation" new_value="5" property_name="size">
+    <attribute_name id="3D Fan Grid"/>
+    </modify_attribute>
+    <modify_attribute group_name="lowSideInflation" new_value="5" property_name="minimumNumber">
+    <attribute_name id="3D Fan Grid"/>
+    </modify_attribute>
+    <modify_attribute group_name="highSideInflation" new_value="size" property_name="inflation">
+    <attribute_name id="3D Fan Grid"/>
+    </modify_attribute>
+    <modify_attribute group_name="highSideInflation" new_value="5" property_name="size">
+    <attribute_name id="3D Fan Grid"/>
+    </modify_attribute>
+    <modify_attribute group_name="highSideInflation" new_value="5" property_name="minimumNumber">
+    <attribute_name id="3D Fan Grid"/>
+    </modify_attribute>
+    <find filter="false" match="all" select_mode="all">
+    <enum_query_constraint criteria_type="common" is_positive="true">
+    <value property_name="geometryType" value="fan"/>
+    </enum_query_constraint>
+    <enum_query_constraint criteria_type="geometry" is_positive="true" node_type="fan">
+    <value property_name="fanType" value="axial"/>
+    </enum_query_constraint>
+    <enum_query_constraint criteria_type="geometry" is_positive="false" node_type="fan">
+    <value property_name="fanModel" value="simple2D"/>
+    </enum_query_constraint>
+    <enum_query_constraint criteria_type="geometry" is_positive="false" node_type="fan">
+    <value property_name="fanModel" value="hub2D"/>
+    </enum_query_constraint>
+    </find>
+    <modify_geometry new_value="3D Fan Grid" property_name="gridConstraintAttachment"/>
+    <modify_geometry new_value="true" property_name="localizeGrid"/>
+    </xml_log_file>

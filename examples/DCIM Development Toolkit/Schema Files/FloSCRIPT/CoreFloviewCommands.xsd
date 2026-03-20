@@ -1,0 +1,912 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1.0">
+  <!--Defines for inside commands start here-->
+  <xs:simpleType name="attributeType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ambient" />
+      <xs:enumeration value="control" />
+      <xs:enumeration value="fluid" />
+      <xs:enumeration value="gridConstraint" />
+      <xs:enumeration value="material" />
+      <xs:enumeration value="occupancy" />
+      <xs:enumeration value="radiation" />
+      <xs:enumeration value="resistance" />
+      <xs:enumeration value="source" />
+      <xs:enumeration value="surface" />
+      <xs:enumeration value="surfaceExchange" />
+      <xs:enumeration value="thermal" />
+      <xs:enumeration value="transient" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="geometryType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="cuboid" />
+      <xs:enumeration value="prism" />
+      <xs:enumeration value="tet" />
+      <xs:enumeration value="invertedTet" />
+      <xs:enumeration value="resistance" />
+      <xs:enumeration value="assembly" />
+      <xs:enumeration value="source" />
+      <xs:enumeration value="heatSink" />
+      <xs:enumeration value="pcb" />
+      <xs:enumeration value="pcbComponent" />
+      <xs:enumeration value="slopingBlock" />
+      <xs:enumeration value="enclosure" />
+      <xs:enumeration value="cylinder" />
+      <xs:enumeration value="hole" />
+      <xs:enumeration value="fan" />
+      <xs:enumeration value="recirculation" />
+      <xs:enumeration value="cooler" />
+      <xs:enumeration value="rack" />
+      <xs:enumeration value="supply" />
+      <xs:enumeration value="extract" />
+      <xs:enumeration value="fixedFlow" />
+      <xs:enumeration value="squareDiffuser" />
+      <xs:enumeration value="compactComponent" />
+      <xs:enumeration value="perforatedPlate" />
+      <xs:enumeration value="cutout" />
+      <xs:enumeration value="monitorPoint" />
+      <xs:enumeration value="volumeRegion" />
+      <xs:enumeration value="networkAssembly" />
+      <xs:enumeration value="networkNode" />
+      <xs:enumeration value="networkCuboid" />
+      <xs:enumeration value="heatPipe" />
+      <xs:enumeration value="tec" />
+      <xs:enumeration value="die" />
+      <xs:enumeration value="rootAssembly" />
+      <xs:enumeration value="powerMap" />
+      <xs:enumeration value="initialSubdomain" />
+      <xs:enumeration value="controller" />
+      <xs:enumeration value="edaBoard" />
+      <xs:enumeration value="edaCan" />
+      <xs:enumeration value="edaComponent" />
+      <xs:enumeration value="edaFunctionalGroup" />
+      <xs:enumeration value="edaHeatsink" />
+      <xs:enumeration value="edaDielectricLayer" />
+      <xs:enumeration value="edaMetallicLayer" />
+      <xs:enumeration value="edaLayerAssembly" />
+      <xs:enumeration value="edaPottingCompound" />
+      <xs:enumeration value="edaThermalVia" />
+      <xs:enumeration value="embeddedRom" />
+      <xs:enumeration value="materialMap" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="groupType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="coldAisleGroup" />
+      <xs:enumeration value="coldAisleSubGroup" />
+      <xs:enumeration value="hotAisleGroup" />
+      <xs:enumeration value="hotAisleSubGroup" />
+      <xs:enumeration value="coolerGroup" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="die_discrete_source">
+    <xs:attribute name="source_name" type="xs:string" use="required"/>
+    <xs:attribute name="x_start" type="xs:double" use="required"/>
+    <xs:attribute name="x_end" type="xs:double" use="required"/>
+    <xs:attribute name="y_start" type="xs:double" use="required"/>
+    <xs:attribute name="y_end" type="xs:double" use="required"/>
+    <xs:attribute name="power_value" type="xs:double" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="geometryIDNode">
+    <xs:choice minOccurs="0" maxOccurs="1">
+      <xs:element name="geometry" type="geometryIDNode" />
+    </xs:choice>
+    <xs:attribute name="name"/>
+    <xs:attribute name="position_in_parent" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="geometryID">
+    <xs:sequence>
+      <xs:element name="geometry" type="geometryIDNode" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="libraryIDNode">
+    <xs:choice minOccurs="0" maxOccurs="1">
+      <xs:element name="library" type="libraryIDNode" />
+    </xs:choice>
+    <xs:attribute name="name" use="required"/>
+    <xs:attribute name="count" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="libraryID">
+    <xs:sequence>
+      <xs:element name="library" type="libraryIDNode" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="attributeID">
+    <xs:attribute name="name"  type="xs:string"/>
+    <xs:attribute name="type" type="attributeType"/>
+    <xs:attribute name="count" type="xs:int"/>
+    <xs:attribute name="id"  type="xs:string"/>
+  </xs:complexType>
+
+  <xs:complexType name="triplet">
+    <xs:attribute name="x" type="xs:double" use="required"/>
+    <xs:attribute name="y" type="xs:double" use="required"/>
+    <xs:attribute name="z" type="xs:double" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="point">
+    <xs:attribute name="x" type="xs:double" use="required"/>
+    <xs:attribute name="y" type="xs:double" use="required"/>
+  </xs:complexType>
+
+  <xs:simpleType name="trueFalse">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="true" />
+      <xs:enumeration value="false" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="axis">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="x_axis"/>
+      <xs:enumeration value="y_axis"/>
+      <xs:enumeration value="z_axis"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="direction">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="positive_x"/>
+      <xs:enumeration value="positive_y"/>
+      <xs:enumeration value="positive_z"/>
+      <xs:enumeration value="negative_x"/>
+      <xs:enumeration value="negative_y"/>
+      <xs:enumeration value="negative_z"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="new_value">
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="group_name" type="xs:string"/>
+    <xs:attribute name="new_value" type="xs:string" use="required"/>
+    <xs:attribute name="count" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="new_table_value">
+    <xs:complexContent>
+      <xs:extension base="new_value">
+        <xs:attribute name="column" type="xs:int" use="required"/>
+        <xs:attribute name="row" type="xs:int" use="required"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="many_new_values">
+    <xs:sequence>
+      <xs:element name="new_value" type="new_value" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="many_new_table_values">
+    <xs:sequence>
+      <xs:element name="new_table_value" type="new_table_value" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="findableGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="transient_overall">
+    <xs:attribute name="solution_enabled" type="trueFalse" use="required"/>
+    <xs:attribute name="total_start_time" type="xs:double" use="required"/>
+    <xs:attribute name="total_end_time" type="xs:double" use="required"/>
+    <xs:attribute name="period_duration" type="xs:double" use="required"/>
+    <xs:attribute name="keypoint_tolerance" type="xs:double" use="required"/>
+    <xs:attribute name="time_unit" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="transient_time_patch">
+    <xs:attribute name="time_patch_name" type="xs:string" use="required"/>
+    <xs:attribute name="time_patch_start_time" type="xs:double" use="required"/>
+    <xs:attribute name="time_patch_end_time" type="xs:double" use="required"/>
+    <xs:attribute name="time_patch_steps_type" type="xs:string" use="required"/>
+    <xs:attribute name="time_patch_steps_number" type="xs:int" use="required"/>
+    <xs:attribute name="time_patch_step_size" type="xs:double" use="required"/>
+    <xs:attribute name="time_patch_step_dist_type" type="xs:string" use="required"/>
+    <xs:attribute name="time_patch_step_dist_index" type="xs:double" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="transient_save_time">
+    <xs:attribute name="save_time_value" type="xs:double" use="required"/>
+  </xs:complexType>
+  <!--Defines for inside commands end here-->
+
+  <!--Defines of FloCore commands start here-->
+  <xs:complexType name="adjustCalibrationParameters">
+    <xs:attribute name="t3ster_power" type="xs:double" use="required"/>
+    <xs:attribute name="t3ster_duration" type="xs:double" use="required"/>
+    <xs:attribute name="t3ster_temperature_initial" type="xs:double" use="required"/>
+    <xs:attribute name="regenerate_time_patches" type="trueFalse" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="alignGeometry">
+    <xs:sequence>
+      <xs:element name="source_geometry" type="geometryID"/>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="destination" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="minimum" />
+          <xs:enumeration value="maximum" />
+          <xs:enumeration value="centre" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <xs:attribute name="direction1" use="required" type="axis" />
+    <xs:attribute name="direction2" type="axis" />
+  </xs:complexType>
+
+  <xs:complexType name="assemblyExport">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID"/>
+    </xs:sequence>
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+    <xs:attribute name="export_type" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="assemblyImport">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+    <xs:attribute name="import_type" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="betaEnable">
+    <xs:attribute name="enabled" type="xs:boolean" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="changeSolutionDirectory">
+    <xs:attribute name="directory_path" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="collapseGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="copyAttribute">
+    <xs:sequence>
+      <xs:element name="attribute_name" type="attributeID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="copyGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="copyLibrary">
+    <xs:sequence>
+      <xs:element name="library_name" type="libraryID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="createAttribute">
+    <xs:attribute name="attribute_type" type="attributeType" use="required"/>
+    <xs:attribute name="id" type="xs:string"/>
+  </xs:complexType>
+
+  <xs:complexType name="createCategory">
+    <xs:attribute name="project_category" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="createGeometry">
+    <xs:sequence>
+      <xs:element name="source_geometry" type="geometryID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="geometry_type" type="geometryType" use="required"/>
+    <xs:attribute name="filename" type="xs:string"/>
+  </xs:complexType>
+
+  <xs:complexType name="createGroup">
+    <xs:attribute name="group_type" type="groupType" use="required"/>
+    <xs:attribute name="group_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="createLibrary">
+    <xs:sequence>
+      <xs:element name="library_parent" type="libraryID"/>
+    </xs:sequence>
+    <xs:attribute name="library_name" type="xs:string"/>
+    <xs:attribute name="directory" type="xs:string" use="optional"/>
+  </xs:complexType>
+
+  <xs:complexType name="csvExportAttribute">
+    <xs:sequence>
+      <xs:element name="attribute_name" type="attributeID"/>
+    </xs:sequence>
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="curveModifyAttribute">
+    <xs:sequence>
+      <xs:choice maxOccurs="unbounded">
+        <xs:element name="attribute_name" type="attributeID"/>
+        <xs:element name="new_value" type="new_value" minOccurs="0"/>
+        <xs:element name="curve_point" type="point"/>
+        <xs:element name="specified_curve" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:choice maxOccurs="unbounded">
+                <xs:element name="curve_point" type="point"/>
+              </xs:choice>
+            </xs:sequence>
+            <xs:attribute name="curve_name" type="xs:string" use="required"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="x_unit" type="xs:string" use="required"/>
+    <xs:attribute name="y_unit" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="curveModifyGeometry">
+    <xs:sequence>
+      <xs:choice maxOccurs="unbounded">
+        <xs:element name="geometry_name" type="geometryID"/>
+        <xs:element name="curve_point" type="point"/>
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="x_unit" type="xs:string" use="required"/>
+    <xs:attribute name="y_unit" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="cutGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="cutLibrary">
+    <xs:sequence>
+      <xs:element name="library_name" type="libraryID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="decomposeGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="deflateGrid">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="deleteAttribute">
+    <xs:sequence>
+      <xs:element name="attribute_name" type="attributeID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="deleteLibrary">
+    <xs:sequence>
+      <xs:element name="library_name" type="libraryID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="demoteGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="dragCreateGeometry">
+    <xs:sequence>
+      <xs:element name="source_geometry" type="geometryID"/>
+      <xs:element name="position" type="triplet"/>
+      <xs:element name="size" type="triplet"/>
+    </xs:sequence>
+    <xs:attribute name="geometry_type" type="geometryType" use="required"/>
+    <xs:attribute name="direction" type="direction" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="expandGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="exportLegacyTables">
+    <xs:attribute name="directory" type="xs:string" use="required"/>
+    <xs:attribute name="geometry_model" type="xs:boolean" use="required"/>
+    <xs:attribute name="grid" type="xs:boolean" use="required"/>
+    <xs:attribute name="attributes" type="xs:boolean" use="required"/>
+    <xs:attribute name="results" type="xs:boolean" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="exportCellByCellResults">
+    <xs:sequence>
+      <xs:element name="new_value" type="new_value" minOccurs="2" maxOccurs="2"/>
+    </xs:sequence>
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="exportLibrary">
+    <xs:sequence>
+      <xs:element name="library_name" type="libraryID"/>
+    </xs:sequence>
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="exportTable">
+    <xs:sequence>
+      <xs:element name="table_id" type="tableID"/>
+    </xs:sequence>
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="filterGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="flushAttribute">
+    <xs:attribute name="attribute_type" type="attributeType"/>
+  </xs:complexType>
+
+  <xs:complexType name="graphicalDragCopyGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+      <xs:element name="translation" type="triplet"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="graphicalModifyGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+      <xs:element name="scale" type="triplet"/>
+      <xs:element name="translation" type="triplet"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="importLibrary">
+    <xs:sequence>
+      <xs:element name="library_name" type="libraryID" minOccurs="1" maxOccurs="1"/>
+    </xs:sequence>
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+    <xs:attribute name="import_type" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="inflateGrid">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="launch">
+    <xs:attribute name="launch_type" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="commandCenter" />
+          <xs:enumeration value="drawingBoard" />
+          <xs:enumeration value="eda" />
+		  <xs:enumeration value="flopack" />
+		  <xs:enumeration value="floviz" />
+          <xs:enumeration value="mcad" />
+          <xs:enumeration value="profiles" />
+          <xs:enumeration value="tables" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="loadFromLibrary">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="library_name" type="libraryID"/>
+    </xs:sequence>
+    <xs:attribute name="row" type="xs:int" use="optional"/>
+  </xs:complexType>
+
+  <xs:complexType name="localizeGridGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="makeVisibleGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="mirrorCreateGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="plane" use="required" type="axis" />
+    <xs:attribute name="position" use="required" type="xs:double" />
+  </xs:complexType>
+
+  <xs:complexType name="modifyAttribute">
+    <xs:complexContent>
+      <xs:extension base="new_value">
+        <xs:sequence>
+          <xs:element name="attribute_name" type="attributeID" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="modifyDieDiscreteSource">
+    <xs:sequence>
+      <xs:choice minOccurs="1" maxOccurs="unbounded">
+        <xs:element name="geometry_name" type="geometryID"/>
+        <xs:element name="discrete_source" type="die_discrete_source"/>
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="power_unit" type="xs:string" use="required"/>
+    <xs:attribute name="length_unit" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="modifyDieTotalCoverage">
+    <xs:complexContent>
+      <xs:extension base="many_new_values">
+        <xs:sequence>
+          <xs:element name="geometry_name" type="geometryID"/>
+        </xs:sequence>
+        <xs:attribute name="property_name" type="xs:string" use="required"/>
+        <xs:attribute name="power_unit" type="xs:string" use="required"/>
+        <xs:attribute name="x0_direction" type="xs:double" use="required"/>
+        <xs:attribute name="y0_direction" type="xs:double" use="required"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="modifyGeometry">
+    <xs:complexContent>
+      <xs:extension base="new_value">
+        <xs:sequence>
+          <xs:element name="geometry_name" type="geometryID" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="modifyGeometryAttachment">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID"/>
+      <xs:element name="attribute_name" type="attributeID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="modifyLibrary">
+    <xs:complexContent>
+      <xs:extension base="new_value">
+        <xs:sequence>
+          <xs:element name="library_name" type="libraryID"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="modifyTransientSolution">
+    <xs:sequence>
+      <xs:element name="overall" type="transient_overall"/>
+      <xs:element name="time_patch" type="transient_time_patch" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="save_time" type="transient_save_time" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="moveLibraryNode">
+    <xs:sequence>
+      <xs:element name="library_name" type="libraryID"/>
+      <xs:element name="new_parent" type="libraryID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="moveGeometryNode">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+      <xs:element name="new_parent" type="geometryID"/>
+    </xs:sequence>
+    <xs:attribute name="row" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="pasteGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="pasteLibrary">
+    <xs:sequence>
+      <xs:element name="library_name" type="libraryID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="patternCreateGeometry">
+    <xs:complexContent>
+      <xs:extension base="many_new_values">
+        <xs:sequence>
+          <xs:element name="geometry_name" type="geometryID"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="processStoppedEvent">
+    <xs:attribute name="process_type" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="EDA"/>
+          <xs:enumeration value="mcad"/> <!--Legacy-->
+          <xs:enumeration value="MCAD"/>
+          <xs:enumeration value="CommandCenter"/>
+          <xs:enumeration value="floviz"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="projectDelete">
+    <xs:attribute name="project_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="projectDeleteTemplate">
+    <xs:attribute name="project_name" type="xs:string" use="required"/>
+    <xs:attribute name="project_category" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="projectExport">
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+    <xs:attribute name="export_type" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="projectImport">
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+    <xs:attribute name="import_type" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="projectLoad">
+    <xs:attribute name="project_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="projectNew">
+    <xs:attribute name="project_name" type="xs:string" use="required"/>
+    <xs:attribute name="project_category" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="projectSaveAs">
+    <xs:attribute name="project_name" type="xs:string" use="required"/>
+    <xs:attribute name="project_title" type="xs:string"/>
+    <xs:attribute name="project_notes" type="xs:string"/>
+    <xs:attribute name="solution_directory" type="xs:string"/>
+    <xs:attribute name="project_category" type="xs:string"/>
+    <xs:attribute name="save_with_results" type="trueFalse"/>
+  </xs:complexType>
+
+  <xs:complexType name="projectSetDefault">
+    <xs:attribute name="project_name" type="xs:string" use="required"/>
+    <xs:attribute name="project_category" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="projectUnlock">
+    <xs:attribute name="project_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="promoteGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="refreshLibrary">
+    <xs:sequence>
+      <xs:element name="library_name" type="libraryID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="renameAttribute">
+    <xs:sequence>
+      <xs:element name="attribute_name" type="attributeID"/>
+    </xs:sequence>
+    <xs:attribute name="new_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="renameGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="new_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="resizeByDeltaGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+      <xs:element name="size_delta" type="triplet"/>
+      <xs:element name="translation" type="triplet"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="rotateGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="direction" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="clockwise" />
+          <xs:enumeration value="counterclockwise" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <xs:attribute name="axis" use="required" type="axis" />
+  </xs:complexType>
+
+  <xs:complexType name="saveToLibrary">
+    <xs:sequence>
+      <xs:element name="library_name" type="libraryID"/>
+      <xs:element name="geometry_name" type="geometryID" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="attribute_name" type="attributeID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="simcenterFieldDataExport">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="new_value" type="new_value" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="save_time" type="transient_save_time" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+    
+  </xs:complexType>
+
+  <xs:complexType name="start">
+    <xs:attribute name="start_type" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="exchangeFactor" />
+          <xs:enumeration value="solver" />
+          <xs:enumeration value="reinitialise" />
+          <xs:enumeration value="reinitialiseSolve" />
+          <xs:enumeration value="revert" />
+          <xs:enumeration value="sanityCheck" />
+          <xs:enumeration value="interruptSaveQuit" />
+          <xs:enumeration value="interruptSolve" />
+          <xs:enumeration value="interruptExchangeFactor" />
+          <xs:enumeration value="reinitialise" />
+          <xs:enumeration value="abortSolve" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="tableColumn">
+    <xs:attribute name="column" type="xs:int" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="tableCreateRowAttribute">
+    <xs:sequence>
+      <xs:element name="attribute_name" type="attributeID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="tableCreateRowGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="tableCreateRowSolverControl">
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="tableDeleteRowAttribute">
+    <xs:sequence>
+      <xs:element name="attribute_name" type="attributeID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="row" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="tableDeleteRowGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="geometryID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="row" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="tableDeleteRowSolverControl">
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="row" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="tableID">
+    <xs:attribute name="name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="tableModifyRowAttribute">
+    <xs:complexContent>
+      <xs:extension base="new_table_value">
+        <xs:sequence>
+          <xs:element name="attribute_name" type="attributeID" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="tableModifyRowGeometry">
+    <xs:complexContent>
+      <xs:extension base="new_table_value">
+        <xs:sequence>
+          <xs:element name="geometry_name" type="geometryID" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="tableSelectRowsAttribute">
+    <xs:sequence>
+      <xs:element name="attribute_name" type="attributeID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="row" type="xs:int" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="tablesHideColumns">
+    <xs:sequence>
+      <xs:element name="table_id" type="tableID"/>
+      <xs:element name="selected_column" type="tableColumn" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="hide" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="tablesTableId">
+    <xs:sequence>
+      <xs:element name="table_id" type="tableID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="tablesSort">
+    <xs:sequence>
+      <xs:element name="table_id" type="tableID"/>
+    </xs:sequence>
+    <xs:attribute name="sorting_type" type="xs:string" use="required"/>
+    <xs:attribute name="column" type ="xs:int" use="optional"/>
+  </xs:complexType>
+
+  <xs:complexType name="tablesSmartPartDetails">
+    <xs:sequence>
+      <xs:element name="table_id" type="tableID"/>
+    </xs:sequence>
+    <xs:attribute name="is_enabled" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="wait">
+    <xs:attribute name="delay" type="xs:int" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="zoomInProjectSave">
+    <xs:attribute name="project_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <!--Defines of FloCore commands end here-->
+
+</xs:schema>

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1.0">
+
+    <xs:include schemaLocation="CommonCommands.xsd" />
+  
+  <xs:simpleType name="edaGeometryType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="daughterboard" />
+      <xs:enumeration value="simpleComponent" />
+      <xs:enumeration value="cylindricalComponent" />
+      <xs:enumeration value="functionalGroup" />
+      <xs:enumeration value="heatSink" />
+      <xs:enumeration value="can" />
+      <xs:enumeration value="pottingCompound" />
+      <xs:enumeration value="keepout" />
+      <xs:enumeration value="thermalVia" />
+      <xs:enumeration value="electricalVia" />
+      <xs:enumeration value="hole" />
+      <xs:enumeration value="layerPatch" />
+      <xs:enumeration value="layer" />
+    </xs:restriction>
+  </xs:simpleType>
+
+    <xs:complexType name="edaImportCommand">
+        <xs:attribute name="filename" type="xs:string" use="required"/>
+        <xs:attribute name="update_components" type="xs:boolean" use="required"/>
+    </xs:complexType>
+
+    <xs:complexType name="edaNewValue">
+        <xs:attribute name="property_name" type="xs:string" use="required"/>
+        <xs:attribute name="new_value" type="xs:string" use="required"/>
+    </xs:complexType>
+
+    <xs:complexType name="edaMultipleGeometry">
+        <xs:sequence>
+            <xs:element name="geometry_name" type="commonGeometryID" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+  
+  <xs:complexType name="edaCreateGeometry">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="commonGeometryID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="geometry_type" type="edaGeometryType" use="required"/>
+  </xs:complexType>
+
+    <xs:complexType name="edaModifyGeometry">
+        <xs:complexContent>
+            <xs:extension base="edaNewValue">
+                <xs:sequence>
+                    <xs:element name="geometry_name" type="commonGeometryID" minOccurs="0" maxOccurs="unbounded"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+
+  <xs:complexType name="edaProjectExport">
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+    <xs:attribute name="export_type" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="edaFilterComponents">
+    <xs:sequence>
+      <xs:element name="new_value" type="edaNewValue" minOccurs="7" maxOccurs="7"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="edaFilename">
+    <xs:attribute name="name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="edaLibraryIDNode">
+    <xs:choice minOccurs="0" maxOccurs="1">
+      <xs:element name="library" type="edaLibraryIDNode" />
+    </xs:choice>
+    <xs:attribute name="name" use="required"/>
+    <xs:attribute name="count" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="edaLibraryID">
+    <xs:sequence>
+      <xs:element name="library" type="edaLibraryIDNode" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="edaComponentLibrarySwap">
+    <xs:sequence>
+      <xs:element name="library_name" type="edaLibraryID" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+    
+</xs:schema>

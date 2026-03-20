@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1.0">
+
+  <xs:include schemaLocation="CommonCommands.xsd" />
+
+  <xs:simpleType name="packageType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="cbga_fc" />
+      <xs:enumeration value="chip_array" />
+      <xs:enumeration value="Die" />
+      <xs:enumeration value="pbga_fc" />
+      <xs:enumeration value="pbga_wb" />
+      <xs:enumeration value="pqfp" />
+      <xs:enumeration value="QFN" />
+      <xs:enumeration value="tsop_conv" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="flopackSelectCommand">
+    <xs:attribute name="name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="newFlopackValue">
+    <xs:attribute name="name" type="xs:string" use="required"/>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="new_value" type="xs:string" use="required"/>
+  </xs:complexType>
+  
+  <xs:complexType name="newFlopackTableValue">
+    <xs:attribute name="name" type="xs:string" use="required"/>
+	  <xs:attribute name="row" type="xs:int" use="required"/>
+	  <xs:attribute name="column" type="xs:int" use="required"/>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="new_value" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="newPackage">
+    <xs:sequence>
+      <xs:element name="new_value" type="commonNewValue" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="package_type" type="packageType" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="materialName">
+    <xs:attribute name="name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="newFlopackMaterialValue">
+    <xs:sequence>
+      <xs:element name="material_name" type="materialName" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="new_value" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="oneToManyFlopackMaterials">
+    <xs:sequence>
+      <xs:element name="material_name" type="materialName" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="createFlopackMaterial">
+    <xs:attribute name="group_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="flopackSaveCommand">
+    <xs:attribute name="filename" type="xs:string"/>
+  </xs:complexType>
+
+</xs:schema>

@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xml_log_file version="1.0">
+    <!--Copyright 2014 Mentor Graphics Corporation-->
+    <!--All Rights Reserved-->
+    <!--THIS WORK CONTAINS TRADE SECRET AND PROPRIETARY-->
+    <!--INFORMATION WHICH IS THE PROPERTY OF MENTOR-->
+    <!--GRAPHICS CORPORATION OR ITS LICENSORS AND IS-->
+    <!--SUBJECT TO LICENSE TERMS.-->
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="Root Assembly"/>
+        </selected_geometry_name>
+    </select_geometry>
+    <create_geometry geometry_type="cylinder">
+        <source_geometry>
+            <geometry name="Root Assembly"/>
+        </source_geometry>
+    </create_geometry>
+    <create_geometry geometry_type="cylinder">
+        <source_geometry>
+            <geometry name="Root Assembly"/>
+        </source_geometry>
+    </create_geometry>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="Cylinder" position_in_parent="0"/>
+            </geometry>
+        </selected_geometry_name>
+        <deselected_geometry_name>
+            <geometry name="Root Assembly"/>
+        </deselected_geometry_name>
+    </select_geometry>
+    <rename_geometry new_name="OuterD">
+        <geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="Cylinder" position_in_parent="0"/>
+            </geometry>
+        </geometry_name>
+    </rename_geometry>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="Cylinder:1" position_in_parent="1"/>
+            </geometry>
+        </selected_geometry_name>
+        <deselected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="OuterD" position_in_parent="0"/>
+            </geometry>
+        </deselected_geometry_name>
+    </select_geometry>
+    <rename_geometry new_name="InnerD">
+        <geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="Cylinder:1" position_in_parent="1"/>
+            </geometry>
+        </geometry_name>
+    </rename_geometry>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="OuterD" position_in_parent="0"/>
+            </geometry>
+        </selected_geometry_name>
+        <deselected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="InnerD" position_in_parent="1"/>
+            </geometry>
+        </deselected_geometry_name>
+    </select_geometry>
+    <modify_geometry new_value="mm" property_name="constructionLengthUnit">
+        <geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="OuterD" position_in_parent="0"/>
+            </geometry>
+        </geometry_name>
+    </modify_geometry>
+    <modify_geometry new_value="75" property_name="radius">
+        <geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="OuterD" position_in_parent="0"/>
+            </geometry>
+        </geometry_name>
+    </modify_geometry>
+    <modify_geometry new_value="25" property_name="lengthZo">
+        <geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="OuterD" position_in_parent="0"/>
+            </geometry>
+        </geometry_name>
+    </modify_geometry>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="InnerD" position_in_parent="1"/>
+            </geometry>
+        </selected_geometry_name>
+        <deselected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="OuterD" position_in_parent="0"/>
+            </geometry>
+        </deselected_geometry_name>
+    </select_geometry>
+    <modify_geometry new_value="mm" property_name="constructionLengthUnit">
+        <geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="InnerD" position_in_parent="1"/>
+            </geometry>
+        </geometry_name>
+    </modify_geometry>
+    <modify_geometry new_value="25" property_name="lengthZo">
+        <geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="InnerD" position_in_parent="1"/>
+            </geometry>
+        </geometry_name>
+    </modify_geometry>
+    <modify_geometry new_value="55" property_name="radius">
+        <geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="InnerD" position_in_parent="1"/>
+            </geometry>
+        </geometry_name>
+    </modify_geometry>
+    <launch launch_type="mcad"/>
+    <external_command process="MCAD">
+        <import_project_geometry/>
+    </external_command>
+    <external_command process="MCAD">
+        <select>
+            <selected_name>
+                <geometry name="DefaultSI"/>
+            </selected_name>
+        </select>
+    </external_command>
+    <external_command process="MCAD">
+        <rename new_name="Donut">
+            <geometry_name>
+                <geometry position_in_parent="0"/>
+            </geometry_name>
+        </rename>
+    </external_command>
+    <external_command process="MCAD">
+        <select>
+            <selected_name>
+                <geometry name="Donut">
+                    <geometry name="OuterD" position_in_parent="1">
+                        <geometry name="OuterD" position_in_parent="1"/>
+                    </geometry>
+                </geometry>
+            </selected_name>
+            <deselected_name>
+                <geometry name="Donut"/>
+            </deselected_name>
+        </select>
+    </external_command>
+    <external_command process="MCAD">
+        <select>
+            <selected_name>
+                <geometry name="Donut">
+                    <geometry name="InnerD" position_in_parent="2">
+                        <geometry name="InnerD" position_in_parent="1"/>
+                    </geometry>
+                </geometry>
+            </selected_name>
+        </select>
+    </external_command>
+    <external_command process="MCAD">
+        <subtract_bodies>
+            <geometry_name>
+                <geometry name="Donut">
+                    <geometry name="OuterD" position_in_parent="1">
+                        <geometry name="OuterD" position_in_parent="1"/>
+                    </geometry>
+                </geometry>
+            </geometry_name>
+            <geometry_name>
+                <geometry name="Donut">
+                    <geometry name="InnerD" position_in_parent="2">
+                        <geometry name="InnerD" position_in_parent="1"/>
+                    </geometry>
+                </geometry>
+            </geometry_name>
+        </subtract_bodies>
+    </external_command>
+    <external_command process="MCAD">
+        <voxelize>
+            <geometry_name>
+                <geometry name="Donut">
+                    <geometry name="OuterD" position_in_parent="1">
+                        <geometry name="OuterD" position_in_parent="1"/>
+                    </geometry>
+                </geometry>
+            </geometry_name>
+            <new_value new_value="150" property_name="minimumNumberOfCellsInX"/>
+            <new_value new_value="150" property_name="minimumNumberOfCellsInY"/>
+            <new_value new_value="0.01" property_name="minimumCellSize"/>
+        </voxelize>
+    </external_command>
+    <external_command process="MCAD">
+        <transfer_assembly/>
+    </external_command>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="OuterD" position_in_parent="0"/>
+            </geometry>
+        </selected_geometry_name>
+        <deselected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="InnerD" position_in_parent="1"/>
+            </geometry>
+        </deselected_geometry_name>
+    </select_geometry>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="InnerD" position_in_parent="1"/>
+            </geometry>
+        </selected_geometry_name>
+    </select_geometry>
+    <delete_geometry>
+        <geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="OuterD" position_in_parent="0"/>
+            </geometry>
+        </geometry_name>
+        <geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="InnerD" position_in_parent="1"/>
+            </geometry>
+        </geometry_name>
+    </delete_geometry>
+	<external_command process="MCAD">
+        <quit/>
+    </external_command>
+</xml_log_file>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xml_log_file version="1.0">
+    <!--Copyright 2016 Mentor Graphics Corporation-->
+    <!--All Rights Reserved-->
+    <!--THIS WORK CONTAINS TRADE SECRET AND PROPRIETARY-->
+    <!--INFORMATION WHICH IS THE PROPERTY OF MENTOR-->
+    <!--GRAPHICS CORPORATION OR ITS LICENSORS AND IS-->
+    <!--SUBJECT TO LICENSE TERMS.-->
+    <question answer="continueWithExistingProject" text="gridChanged"/>
+    <find filter="false" match="all" select_mode="all">
+        <attachment_query_constraint criteria_type="common" is_positive="false">
+            <value property_name="gridConstraintAttachment" value="noAttachment"/>
+        </attachment_query_constraint>
+    </find>
+    <modify_geometry new_value="noAttachment" property_name="gridConstraintAttachment">
+    </modify_geometry>
+    <find filter="false" match="all" select_mode="all">
+        <bool_query_constraint criteria_type="common">
+            <value property_name="localizeGrid" value="true"/>
+        </bool_query_constraint>
+    </find>
+    <modify_geometry new_value="false" property_name="localizeGrid">
+    </modify_geometry>
+    <clear_select_geometry/>
+	<flush_attribute attribute_type="gridConstraint"/>
+</xml_log_file>

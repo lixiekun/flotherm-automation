@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1.0">
+
+  <xs:simpleType name="CCTrueFalse">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="true" />
+      <xs:enumeration value="false" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="ccNewValue">
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="group_name" type="xs:string"/>
+    <xs:attribute name="new_value" type="xs:string" use="required"/>
+    <xs:attribute name="count" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccGeometryID">
+    <xs:choice minOccurs="0" maxOccurs="1">
+      <xs:element name="geometry" type="ccGeometryID" />
+    </xs:choice>
+    <xs:attribute name="name"/>
+    <xs:attribute name="position_in_parent" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:simpleType name="ccAttributeType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ambient" />
+      <xs:enumeration value="fluid" />
+      <xs:enumeration value="gridConstraint" />
+      <xs:enumeration value="material" />
+      <xs:enumeration value="occupancy" />
+      <xs:enumeration value="radiation" />
+      <xs:enumeration value="resistance" />
+      <xs:enumeration value="source" />
+      <xs:enumeration value="surface" />
+      <xs:enumeration value="surfaceExchange" />
+      <xs:enumeration value="thermal" />
+      <xs:enumeration value="transient" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="ccAttributeID">
+    <xs:attribute name="name"  type="xs:string" use="required"/>
+    <xs:attribute name="type" type="ccAttributeType" use="required"/>
+    <xs:attribute name="count" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccNoneToManyAttOneValue">
+    <xs:complexContent>
+      <xs:extension base="ccNewValue">
+        <xs:sequence>
+          <xs:element name="attribute_name" type="ccAttributeID" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="ccNoneToManyGeom">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="ccGeometryID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ccNoneToManyGeomOneValue">
+    <xs:complexContent>
+      <xs:extension base="ccNewValue">
+        <xs:sequence>
+          <xs:element name="geometry_name" type="ccGeometryID" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:simpleType name="ccVariableOriginType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="attribute" />
+      <xs:enumeration value="model" />
+      <xs:enumeration value="modelSetup" />
+      <xs:enumeration value="solverControl" />
+      <xs:enumeration value="userVariables" />
+      <xs:enumeration value="transient" />
+      <xs:enumeration value="solar" />
+      <xs:enumeration value="fieldSummary" />
+      <xs:enumeration value="metrics" />
+      <xs:enumeration value="calibration" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="ccVariableID">
+    <xs:sequence>
+      <xs:element name="attribute_name" type="ccAttributeID" minOccurs="0"/>
+      <xs:element name="geometry_name" type="ccGeometryID" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="origin"  type="ccVariableOriginType" use="required"/>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="group_name" type="xs:string"/>
+    <xs:attribute name="row" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccOneToManyVariable">
+    <xs:sequence>
+      <xs:element name="variable_name" type="ccVariableID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ccOneToManyVarOneValue">
+    <xs:complexContent>
+      <xs:extension base="ccNewValue">
+        <xs:sequence>
+          <xs:element name="variable_name" type="ccVariableID" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="ccVariableValueRow">
+    <xs:sequence>
+      <xs:element name="variable_name" type="ccVariableID" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="row" type="xs:int" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccModifyVariableValue">
+    <xs:complexContent>
+      <xs:extension base="ccVariableValueRow">
+        <xs:attribute name="new_value" type="xs:string" use="required"/>
+        <xs:attribute name="count" type="xs:int"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+    
+  <xs:complexType name="ccNoneToManyGeomOneTableValue">
+        <xs:complexContent>
+            <xs:extension base="ccNoneToManyGeomOneValue">
+                <xs:attribute name="row" type="xs:int" use="required"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+
+  <xs:complexType name="ccNoneToManyAttOneTableValue">
+    <xs:complexContent>
+      <xs:extension base="ccNoneToManyAttOneValue">
+        <xs:attribute name="row" type="xs:int" use="required"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+    <xs:complexType name="ccNewTableValue">
+        <xs:complexContent>
+            <xs:extension base="ccNewValue">
+                <xs:attribute name="row" type="xs:int" use="required"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+
+  <xs:complexType name="ccScenarioId">
+    <xs:attribute name="scenario_id" type="xs:int" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccOneToManyScenarios">
+    <xs:sequence>
+      <xs:element name="scenario_id" type="ccScenarioId" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  
+  <xs:complexType name="ccSaveScenarioProjectCommand">
+    <xs:attribute name="project_name" type="xs:string" use="required"/>
+    <xs:attribute name="scenario_id" type="xs:int" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccRenameScenarioCommand">
+    <xs:attribute name="scenario_name" type="xs:string" use="required"/>
+    <xs:attribute name="scenario_id" type="xs:int" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccmodifyInitializeFromScenarioCommand">
+    <xs:attribute name="initialize_from" type="xs:int" use="required"/>
+    <xs:attribute name="scenario_id" type="xs:int" use="required"/>
+  </xs:complexType>
+
+  <xs:simpleType name="ccInitializeFromAllType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="baseProject" />
+      <xs:enumeration value="noProject" />
+      <xs:enumeration value="previous" />
+    </xs:restriction>
+  </xs:simpleType>  
+
+  <xs:complexType name="ccmodifyInitializeFromAllScenarioCommand">
+    <xs:attribute name="initialize_from" type="ccInitializeFromAllType" use="required"/>
+  </xs:complexType>
+
+  <xs:simpleType name="ccStoreResultsType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="none" />
+      <xs:enumeration value="full" />
+      <xs:enumeration value="historyOnly" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="ccmodifyStoreScenarioResultsCommand">
+    <xs:attribute name="store_results" type="ccStoreResultsType" use="required"/>
+    <xs:attribute name="scenario_id" type="xs:int" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccmodifyStoreResultsAllScenarioCommand">
+    <xs:attribute name="store_results" type="ccStoreResultsType" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccPasteScenarioTable">
+    <xs:choice maxOccurs="unbounded">
+      <xs:element name="modify_input_variable_value" type ="ccModifyVariableValue"/>
+      <xs:element name="rename_scenario" type="ccRenameScenarioCommand"/>
+      <xs:element name="modify_store_scenario_results" type="ccmodifyStoreScenarioResultsCommand"/>
+      <xs:element name="modify_initialize_from_scenario" type="ccmodifyInitializeFromScenarioCommand"/>
+    </xs:choice>
+  </xs:complexType>
+
+  <xs:complexType name="ccManyNewValues">
+    <xs:sequence>
+      <xs:element name="new_value" type="ccNewValue" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ccExpression">
+    <xs:sequence>
+      <xs:element name="variable_name" type="ccVariableID" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="string" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccModifyDependentExpression">
+    <xs:sequence>
+      <xs:choice maxOccurs="unbounded">
+        <xs:element name="variable_name" type="ccVariableID"  maxOccurs="unbounded"/>
+        <xs:element name="expression" type="ccExpression"/>
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ccConstraintTerm">
+    <xs:sequence>
+    <xs:element name="variable_name" type="ccVariableID" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="value" type="xs:double"/>
+    <xs:attribute name="is_new_term" type="CCTrueFalse"/>
+  </xs:complexType>
+
+  <xs:simpleType name="ccConstraintType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="&gt;=" />
+      <xs:enumeration value="&lt;=" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="ccConstraint">
+    <xs:sequence>
+      <xs:element name="constraint_term" type="ccConstraintTerm" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="bound_type" type="ccConstraintType"/>
+    <xs:attribute name="bound_value" type="xs:double"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccDesignOfExperimentsCommand">
+    <xs:complexContent>
+    <xs:extension base="ccManyNewValues">
+      <xs:sequence>
+        <xs:element name="input_constraint" type="ccConstraint" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="ccOptimizeCommand">
+    <xs:complexContent>
+      <xs:extension base="ccManyNewValues">
+        <xs:sequence>
+          <xs:element name="input_constraint" type="ccConstraint" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element name="output_constraint" type="ccConstraint" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="ccCreateScenariosCommand">
+    <xs:sequence>
+      <xs:element name="new_value" type="ccNewValue" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="variable_name" type="ccVariableID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ccChartID">
+    <xs:attribute name="title" type="xs:string" use="required"/>
+    <xs:attribute name="count" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccDeleteChartCommand">
+    <xs:sequence>
+      <xs:element name="chart_id" type="ccChartID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="ccVariableType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="scenarioId" />
+      <xs:enumeration value="cost_function" />
+      <xs:enumeration value="input" />
+      <xs:enumeration value="output" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="ccChartVariableID">
+    <xs:sequence>
+      <xs:element name="variable_name" type="ccVariableID" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="variable_type" type="ccVariableType"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccSeries">
+    <xs:sequence>
+      <xs:element name="y_variable" type="ccChartVariableID"/>
+      <xs:element name="color_by_variable" type="ccChartVariableID" minOccurs="0"/>
+      <xs:element name="new_value" type="ccNewValue" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ccModifyChartCommand">
+    <xs:sequence>
+      <xs:element name="chart_id" type="ccChartID"/>
+      <xs:element name="new_value" type="ccNewValue" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="x_variable" type="ccChartVariableID" minOccurs="0"/>
+      <xs:element name="series" type="ccSeries" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ccRequestCorellationChartCommand">
+    <xs:sequence>
+      <xs:element name="x_variable" type="ccChartVariableID"/>
+      <xs:element name="y_variable" type="ccChartVariableID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ccChangeVisibilityCommand">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="ccGeometryID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="is_hide" type="CCTrueFalse"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccRSODesignParameterValue">
+    <xs:sequence>
+      <xs:element name="variable_name" type="ccVariableID"/>
+      <xs:element name="new_value" type="ccNewValue"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ccModifyResponseSurfaceCommand">
+    <xs:sequence>
+      <xs:element name="rso_design_parameter_value" type="ccRSODesignParameterValue" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ccResponseParameterID">
+    <xs:sequence>
+      <xs:element name="response_parameter" type="ccChartVariableID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ccModifyResponseSurfacePlotCommand">
+    <xs:sequence>
+      <xs:element name="response_parameter" type="ccChartVariableID"/>
+      <xs:element name="design_parameter" type="ccChartVariableID" maxOccurs="2"/>
+      <xs:element name="new_value" type="ccNewValue" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ccFilename">
+    <xs:attribute name="name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccImportT3sterMeasurement">
+    <xs:sequence>
+      <xs:element name="filename" type="ccFilename" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ccmodifyTargetTemperaturePoint">
+    <xs:complexContent>
+      <xs:extension base="ccNewValue">
+         <xs:attribute name="id" type="xs:int" use="required"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:simpleType name="ccFindType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="min" />
+      <xs:enumeration value="max" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="ccSelectScenariosFromVariableCommand">
+    <xs:sequence>
+      <xs:element name="variable_name" type="ccVariableID"  minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="find" type="ccFindType"/>
+  </xs:complexType>
+
+  <xs:simpleType name="ccExportCompactModelFloxmlFormat">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="compact_component" />
+      <xs:enumeration value="network_assembly" />
+    </xs:restriction>
+  </xs:simpleType>
+
+    <xs:simpleType name="cctwoR_or_Delphi">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="2R" />
+      <xs:enumeration value="delphi" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="ccExportCompactModelFloxml">
+    <xs:attribute name="filename"  type="xs:string" use="required"/>
+    <xs:attribute name="format"  type="ccExportCompactModelFloxmlFormat" use="required"/>
+    <xs:attribute name="twoR_or_Delphi"  type="cctwoR_or_Delphi" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="ccCalculateCompactModelCommand">
+    <xs:attribute name="twoR_or_Delphi"  type="cctwoR_or_Delphi" use="required"/>
+  </xs:complexType>
+
+</xs:schema>

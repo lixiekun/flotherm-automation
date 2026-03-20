@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1.0">
+
+  <xs:include schemaLocation="CommonCommands.xsd" />
+  <xs:include schemaLocation="FlopackCommands.xsd" />
+
+  <xs:element name="flopack_xml_log_file">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="copy_material" type="oneToManyFlopackMaterials" />
+        <xs:element name="create_material" type="createFlopackMaterial" />
+        <xs:element name="delete_material" type="oneToManyFlopackMaterials" />
+        <xs:element name="export_floxml" type ="commonFilenameCommand"/>
+        <xs:element name="load_des" type ="commonFilenameCommand"/>
+        <xs:element name="message" type ="commonMessage"/>
+        <xs:element name="modify_component" type="newFlopackValue" />
+        <xs:element name="modify_component_table_row" type="newFlopackTableValue" />
+        <xs:element name="modify_material" type="newFlopackMaterialValue" />
+        <xs:element name="new_package" type="newPackage" />
+        <xs:element name="pause_record_script"/>
+        <xs:element name="project_run_script" type ="commonFileNameCommand"/>
+        <xs:element name="quit"/>
+        <xs:element name="redo"/>
+        <xs:element name="resume_record_script"/>
+        <xs:element name="save_des" type ="flopackSaveCommand"/>
+        <xs:element name="select_component_row" type="flopackSelectCommand" />
+        <xs:element name="start_record_script" type ="commonFileNameCommand"/>
+        <xs:element name="stop_record_script"/>
+        <xs:element name="timer_start" type ="commonNameCommand"/>
+        <xs:element name="timer_stop" type ="commonNameCommand"/>
+        <xs:element name="transfer_component"/>
+        <xs:element name="undo"/>
+      </xs:choice>
+      <xs:attribute name="version" type="xs:double" use="required"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1.0">
+  <!--Defines for inside commands start here-->
+  <xs:simpleType name="plotType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="animation" />
+      <xs:enumeration value="annotation" />
+      <xs:enumeration value="pcbPlot" />
+      <xs:enumeration value="isosurface" />
+      <xs:enumeration value="particles" />
+      <xs:enumeration value="planePlot" />
+      <xs:enumeration value="surfacePlot" />
+      <xs:enumeration value="savedTables" />
+      <xs:enumeration value="viewpoint" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="nodeType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="animation" />
+      <xs:enumeration value="annotation" />
+      <xs:enumeration value="pcbPlot" />
+      <xs:enumeration value="isosurface" />
+      <xs:enumeration value="particles" />
+      <xs:enumeration value="planePlot" />
+      <xs:enumeration value="surfacePlot" />
+      <xs:enumeration value="savedTables" />
+      <xs:enumeration value="viewpoint" />
+      <xs:enumeration value="scalarFields" />
+      <xs:enumeration value="vectorFields" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="createType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="animation" />
+      <xs:enumeration value="annotation" />
+      <xs:enumeration value="pcbPlot" />
+      <xs:enumeration value="isosurface" />
+      <xs:enumeration value="particles" />
+      <xs:enumeration value="planePlot" />
+      <xs:enumeration value="surfacePlot" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="saveType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="savedTables" />
+      <xs:enumeration value="viewpoint" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="resultsNodeID">
+    <xs:attribute name="name"  type="xs:string"/>
+    <xs:attribute name="type" type="nodeType"/>
+    <xs:attribute name="count" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="resultsGeometryID">
+    <xs:choice minOccurs="0" maxOccurs="1">
+      <xs:element name="geometry" type="resultsGeometryID" />
+    </xs:choice>
+    <xs:attribute name="name"/>
+    <xs:attribute name="position_in_parent" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:simpleType name="resultsTrueFalse">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="true" />
+      <xs:enumeration value="false" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="associationType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="geometry"/>
+      <xs:enumeration value="plot"/>
+      <xs:enumeration value="field"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="resultsAssociationType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="minimum"/>
+      <xs:enumeration value="maximum"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="resultsNewValue">
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="group_name" type="xs:string"/>
+    <xs:attribute name="new_value" type="xs:string" use="required"/>
+    <xs:attribute name="count" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="resultsManyNewValues">
+    <xs:sequence>
+      <xs:element name="new_value" type="resultsNewValue" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="animationEventType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="playForwards" />
+      <xs:enumeration value="playBackwards" />
+      <xs:enumeration value="stop" />
+      <xs:enumeration value="stepBackward" />
+      <xs:enumeration value="stepForward" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!--Defines for inside commands end here-->
+
+  <!--Defines of commands start here-->
+
+  <xs:complexType name="changeResultsMode">
+    <xs:attribute name="is_results_mode" type="resultsTrueFalse" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="createResultsPlot">
+    <xs:choice minOccurs="0" maxOccurs="unbounded">
+      <xs:element name="geometry_name" type="resultsGeometryID"/>
+    </xs:choice>
+    <xs:attribute name="plot_type" type="createType" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="saveResultsSetting">
+    <xs:choice minOccurs="0" maxOccurs="unbounded">
+      <xs:element name="geometry_name" type="resultsGeometryID"/>
+      <xs:element name="new_value" type="resultsNewValue"/>
+    </xs:choice>
+    <xs:attribute name="setting_type" type="saveType" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="createMinMaxAnnotation">
+    <xs:choice minOccurs="0" maxOccurs="unbounded">
+      <xs:element name="geometry_name" type="resultsGeometryID"/>
+      <xs:element name="results_node_name" type="resultsNodeID"/>
+    </xs:choice>
+    <xs:attribute name="association_type" type="associationType" use="required"/>
+    <xs:attribute name="results_association_type" type="resultsAssociationType" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="modifyResultsNode">
+    <xs:sequence>
+      <xs:element name="results_node_name" type="resultsNodeID"  minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="new_value" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="modifyResultsNodeAssociatedGeometry">
+      <xs:choice minOccurs="1" maxOccurs="unbounded">
+        <xs:element name="results_node_name" type="resultsNodeID"/>
+        <xs:element name="geometry_name" type="resultsGeometryID"/>
+      </xs:choice>
+  </xs:complexType>
+
+  <xs:complexType name="modifyResultsNodeAssociatedPlot">
+    <xs:choice minOccurs="1" maxOccurs="unbounded">
+      <xs:element name="results_node_name" type="resultsNodeID"/>
+      <xs:element name="associated_plot" type="resultsNodeID"/>
+    </xs:choice>
+  </xs:complexType>
+
+  <xs:complexType name="renameResultsNode">
+    <xs:sequence>
+      <xs:element name="results_node_name" type="resultsNodeID"/>
+    </xs:sequence>
+    <xs:attribute name="new_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="oneToManyResultsNodes">
+    <xs:sequence>
+      <xs:element name="results_node_name" type="resultsNodeID" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="noneToManyResultsNodes">
+    <xs:sequence>
+      <xs:element name="results_node_name" type="resultsNodeID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="repositionPlanePlot">
+    <xs:sequence>
+      <xs:element name="results_node_name" type="resultsNodeID" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="plane_axis" type="xs:string" use="required"/>
+    <xs:attribute name="new_drag_plane_position" type="xs:double" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="manipulateParticleSource">
+    <xs:sequence>
+      <xs:element name="results_node_name" type="resultsNodeID" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="translation_x" type="xs:double" use="required"/>
+    <xs:attribute name="translation_y" type="xs:double" use="required"/>
+    <xs:attribute name="translation_z" type="xs:double" use="required"/>
+    <xs:attribute name="scale_x" type="xs:double" use="required"/>
+    <xs:attribute name="scale_y" type="xs:double" use="required"/>
+    <xs:attribute name="scale_z" type="xs:double" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="movePlanePlot">
+    <xs:sequence>
+      <xs:element name="results_node_name" type="resultsNodeID" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="is_positive" type="resultsTrueFalse" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="createAnnotationFromTooltip">
+    <xs:complexContent>
+      <xs:extension base="resultsManyNewValues">
+        <xs:choice minOccurs="1" maxOccurs="1">
+          <xs:element name="results_node_name" type="resultsNodeID"/>
+          <xs:element name="geometry_name" type="resultsGeometryID"/>
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="animation">
+    <xs:attribute name="event" type="animationEventType" use="required"/>
+  </xs:complexType>
+  
+  <xs:complexType name="exportPlot">
+   <xs:sequence>
+      <xs:element name="results_node_name" type="resultsNodeID" maxOccurs="1"/>
+   </xs:sequence>
+   <xs:attribute name="filename" type="xs:string" use="required"/>
+  </xs:complexType>
+  
+</xs:schema>

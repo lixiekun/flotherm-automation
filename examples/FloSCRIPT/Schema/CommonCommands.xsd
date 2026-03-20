@@ -1,0 +1,373 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1.0">
+  <xs:simpleType name="commonTrueFalse">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="true" />
+      <xs:enumeration value="false" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="commonMatch">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="all" />
+      <xs:enumeration value="any" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="commonSelectMode">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="all" />
+      <xs:enumeration value="cycle" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="commonSelectNodes">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="geometry" />
+      <xs:enumeration value="attributes" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="commonSearchMode">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="model" />
+      <xs:enumeration value="current_selection" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="commonCriteriaTypeMode">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="common" />
+      <xs:enumeration value="attribute" />
+      <xs:enumeration value="geometry" />
+      <xs:enumeration value="common_results" />
+      <xs:enumeration value="geometry_results" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="findableNodeType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="fluid" />
+      <xs:enumeration value="gridConstraint" />
+      <xs:enumeration value="material" />
+      <xs:enumeration value="occupancy" />
+      <xs:enumeration value="radiation" />
+      <xs:enumeration value="resistance" />
+      <xs:enumeration value="source" />
+      <xs:enumeration value="surface" />
+      <xs:enumeration value="surfaceExchange" />
+      <xs:enumeration value="thermal" />
+
+      <xs:enumeration value="assembly" />
+      <xs:enumeration value="blockWithHoles" />
+      <xs:enumeration value="compactComponent" />
+      <xs:enumeration value="cuboid" />
+      <xs:enumeration value="pcbComponent" />
+      <xs:enumeration value="controller" />
+      <xs:enumeration value="cooler" />
+      <xs:enumeration value="cutout" />
+      <xs:enumeration value="cylinder" />
+      <xs:enumeration value="die" />
+      <xs:enumeration value="enclosure" />
+      <xs:enumeration value="edaBoard" />
+      <xs:enumeration value="edaElectricalViasAssembly" />
+      <xs:enumeration value="edaElectricalVia" />
+      <xs:enumeration value="edaLayerAssembly" />
+      <xs:enumeration value="edaComponent" />
+      <xs:enumeration value="edaDielectricLayer" />
+      <xs:enumeration value="edaMetallicLayer" />
+      <xs:enumeration value="edaHeatsink" />
+      <xs:enumeration value="edaThermalVia" />
+      <xs:enumeration value="edaCan" />
+      <xs:enumeration value="edaPottingCompound" />
+      <xs:enumeration value="edaFunctionalGroup" />
+      <xs:enumeration value="fan" />
+      <xs:enumeration value="fixedFlow" />
+      <xs:enumeration value="heatPipe" />
+      <xs:enumeration value="heatSink" />
+      <xs:enumeration value="hole" />
+      <xs:enumeration value="invertedTet" />
+      <xs:enumeration value="materialMap" />
+      <xs:enumeration value="monitorPoint" />
+      <xs:enumeration value="pcb" />
+      <xs:enumeration value="perforatedPlate" />
+      <xs:enumeration value="prism" />
+      <xs:enumeration value="rack" />
+      <xs:enumeration value="recirculation" />
+      <xs:enumeration value="resistance" />
+      <xs:enumeration value="slopingBlock" />
+      <xs:enumeration value="source" />
+      <xs:enumeration value="tec" />
+      <xs:enumeration value="tet" />
+      <xs:enumeration value="volumeRegion" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="commonValue">
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="group_name" type="xs:string"/>
+    <xs:attribute name="value" type="xs:string" use="required"/>
+    <xs:attribute name="count" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:simpleType name="commonComparisonList">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="equalTo" />
+      <xs:enumeration value="notEqualTo" />
+      <xs:enumeration value="greaterThan" />
+      <xs:enumeration value="greaterThanEqualTo" />
+      <xs:enumeration value="lessThan" />
+      <xs:enumeration value="lessThanEqualTo" />
+      <xs:enumeration value="maximum" />
+      <xs:enumeration value="minimum" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="commonQueryConstraint">
+    <xs:sequence>
+      <xs:element name="value" type="commonValue"/>
+    </xs:sequence>
+    <xs:attribute name="criteria_type" type="commonCriteriaTypeMode" use="required"/>
+    <xs:attribute name="node_type" type="findableNodeType"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonAttachmentQueryConstraint">
+    <xs:complexContent>
+      <xs:extension base="commonQueryConstraint">
+        <xs:attribute name="is_positive" type="commonTrueFalse"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="commonBoolQueryConstraint">
+    <xs:complexContent>
+      <xs:extension base="commonQueryConstraint">
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="commonDoubleQueryConstraint">
+    <xs:all>
+      <xs:element name="value">
+      <xs:complexType>
+        <xs:attribute name="property_name" type="xs:string" use="required"/>
+        <xs:attribute name="group_name" type="xs:string"/>
+        <xs:attribute name="value" type="xs:string"/>
+      </xs:complexType>
+      </xs:element>
+      <xs:element name="unit_value" minOccurs="0" maxOccurs="1">
+        <xs:complexType>
+          <xs:attribute name="property_name" type="xs:string" use="required"/>
+          <xs:attribute name="group_name" type="xs:string"/>
+          <xs:attribute name="unit_value" type="xs:string" use="required"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:all>
+    <xs:attribute name="criteria_type" type="commonCriteriaTypeMode" use="required"/>
+    <xs:attribute name="node_type" type="findableNodeType"/>
+    <xs:attribute name="comparison_operator" type="commonComparisonList"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonEnumQueryConstraint">
+    <xs:complexContent>
+      <xs:extension base="commonQueryConstraint">
+        <xs:attribute name="is_positive" type="commonTrueFalse"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="commonIntegerQueryConstraint">
+    <xs:complexContent>
+      <xs:extension base="commonQueryConstraint">
+        <xs:attribute name="comparison_operator" type="commonComparisonList"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="commonStringQueryConstraint">
+    <xs:complexContent>
+      <xs:extension base="commonQueryConstraint">
+        <xs:attribute name="case_sensitive" type="commonTrueFalse" use="required"/>
+        <xs:attribute name="partial_match" type="commonTrueFalse" use="required"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="commonFindCommand">
+    <xs:choice minOccurs="0" maxOccurs="unbounded">
+      <xs:element name="attachment_query_constraint" type="commonAttachmentQueryConstraint"/>
+      <xs:element name="bool_query_constraint" type="commonBoolQueryConstraint"/>
+      <xs:element name="double_query_constraint" type="commonDoubleQueryConstraint"/>
+      <xs:element name="enum_query_constraint" type="commonEnumQueryConstraint"/>
+      <xs:element name="integer_query_constraint" type="commonIntegerQueryConstraint"/>
+      <xs:element name="string_query_constraint" type="commonStringQueryConstraint"/>
+    </xs:choice>
+    <xs:attribute name="filter" type="commonTrueFalse"/>
+    <xs:attribute name="match" type="commonMatch"/>
+    <xs:attribute name="select_mode" type="commonSelectMode"/>
+    <xs:attribute name="select_nodes" type="commonSelectNodes"/>
+    <xs:attribute name="search_mode" type="commonSearchMode"/>
+  </xs:complexType>
+
+  <xs:simpleType name="commonCycleDirection">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="next" />
+      <xs:enumeration value="previous" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="commonFindCycleSelectCommand">
+    <xs:attribute name="direction" type="commonCycleDirection"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonMessage">
+    <xs:attribute name="text" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:simpleType name="commonProfilesPlotType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="residualsVIteration" />
+      <xs:enumeration value="residualIterationsVTime" />
+      <xs:enumeration value="residualsVTime" />
+      <xs:enumeration value="monitorPointsVIteration" />
+      <xs:enumeration value="monitorPointsVTime" />
+      <xs:enumeration value="resultsVDistance" />
+      </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="commonCreateProfilesPlot">
+    <xs:attribute name="plot_type" type="commonProfilesPlotType"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonDeleteProfilesPlot">
+    <xs:attribute name="plot_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonModifyProfilesPlot">
+    <xs:attribute name="plot_name" type="xs:string" use="required"/>
+    <xs:attribute name="new_value" type="xs:string" use="required"/>
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="group_name" type="xs:string" use="optional"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonGeometryID">
+    <xs:choice minOccurs="0" maxOccurs="1">
+      <xs:element name="geometry" type="commonGeometryID" />
+    </xs:choice>
+    <xs:attribute name="name"/>
+    <xs:attribute name="position_in_parent" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonSelectCommand">
+    <xs:sequence>
+      <xs:choice maxOccurs="unbounded">
+        <xs:element name="selected_geometry_name" type="commonGeometryID"/>
+        <xs:element name="deselected_geometry_name" type="commonGeometryID"/>
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="commonOneGeom">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="commonGeometryID"/>
+    </xs:sequence>
+  </xs:complexType>
+
+    <xs:complexType name="commonModifyMonitorPointPlotAssociatedGeometry">
+        <xs:sequence>
+            <xs:choice minOccurs="1" maxOccurs="unbounded">
+                <xs:element name="geometry_name" type="commonGeometryID"  minOccurs="0" maxOccurs="unbounded"/>
+            </xs:choice>
+        </xs:sequence>
+        <xs:attribute name="plot_name" type="xs:string" use="required"/>
+    </xs:complexType>
+
+  <xs:complexType name="commonDefinedViewManipulationCommand">
+    <xs:attribute name="defined_view_manipulation" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonOutputSnapshotCommand">
+    <xs:attribute name="file_type" type="xs:string" use="required"/>
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+    <xs:attribute name="viewport_name" type="xs:string"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonStandardViewCommand">
+    <xs:attribute name="standard_view" type="xs:string" use="required"/>
+    <xs:attribute name="viewport_name" type="xs:string"/>
+  </xs:complexType>
+
+  <xs:simpleType name="commonCameraMode">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="perspective" />
+      <xs:enumeration value="orthographic" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="commonCameraModeCommand">
+    <xs:attribute name="camera_mode" type="commonCameraMode" use="required"/>
+  </xs:complexType>
+
+  <xs:simpleType name="commonVisualizationState">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="inherit" />
+      <xs:enumeration value="solid" />
+      <xs:enumeration value="wireframe" />
+      <xs:enumeration value="solid_edges" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="commonVisualizationStateCommand">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="commonGeometryID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="state" type="commonVisualizationState" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonTransparencyCommand">
+    <xs:sequence>
+      <xs:element name="geometry_name" type="commonGeometryID" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="new_value" type="xs:double" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonDirectoryCommand">
+    <xs:attribute name="directory" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonFilenameCommand">
+    <xs:attribute name="filename" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonFileNameCommand">
+    <xs:attribute name="file_name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonNameCommand">
+    <xs:attribute name="name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonWaitCommand">
+    <xs:attribute name="delay" type="xs:int" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonNewValue">
+    <xs:attribute name="property_name" type="xs:string" use="required"/>
+    <xs:attribute name="group_name" type="xs:string"/>
+    <xs:attribute name="new_value" type="xs:string" use="required"/>
+    <xs:attribute name="count" type="xs:int"/>
+  </xs:complexType>
+
+  <xs:complexType name="commonManyNewValues">
+    <xs:sequence>
+      <xs:element name="new_value" type="commonNewValue" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="commonQuestion">
+    <xs:attribute name="answer" type="xs:string" use="required"/>
+    <xs:attribute name="text" type="xs:string" use="required"/>
+  </xs:complexType>
+
+
+</xs:schema>
