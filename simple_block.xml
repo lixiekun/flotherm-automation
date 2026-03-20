@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<!-- A simple example, showing XML syntax needed to create a cuboid with a material attachment -->
+<xml_case>
+<name>Block Example</name>
+<attributes>
+<materials>
+<isotropic_material_att>
+<name>Aluminum</name>
+<conductivity>180</conductivity>
+<density>1</density>
+<specific_heat>1</specific_heat>
+</isotropic_material_att>
+</materials>
+</attributes>
+<geometry>
+<cuboid>
+<name>Block</name>
+<position>
+<x>0</x>
+<y>0</y>
+<z>0</z>
+</position>
+<size>
+<x>0.01</x>
+<y>0.02</y>
+<z>0.001</z>
+</size>
+<material>Aluminum</material>
+</cuboid>
+</geometry>
+</xml_case>

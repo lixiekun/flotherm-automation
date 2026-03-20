@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xml_log_file version="1.0">
+    <!-- Simple test: export to flouser directory -->
+    <project_import filename="D:\Program Files\Siemens\SimcenterFlotherm\2504\examples\FloXML\FloXML Files\Project FloXML Examples\Default.xml" import_type="FloXML"/>
+    <project_export filename="D:\Program Files\Siemens\SimcenterFlotherm\2504\flouser\test_export.xml" export_type="FloXML"/>
+</xml_log_file>

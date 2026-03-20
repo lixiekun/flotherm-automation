@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<!-- Simple test - copied from official Block.xml -->
+<xml_case>
+<name>Test Block</name>
+<attributes>
+<materials>
+<isotropic_material_att>
+<name>Aluminum</name>
+<conductivity>180</conductivity>
+<density>2700</density>
+<specific_heat>900</specific_heat>
+</isotropic_material_att>
+</materials>
+</attributes>
+<geometry>
+<cuboid>
+<name>TestBlock</name>
+<position>
+<x>0</x>
+<y>0</y>
+<z>0</z>
+</position>
+<size>
+<x>0.01</x>
+<y>0.02</y>
+<z>0.001</z>
+</size>
+<material>Aluminum</material>
+</cuboid>
+</geometry>
+</xml_case>

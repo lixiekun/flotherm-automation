@@ -1,0 +1,46 @@
+{
+    "name": "Simple Heat Model",
+    "type": "assembly",
+    "materials": [
+        {"name": "Aluminum", "type": "Isotropic", "kx": 180, "density": 2700, "specific_heat": 900},
+        {"name": "FR4", "type": "Isotropic", "kx": 0.3, "density": 1200, "specific_heat": 880},
+        {"name": "Copper", "type": "Isotropic", "kx": 385, "density": 8930, "specific_heat": 385},
+        {"name": "PCB", "type": "Orthotropic", "kx": 10, "ky": 10, "kz": 0.3}
+    ],
+    "thermals": [
+        {"name": "CPU_Power", "power": 15.0},
+        {"name": "GPU_Power", "power": 10.0}
+    ],
+    "geometry": [
+        {
+            "type": "cuboid",
+            "name": "PCB",
+            "position": [0, 0, 0],
+            "size": [0.1, 0.1, 0.002],
+            "material": "FR4"
+        },
+        {
+            "type": "cuboid",
+            "name": "CPU",
+            "position": [0.03, 0.03, 0.002],
+            "size": [0.04, 0.04, 0.002],
+            "material": "Copper",
+            "thermal": "CPU_Power"
+        },
+        {
+            "type": "cuboid",
+            "name": "GPU",
+            "position": [0.06, 0.06, 0.002],
+            "size": [0.03, 0.03, 0.001],
+            "material": "Copper",
+            "thermal": "GPU_Power"
+        },
+        {
+            "type": "cuboid",
+            "name": "Heatsink",
+            "position": [0.03, 0.03, 0.004],
+            "size": [0.05, 0.05, 0.01],
+            "material": "Aluminum"
+        }
+    ]
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xml_log_file version="1.0">
+    <!-- Import Pack and Export FloXML -->
+    <project_import filename="D:\Program Files\Siemens\SimcenterFlotherm\2504\examples\Demonstration Models\Superposition\SuperPosition.pack" import_type="Pack"/>
+    <project_export filename="D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\test_output.xml" export_type="FloXML"/>
+</xml_log_file>

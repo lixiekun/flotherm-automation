@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xml_log_file version="1.0">
+    <!-- Export FloXML macro -->
+    <project_load project_name="SuperPosition"/>
+    <project_export filename="D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\test_output.xml" export_type="FloXML"/>
+</xml_log_file>

@@ -331,6 +331,63 @@ python batch_simulation.py template.ecxml \
 
 ---
 
+## FloXML 包装工具
+
+有些官方 Excel 模板导出的不是完整项目 FloXML，而是 `geometry/assembly FloXML`。
+
+典型现象：
+- 文件里只有 `<attributes>` 和 `<geometry>`
+- 直接按“项目 FloXML”导入会报 `Geometry file detected`
+
+这时可以用：
+
+```bash
+python wrap_geometry_floxml_as_project.py input.xml -o output_project.xml
+```
+
+### 输入文件要求
+
+这个脚本的 **输入必须满足**：
+
+1. 必须是 `.xml`
+2. 必须是 FloXML 文件，根节点要是 `<xml_case>`
+3. 必须包含 `<geometry>`
+4. 适合输入“几何级/装配级 FloXML”
+5. **不能输入** Excel 文件，比如 `.xlsm/.xlsx`
+6. **不能输入** 已经是完整项目的 FloXML
+
+### 哪些文件可以输入
+
+可以：
+- `Advanced-Resistance.xlsm` 导出的 `.xml`
+- `Windtunnel-AdvancedResistance.xlsm` 导出的 `.xml`
+- 官方 `Assembly FloXML Examples/*.xml`
+
+不可以：
+- `Windtunnel-AdvancedResistance.xlsm` 这种 Excel 模板本身
+- 已经带有 `<model>`、`<solve>`、`<grid>`、`<solution_domain>` 的 project FloXML
+
+### 输出文件是什么
+
+输出是一个最小可用的 **project FloXML**，脚本会：
+- 保留原来的 `<attributes>`
+- 保留原来的 `<geometry>`
+- 自动补上 `<model>`
+- 自动补上 `<solve>`
+- 自动补上 `<grid>`
+- 自动补上 `<solution_domain>`
+- 如果缺少环境/流体定义，会自动补一个默认 `Ambient` 和 `Air`
+
+### 示例
+
+```bash
+python wrap_geometry_floxml_as_project.py ^
+  "D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\floxml_output\windtunnel_advres\PCB_ADV_RES.xml" ^
+  -o "D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\floxml_output\windtunnel_advres\PCB_ADV_RES_project.xml"
+```
+
+---
+
 ## 总结
 
 **FloTHERM 2020.2 自动化现状**：

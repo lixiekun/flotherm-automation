@@ -1,0 +1,9 @@
+{
+    "materials": [
+        {"name": "Copper", "type": "Isotropic", "kx": 385},
+        {"name": "FR4", "type": "Isotropic", "kx": 0.3},
+        {"name": "Aluminum", "type": "Isotropic", "kx": 180},
+        {"name": "Silicon", "type": "Temperature Dependant", "conductivity": 117.5, "coefficient": -0.42, "ref_temp": 100},
+        {"name": "Typical PCB", "type": "Orthotropic", "kx": 10, "ky": 10, "kz": 0.3}
+    ]
+}
