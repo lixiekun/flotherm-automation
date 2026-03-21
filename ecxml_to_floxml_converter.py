@@ -554,12 +554,36 @@ class ECXMLToFloXMLConverter:
     def _write_floxml(self, root: ET.Element, output_path: Path) -> None:
         """写入 FloXML 文件"""
         tree = ET.ElementTree(root)
-        ET.indent(tree, space="    ")
+        self._indent_xml(tree.getroot())
 
         xml_bytes = ET.tostring(root, encoding="utf-8")
         text = '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n' + xml_bytes.decode("utf-8")
 
         output_path.write_text(text, encoding="utf-8")
+
+    def _indent_xml(self, elem: ET.Element, level: int = 0, space: str = "    ") -> None:
+        """兼容 Python 3.8 的 XML 缩进。"""
+        try:
+            ET.indent(elem, space=space, level=level)
+            return
+        except AttributeError:
+            pass
+
+        indent = "\n" + level * space
+        child_indent = "\n" + (level + 1) * space
+        children = list(elem)
+
+        if children:
+            if not elem.text or not elem.text.strip():
+                elem.text = child_indent
+            for child in children:
+                self._indent_xml(child, level + 1, space)
+                if not child.tail or not child.tail.strip():
+                    child.tail = child_indent
+            if not children[-1].tail or not children[-1].tail.strip():
+                children[-1].tail = indent
+        elif level and (not elem.tail or not elem.tail.strip()):
+            elem.tail = indent
 
     def convert_batch(self, input_files: List[Path], output_dir: Path) -> List[Dict]:
         """批量转换"""
