@@ -48,7 +48,7 @@ class SystemGrid:
 class GridPatch:
     """网格补丁配置"""
     name: str = "Patch"
-    applies_to: str = "x"  # "x", "y", "z"
+    applies_to: str = "x_direction"  # "x_direction", "y_direction", "z_direction"
     start_location: float = 0.0
     end_location: float = 0.1
     number_of_cells_control: str = "min_number"  # "additional_cells", "min_number", "max_size"
@@ -694,8 +694,8 @@ def create_template_excel(output_path: str) -> None:
             cell.alignment = center_align
 
         data2 = [
-            ["Fin_Region_X", "x", 0, 0.04, "min_number", 50, "uniform", "鳍片区域X方向加密"],
-            ["HeatSource_Y", "y", -0.005, 0.001, "max_size", 0.0002, "symmetrical", "热源区域Y方向加密"],
+            ["Fin_Region_X", "x_direction", 0, 0.04, "min_number", 50, "uniform", "鳍片区域X方向加密"],
+            ["HeatSource_Y", "y_direction", -0.005, 0.001, "max_size", 0.0002, "symmetrical", "热源区域Y方向加密"],
         ]
 
         for row_idx, row_data in enumerate(data2, 2):
