@@ -27,10 +27,9 @@ import xml.etree.ElementTree as ET
 # ============================================================================
 
 @dataclass
-class ComponentData:
-    """ECXML 组件数据"""
+class CuboidData:
+    """Cuboid 几何体数据"""
     name: str
-    power: float = 0.0
     x: float = 0.0
     y: float = 0.0
     z: float = 0.0
@@ -38,6 +37,82 @@ class ComponentData:
     height: float = 0.0  # FloXML size/y
     depth: float = 0.0   # FloXML size/z
     material: str = "Default"
+    power: float = 0.0
+    active: bool = True
+
+
+@dataclass
+class SourceData:
+    """热源数据"""
+    name: str
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+    width: float = 0.0
+    height: float = 0.0
+    depth: float = 0.0
+    power: float = 0.0
+    active: bool = True
+
+
+@dataclass
+class MonitorPointData:
+    """监控点数据"""
+    name: str
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+    active: bool = True
+
+
+@dataclass
+class AssemblyData:
+    """装配件数据（支持嵌套）"""
+    name: str
+    active: bool = True
+    position_x: float = 0.0
+    position_y: float = 0.0
+    position_z: float = 0.0
+    material: str = "Default"
+    cuboids: List[CuboidData] = field(default_factory=list)
+    sub_assemblies: List['AssemblyData'] = field(default_factory=list)
+
+
+@dataclass
+class MaterialData:
+    """材料数据"""
+    name: str
+    conductivity: float = 1.0
+    density: float = 1.0
+    specific_heat: float = 1.0
+    emissivity: float = 0.9
+
+
+@dataclass
+class SolutionDomainData:
+    """求解域数据"""
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+    width: float = 0.1
+    height: float = 0.1
+    depth: float = 0.1
+
+
+@dataclass
+class ECXMLData:
+    """完整的 ECXML 数据"""
+    name: str = "Project"
+    producer: str = ""
+    materials: List[MaterialData] = field(default_factory=list)
+    root_assembly: Optional[AssemblyData] = None
+    sources: List[SourceData] = field(default_factory=list)
+    monitor_points: List[MonitorPointData] = field(default_factory=list)
+    solution_domain: Optional[SolutionDomainData] = None
+
+
+# 保留旧类名作为别名，保持向后兼容
+ComponentData = CuboidData
 
 
 @dataclass
@@ -57,142 +132,255 @@ class ConversionConfig:
 # ============================================================================
 
 class ECXMLExtractor:
-    """从 ECXML 提取组件数据"""
-
-    KNOWN_NAMESPACES = {
-        'ecxml': 'http://www.jedec.org/ecxml',
-        'ft': 'http://www.mentor.com/flotherm/ecxml',
-    }
+    """从 ECXML 提取完整数据结构"""
 
     def __init__(self, filepath: str):
         self.filepath = filepath
         self.tree = ET.parse(filepath)
         self.root = self.tree.getroot()
-        self.namespaces = self._detect_namespaces()
-
-    def _detect_namespaces(self) -> Dict[str, str]:
-        """检测 XML 命名空间"""
-        namespaces = {}
-        for key, value in self.root.attrib.items():
-            if key.startswith('xmlns'):
-                prefix = key.split(':')[1] if ':' in key else ''
-                namespaces[prefix] = value
-        return namespaces
 
     def _strip_ns(self, tag: str) -> str:
         """去除命名空间前缀"""
         return tag.split('}')[1] if '}' in tag else tag
 
-    def _get_float_attr(self, elem: ET.Element, *attrs: str) -> float:
-        """获取浮点属性值"""
-        for attr in attrs:
-            val = elem.get(attr) or elem.get(attr.lower()) or elem.get(attr.capitalize())
-            if val is not None:
-                try:
-                    return float(val)
-                except ValueError:
-                    pass
+    def _get_tag_lower(self, elem: ET.Element) -> str:
+        """获取小写的标签名（去除命名空间）"""
+        return self._strip_ns(elem.tag).lower()
+
+    def _find_child(self, elem: ET.Element, *tag_names: str) -> Optional[ET.Element]:
+        """按名称查找子元素（忽略命名空间和大小写）"""
+        for child in elem:
+            tag_lower = self._get_tag_lower(child)
+            for name in tag_names:
+                if tag_lower == name.lower():
+                    return child
+        return None
+
+    def _find_children(self, elem: ET.Element, *tag_names: str) -> List[ET.Element]:
+        """按名称查找所有匹配的子元素"""
+        results = []
+        for child in elem:
+            tag_lower = self._get_tag_lower(child)
+            for name in tag_names:
+                if tag_lower == name.lower():
+                    results.append(child)
+                    break
+        return results
+
+    def _get_float_text(self, elem: ET.Element, *tag_names: str) -> float:
+        """获取子元素的浮点文本值"""
+        child = self._find_child(elem, *tag_names)
+        if child is not None and child.text:
+            try:
+                return float(child.text.strip())
+            except (ValueError, AttributeError):
+                pass
         return 0.0
 
-    def _get_float_text(self, elem: ET.Element, *tags: str) -> float:
-        """获取浮点文本值"""
-        for tag in tags:
-            child = elem.find(tag)
-            if child is None:
-                child = elem.find(tag.lower())
-            if child is None:
-                child = elem.find(tag.capitalize())
-            if child is not None and child.text:
-                try:
-                    return float(child.text.strip())
-                except ValueError:
-                    pass
-        return 0.0
+    def _get_text(self, elem: ET.Element, *tag_names: str) -> str:
+        """获取子元素的文本值"""
+        child = self._find_child(elem, *tag_names)
+        if child is not None and child.text:
+            return child.text.strip()
+        return ""
 
-    def extract_components(self) -> List[ComponentData]:
-        """提取所有组件数据"""
+    def _parse_location(self, elem: ET.Element) -> Tuple[float, float, float]:
+        """解析 location/position 元素"""
+        loc = self._find_child(elem, 'location', 'position')
+        if loc is not None:
+            x = self._get_float_text(loc, 'x')
+            y = self._get_float_text(loc, 'y')
+            z = self._get_float_text(loc, 'z')
+            return (x, y, z)
+        return (0.0, 0.0, 0.0)
+
+    def _parse_size(self, elem: ET.Element) -> Tuple[float, float, float]:
+        """解析 size 元素"""
+        size = self._find_child(elem, 'size')
+        if size is not None:
+            x = self._get_float_text(size, 'x', 'width')
+            y = self._get_float_text(size, 'y', 'height')
+            z = self._get_float_text(size, 'z', 'depth')
+            return (x, y, z)
+        return (0.0, 0.0, 0.0)
+
+    def _parse_solid3d_block(self, elem: ET.Element) -> CuboidData:
+        """解析 solid3dBlock 元素"""
+        name = self._get_text(elem, 'name') or "Cuboid"
+        active_text = self._get_text(elem, 'active')
+        active = active_text.lower() != 'false'
+        x, y, z = self._parse_location(elem)
+        width, height, depth = self._parse_size(elem)
+        material = self._get_text(elem, 'material') or "Default"
+        power = self._get_float_text(elem, 'powerdissipation', 'power')
+
+        return CuboidData(
+            name=name,
+            x=x, y=y, z=z,
+            width=width, height=height, depth=depth,
+            material=material,
+            power=power,
+            active=active
+        )
+
+    def _parse_assembly(self, elem: ET.Element) -> AssemblyData:
+        """递归解析 assembly 元素"""
+        name = self._get_text(elem, 'name') or "Assembly"
+        active_text = self._get_text(elem, 'active')
+        active = active_text.lower() != 'false'
+        x, y, z = self._parse_location(elem)
+        material = self._get_text(elem, 'material') or "Default"
+
+        assembly = AssemblyData(
+            name=name,
+            active=active,
+            position_x=x,
+            position_y=y,
+            position_z=z,
+            material=material
+        )
+
+        # 查找 geometry 子元素
+        geo = self._find_child(elem, 'geometry')
+        if geo is not None:
+            # 解析 solid3dBlock 元素
+            for block in self._find_children(geo, 'solid3dBlock', 'solid3dblock'):
+                cuboid = self._parse_solid3d_block(block)
+                assembly.cuboids.append(cuboid)
+
+            # 递归解析嵌套 assembly
+            for sub_assembly in self._find_children(geo, 'assembly'):
+                sub_data = self._parse_assembly(sub_assembly)
+                assembly.sub_assemblies.append(sub_data)
+
+        return assembly
+
+    def _parse_source_block(self, elem: ET.Element) -> SourceData:
+        """解析 sourceBlock 元素"""
+        name = self._get_text(elem, 'name') or "Source"
+        active_text = self._get_text(elem, 'active')
+        active = active_text.lower() != 'false'
+        x, y, z = self._parse_location(elem)
+        width, height, depth = self._parse_size(elem)
+        power = self._get_float_text(elem, 'powerdissipation', 'power')
+
+        return SourceData(
+            name=name,
+            x=x, y=y, z=z,
+            width=width, height=height, depth=depth,
+            power=power,
+            active=active
+        )
+
+    def _parse_monitor_point(self, elem: ET.Element) -> MonitorPointData:
+        """解析 monitorPoint 元素"""
+        name = self._get_text(elem, 'name') or "MonitorPoint"
+        active_text = self._get_text(elem, 'active')
+        active = active_text.lower() != 'false'
+        x, y, z = self._parse_location(elem)
+
+        return MonitorPointData(
+            name=name,
+            x=x, y=y, z=z,
+            active=active
+        )
+
+    def _parse_material(self, elem: ET.Element) -> MaterialData:
+        """解析 material 元素"""
+        name = self._get_text(elem, 'name') or "Material"
+        density = self._get_float_text(elem, 'density')
+        specific_heat = self._get_float_text(elem, 'specific_heat')
+        emissivity = self._get_float_text(elem, 'surfaceemissivity', 'emissivity')
+
+        # 解析热导率
+        conductivity = 1.0
+        tc = self._find_child(elem, 'thermalconductivity', 'thermal_conductivity')
+        if tc is not None:
+            iso = self._find_child(tc, 'isotropic')
+            if iso is not None:
+                conductivity = self._get_float_text(iso, 'conductivity')
+
+        return MaterialData(
+            name=name,
+            conductivity=conductivity,
+            density=density,
+            specific_heat=specific_heat,
+            emissivity=emissivity
+        )
+
+    def _parse_solution_domain(self, elem: ET.Element) -> SolutionDomainData:
+        """解析 solutionDomain 元素"""
+        x, y, z = self._parse_location(elem)
+        width, height, depth = self._parse_size(elem)
+
+        return SolutionDomainData(
+            x=x, y=y, z=z,
+            width=width, height=height, depth=depth
+        )
+
+    def extract_all(self) -> ECXMLData:
+        """提取完整的 ECXML 数据"""
+        data = ECXMLData()
+
+        # 项目名称
+        data.name = self._get_text(self.root, 'name') or Path(self.filepath).stem
+
+        # 生产者
+        data.producer = self._get_text(self.root, 'producer')
+
+        # 解析材料
+        materials_elem = self._find_child(self.root, 'materials')
+        if materials_elem is not None:
+            for mat_elem in self._find_children(materials_elem, 'material'):
+                mat = self._parse_material(mat_elem)
+                data.materials.append(mat)
+
+        # 解析几何体
+        geometry_elem = self._find_child(self.root, 'geometry')
+        if geometry_elem is not None:
+            # 解析根 assembly
+            for assembly_elem in self._find_children(geometry_elem, 'assembly'):
+                assembly = self._parse_assembly(assembly_elem)
+                if data.root_assembly is None:
+                    data.root_assembly = assembly
+                # 如果有多个根 assembly，可以作为子 assembly 添加
+
+            # 解析 sourceBlock
+            for source_elem in self._find_children(geometry_elem, 'sourceblock', 'sourceblock'):
+                source = self._parse_source_block(source_elem)
+                data.sources.append(source)
+
+            # 解析 monitorPoint
+            for mp_elem in self._find_children(geometry_elem, 'monitorpoint', 'monitor_point'):
+                mp = self._parse_monitor_point(mp_elem)
+                data.monitor_points.append(mp)
+
+        # 解析求解域
+        sd_elem = self._find_child(self.root, 'solutiondomain', 'solution_domain')
+        if sd_elem is not None:
+            data.solution_domain = self._parse_solution_domain(sd_elem)
+
+        return data
+
+    def extract_components(self) -> List[CuboidData]:
+        """提取所有组件数据（向后兼容方法）"""
+        data = self.extract_all()
         components = []
 
-        for elem in self.root.iter():
-            tag = self._strip_ns(elem.tag).lower()
-            if 'component' in tag or 'device' in tag:
-                comp = self._parse_component(elem)
-                if comp:
-                    components.append(comp)
+        def collect_cuboids(assembly: AssemblyData):
+            components.extend(assembly.cuboids)
+            for sub in assembly.sub_assemblies:
+                collect_cuboids(sub)
+
+        if data.root_assembly:
+            collect_cuboids(data.root_assembly)
 
         return components
 
-    def _parse_component(self, elem: ET.Element) -> Optional[ComponentData]:
-        """解析单个组件"""
-        try:
-            # 名称
-            name = elem.get('name') or elem.get('Name') or 'Component'
-
-            # 功耗 - 支持多种格式和命名空间
-            power = 0.0
-            for child in elem:
-                child_tag = self._strip_ns(child.tag).lower()
-                if 'powerdissipation' in child_tag or child_tag == 'power':
-                    if child.text:
-                        try:
-                            power = float(child.text.strip())
-                            break
-                        except ValueError:
-                            pass
-
-            # 位置和尺寸
-            x = y = z = width = height = depth = 0.0
-            material = "Default"
-
-            for child in elem:
-                child_tag = self._strip_ns(child.tag).lower()
-
-                if 'position' in child_tag:
-                    x = self._get_float_attr(child, 'x', 'X')
-                    y = self._get_float_attr(child, 'y', 'Y')
-                    z = self._get_float_attr(child, 'z', 'Z')
-                elif 'geometry' in child_tag:
-                    # Geometry 子元素中包含 Size
-                    for geo_child in child:
-                        geo_tag = self._strip_ns(geo_child.tag).lower()
-                        if 'size' in geo_tag:
-                            width = self._get_float_attr(geo_child, 'width', 'Width')
-                            height = self._get_float_attr(geo_child, 'height', 'Height')
-                            depth = self._get_float_attr(geo_child, 'depth', 'Depth')
-                elif 'size' in child_tag:
-                    width = self._get_float_attr(child, 'width', 'Width')
-                    height = self._get_float_attr(child, 'height', 'Height')
-                    depth = self._get_float_attr(child, 'depth', 'Depth')
-                elif 'material' in child_tag:
-                    mat_name = child.get('name') or child.findtext('name')
-                    if mat_name:
-                        material = mat_name.strip()
-
-            return ComponentData(
-                name=name,
-                power=power,
-                x=x, y=y, z=z,
-                width=width, height=height, depth=depth,
-                material=material
-            )
-        except Exception as e:
-            print(f"[WARN] 解析组件失败: {e}")
-            return None
-
     def get_project_name(self) -> str:
         """获取项目名称"""
-        # 尝试从根元素获取
-        name = self.root.get('name') or self.root.get('Name')
-        if name:
-            return name
-
-        # 尝试从 name 子元素获取
-        name_elem = self.root.find('name')
-        if name_elem is not None and name_elem.text:
-            return name_elem.text.strip()
-
-        # 使用文件名
-        return Path(self.filepath).stem
+        name = self._get_text(self.root, 'name')
+        return name or Path(self.filepath).stem
 
 
 # ============================================================================
@@ -228,12 +416,12 @@ class FloXMLBuilder:
         self._append_text(local_z, "k", "1")
         return orientation
 
-    def build_project(self, components: List[ComponentData], project_name: str) -> ET.Element:
+    def build_project(self, ecxml_data: ECXMLData) -> ET.Element:
         """构建完整的 FloXML 项目"""
         root = ET.Element("xml_case")
 
         # 项目名称
-        self._append_text(root, "name", f"{project_name}_Project")
+        self._append_text(root, "name", ecxml_data.name)
 
         # 模型设置
         root.append(self._build_model())
@@ -241,23 +429,50 @@ class FloXMLBuilder:
         # 求解设置
         root.append(self._build_solve())
 
-        # 计算求解域
-        bounds = self._calculate_bounds(components)
-        domain_pos, domain_size = self._calculate_domain(bounds)
+        # 确定求解域
+        if ecxml_data.solution_domain:
+            domain_pos = (ecxml_data.solution_domain.x, ecxml_data.solution_domain.y, ecxml_data.solution_domain.z)
+            domain_size = (ecxml_data.solution_domain.width, ecxml_data.solution_domain.height, ecxml_data.solution_domain.depth)
+        else:
+            # 从组件计算求解域
+            components = self._collect_all_cuboids(ecxml_data)
+            bounds = self._calculate_bounds(components)
+            domain_pos, domain_size = self._calculate_domain(bounds)
 
         # 网格设置
         root.append(self._build_grid(domain_size))
 
         # 属性
-        root.append(self._build_attributes(components))
+        root.append(self._build_attributes(ecxml_data))
 
         # 几何体
-        root.append(self._build_geometry(components, project_name))
+        root.append(self._build_geometry(ecxml_data))
 
         # 求解域
         root.append(self._build_solution_domain(domain_pos, domain_size))
 
         return root
+
+    def _collect_all_cuboids(self, ecxml_data: ECXMLData) -> List[CuboidData]:
+        """收集所有 cuboid 数据"""
+        components = []
+
+        def collect_from_assembly(assembly: AssemblyData):
+            components.extend(assembly.cuboids)
+            for sub in assembly.sub_assemblies:
+                collect_from_assembly(sub)
+
+        if ecxml_data.root_assembly:
+            collect_from_assembly(ecxml_data.root_assembly)
+
+        return components
+
+    def build_project_legacy(self, components: List[ComponentData], project_name: str) -> ET.Element:
+        """构建完整的 FloXML 项目（向后兼容）"""
+        ecxml_data = ECXMLData(name=f"{project_name}_Project")
+        ecxml_data.root_assembly = AssemblyData(name=f"{project_name}_Assembly")
+        ecxml_data.root_assembly.cuboids = components
+        return self.build_project(ecxml_data)
 
     def _build_model(self) -> ET.Element:
         """构建 model 节"""
@@ -358,30 +573,53 @@ class FloXMLBuilder:
 
         return grid
 
-    def _build_attributes(self, components: List[ComponentData]) -> ET.Element:
+    def _build_attributes(self, ecxml_data: ECXMLData) -> ET.Element:
         """构建 attributes 节"""
         attributes = ET.Element("attributes")
 
-        # 材料
+        # 收集所有使用的材料名
+        used_material_names = set()
+        components = self._collect_all_cuboids(ecxml_data)
+        for c in components:
+            if c.material:
+                used_material_names.add(c.material)
+        if ecxml_data.root_assembly and ecxml_data.root_assembly.material:
+            used_material_names.add(ecxml_data.root_assembly.material)
+
+        # 材料定义
         materials = ET.SubElement(attributes, "materials")
-        used_materials = set(c.material for c in components if c.material)
-        used_materials.add(self.config.default_material)
 
-        for mat_name in used_materials:
-            mat = ET.SubElement(materials, "isotropic_material_att")
-            self._append_text(mat, "name", mat_name)
-            self._append_text(mat, "conductivity", "1.0")
-            self._append_text(mat, "density", "1.0")
-            self._append_text(mat, "specific_heat", "1.0")
+        # 使用 ECXML 中的材料
+        materials_dict = {m.name: m for m in ecxml_data.materials}
 
-        # 热源
+        # 添加使用的材料
+        for mat_name in used_material_names:
+            mat_elem = ET.SubElement(materials, "isotropic_material_att")
+            self._append_text(mat_elem, "name", mat_name)
+
+            if mat_name in materials_dict:
+                mat_data = materials_dict[mat_name]
+                self._append_text(mat_elem, "conductivity", f"{mat_data.conductivity:.6g}")
+                self._append_text(mat_elem, "density", f"{mat_data.density:.6g}")
+                self._append_text(mat_elem, "specific_heat", f"{mat_data.specific_heat:.6g}")
+            else:
+                # 默认材料属性
+                self._append_text(mat_elem, "conductivity", "1.0")
+                self._append_text(mat_elem, "density", "1.0")
+                self._append_text(mat_elem, "specific_heat", "1.0")
+
+        # 热源属性
         sources = ET.SubElement(attributes, "sources")
+
+        # 从 cuboid 收集热源
         for comp in components:
             if comp.power > 0:
-                src = ET.SubElement(sources, "source_att")
-                self._append_text(src, "name", f"{comp.name}_Source")
-                self._append_text(src, "source_type", "fixed")
-                self._append_text(src, "power", f"{comp.power:.6g}")
+                self._build_source_att(sources, f"{comp.name}_Source", comp.power)
+
+        # 从独立 source 收集热源
+        for source in ecxml_data.sources:
+            if source.power > 0:
+                self._build_source_att(sources, f"{source.name}_Source", source.power)
 
         # 环境
         ambients = ET.SubElement(attributes, "ambients")
@@ -417,49 +655,140 @@ class FloXMLBuilder:
 
         return attributes
 
-    def _build_geometry(self, components: List[ComponentData], project_name: str) -> ET.Element:
+    def _build_source_att(self, parent: ET.Element, name: str, power: float) -> None:
+        """构建 source_att 元素"""
+        src = ET.SubElement(parent, "source_att")
+        self._append_text(src, "name", name)
+        source_options = ET.SubElement(src, "source_options")
+        option = ET.SubElement(source_options, "option")
+        self._append_text(option, "applies_to", "temperature")
+        self._append_text(option, "type", "total")
+        self._append_text(option, "value", "0")
+        self._append_text(option, "power", f"{power:.6g}")
+        self._append_text(option, "linear_coefficient", "0")
+
+    def _build_geometry(self, ecxml_data: ECXMLData) -> ET.Element:
         """构建 geometry 节"""
         geometry = ET.Element("geometry")
-        assembly = ET.SubElement(geometry, "assembly")
-        self._append_text(assembly, "name", f"{project_name}_Assembly")
-        self._append_text(assembly, "active", "true")
-        self._append_text(assembly, "ignore", "false")
 
-        position = ET.SubElement(assembly, "position")
-        self._append_text(position, "x", "0")
-        self._append_text(position, "y", "0")
-        self._append_text(position, "z", "0")
+        # 构建根 assembly 及其子元素
+        if ecxml_data.root_assembly:
+            self._build_assembly_element(geometry, ecxml_data.root_assembly)
 
-        self._build_identity_orientation(assembly)
-        self._append_text(assembly, "material", self.config.default_material)
-        self._append_text(assembly, "localized_grid", "false")
+        # 构建独立的热源
+        for source in ecxml_data.sources:
+            self._build_source_element(geometry, source)
 
-        assembly_geometry = ET.SubElement(assembly, "geometry")
-
-        for comp in components:
-            cuboid = ET.SubElement(assembly_geometry, "cuboid")
-            self._append_text(cuboid, "name", comp.name)
-
-            # 位置
-            position = ET.SubElement(cuboid, "position")
-            self._append_text(position, "x", f"{comp.x:.6g}")
-            self._append_text(position, "y", f"{comp.y:.6g}")
-            self._append_text(position, "z", f"{comp.z:.6g}")
-
-            # 尺寸 (ECXML width/height/depth -> FloXML x/y/z)
-            size = ET.SubElement(cuboid, "size")
-            self._append_text(size, "x", f"{comp.width:.6g}")
-            self._append_text(size, "y", f"{comp.height:.6g}")
-            self._append_text(size, "z", f"{comp.depth:.6g}")
-
-            # 材料
-            self._append_text(cuboid, "material", comp.material or self.config.default_material)
-
-            # 热源
-            if comp.power > 0:
-                self._append_text(cuboid, "source", f"{comp.name}_Source")
+        # 构建监控点
+        for mp in ecxml_data.monitor_points:
+            self._build_monitor_point_element(geometry, mp)
 
         return geometry
+
+    def _build_assembly_element(self, parent: ET.Element, assembly: AssemblyData) -> ET.Element:
+        """递归构建 assembly 元素"""
+        assembly_elem = ET.SubElement(parent, "assembly")
+        self._append_text(assembly_elem, "name", assembly.name)
+        self._append_text(assembly_elem, "active", "true" if assembly.active else "false")
+        self._append_text(assembly_elem, "ignore", "false")
+
+        # 位置
+        position = ET.SubElement(assembly_elem, "position")
+        self._append_text(position, "x", f"{assembly.position_x:.6g}")
+        self._append_text(position, "y", f"{assembly.position_y:.6g}")
+        self._append_text(position, "z", f"{assembly.position_z:.6g}")
+
+        # 方向
+        self._build_identity_orientation(assembly_elem)
+        self._append_text(assembly_elem, "material", assembly.material or self.config.default_material)
+        self._append_text(assembly_elem, "localized_grid", "false")
+
+        # 子几何体
+        if assembly.cuboids or assembly.sub_assemblies:
+            geometry_elem = ET.SubElement(assembly_elem, "geometry")
+
+            # 构建 cuboid
+            for cuboid in assembly.cuboids:
+                self._build_cuboid_element(geometry_elem, cuboid)
+
+            # 递归构建子 assembly
+            for sub_assembly in assembly.sub_assemblies:
+                self._build_assembly_element(geometry_elem, sub_assembly)
+
+        return assembly_elem
+
+    def _build_cuboid_element(self, parent: ET.Element, cuboid: CuboidData) -> ET.Element:
+        """构建 cuboid 元素"""
+        cuboid_elem = ET.SubElement(parent, "cuboid")
+        self._append_text(cuboid_elem, "name", cuboid.name)
+        self._append_text(cuboid_elem, "active", "true" if cuboid.active else "false")
+
+        # 位置
+        position = ET.SubElement(cuboid_elem, "position")
+        self._append_text(position, "x", f"{cuboid.x:.6g}")
+        self._append_text(position, "y", f"{cuboid.y:.6g}")
+        self._append_text(position, "z", f"{cuboid.z:.6g}")
+
+        # 尺寸
+        size = ET.SubElement(cuboid_elem, "size")
+        self._append_text(size, "x", f"{cuboid.width:.6g}")
+        self._append_text(size, "y", f"{cuboid.height:.6g}")
+        self._append_text(size, "z", f"{cuboid.depth:.6g}")
+
+        # 方向
+        self._build_identity_orientation(cuboid_elem)
+        self._append_text(cuboid_elem, "localized_grid", "false")
+
+        # 材料
+        if cuboid.material:
+            self._append_text(cuboid_elem, "material", cuboid.material)
+
+        # 热源
+        if cuboid.power > 0:
+            self._append_text(cuboid_elem, "source", f"{cuboid.name}_Source")
+
+        return cuboid_elem
+
+    def _build_source_element(self, parent: ET.Element, source: SourceData) -> ET.Element:
+        """构建 source 元素"""
+        source_elem = ET.SubElement(parent, "source")
+        self._append_text(source_elem, "name", source.name)
+        self._append_text(source_elem, "active", "true" if source.active else "false")
+
+        # 位置
+        position = ET.SubElement(source_elem, "position")
+        self._append_text(position, "x", f"{source.x:.6g}")
+        self._append_text(position, "y", f"{source.y:.6g}")
+        self._append_text(position, "z", f"{source.z:.6g}")
+
+        # 尺寸
+        size = ET.SubElement(source_elem, "size")
+        self._append_text(size, "x", f"{source.width:.6g}")
+        self._append_text(size, "y", f"{source.height:.6g}")
+        self._append_text(size, "z", f"{source.depth:.6g}")
+
+        # 方向
+        self._build_identity_orientation(source_elem)
+
+        # 热源引用
+        self._append_text(source_elem, "source", f"{source.name}_Source")
+        self._append_text(source_elem, "localized_grid", "false")
+
+        return source_elem
+
+    def _build_monitor_point_element(self, parent: ET.Element, mp: MonitorPointData) -> ET.Element:
+        """构建 monitor_point 元素"""
+        mp_elem = ET.SubElement(parent, "monitor_point")
+        self._append_text(mp_elem, "name", mp.name)
+        self._append_text(mp_elem, "active", "true" if mp.active else "false")
+
+        # 位置
+        position = ET.SubElement(mp_elem, "position")
+        self._append_text(position, "x", f"{mp.x:.6g}")
+        self._append_text(position, "y", f"{mp.y:.6g}")
+        self._append_text(position, "z", f"{mp.z:.6g}")
+
+        return mp_elem
 
     def _build_solution_domain(self, position: Tuple[float, float, float],
                                size: Tuple[float, float, float]) -> ET.Element:
@@ -553,19 +882,18 @@ class ECXMLToFloXMLConverter:
                 result["errors"].append(f"输入文件不存在: {input_path}")
                 return result
 
-            # 解析 ECXML
+            # 解析 ECXML（使用新的完整提取方法）
             extractor = ECXMLExtractor(str(input_path))
-            components = extractor.extract_components()
+            ecxml_data = extractor.extract_all()
 
+            # 收集所有组件用于统计
+            components = extractor.extract_components()
             if not components:
                 result["warnings"].append("未找到任何组件")
 
-            # 获取项目名称
-            project_name = extractor.get_project_name()
-
             # 构建 FloXML
             builder = FloXMLBuilder(self.config)
-            root = builder.build_project(components, project_name)
+            root = builder.build_project(ecxml_data)
 
             # 确定输出路径
             if output_path is None:
