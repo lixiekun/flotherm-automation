@@ -211,6 +211,23 @@ class FloXMLBuilder:
         elem.text = text
         return elem
 
+    def _build_identity_orientation(self, parent: ET.Element) -> ET.Element:
+        """构建单位方向矩阵。"""
+        orientation = ET.SubElement(parent, "orientation")
+        local_x = ET.SubElement(orientation, "local_x")
+        self._append_text(local_x, "i", "1")
+        self._append_text(local_x, "j", "0")
+        self._append_text(local_x, "k", "0")
+        local_y = ET.SubElement(orientation, "local_y")
+        self._append_text(local_y, "i", "0")
+        self._append_text(local_y, "j", "1")
+        self._append_text(local_y, "k", "0")
+        local_z = ET.SubElement(orientation, "local_z")
+        self._append_text(local_z, "i", "0")
+        self._append_text(local_z, "j", "0")
+        self._append_text(local_z, "k", "1")
+        return orientation
+
     def build_project(self, components: List[ComponentData], project_name: str) -> ET.Element:
         """构建完整的 FloXML 项目"""
         root = ET.Element("xml_case")
@@ -235,7 +252,7 @@ class FloXMLBuilder:
         root.append(self._build_attributes(components))
 
         # 几何体
-        root.append(self._build_geometry(components))
+        root.append(self._build_geometry(components, project_name))
 
         # 求解域
         root.append(self._build_solution_domain(domain_pos, domain_size))
@@ -400,12 +417,27 @@ class FloXMLBuilder:
 
         return attributes
 
-    def _build_geometry(self, components: List[ComponentData]) -> ET.Element:
+    def _build_geometry(self, components: List[ComponentData], project_name: str) -> ET.Element:
         """构建 geometry 节"""
         geometry = ET.Element("geometry")
+        assembly = ET.SubElement(geometry, "assembly")
+        self._append_text(assembly, "name", f"{project_name}_Assembly")
+        self._append_text(assembly, "active", "true")
+        self._append_text(assembly, "ignore", "false")
+
+        position = ET.SubElement(assembly, "position")
+        self._append_text(position, "x", "0")
+        self._append_text(position, "y", "0")
+        self._append_text(position, "z", "0")
+
+        self._build_identity_orientation(assembly)
+        self._append_text(assembly, "material", self.config.default_material)
+        self._append_text(assembly, "localized_grid", "false")
+
+        assembly_geometry = ET.SubElement(assembly, "geometry")
 
         for comp in components:
-            cuboid = ET.SubElement(geometry, "cuboid")
+            cuboid = ET.SubElement(assembly_geometry, "cuboid")
             self._append_text(cuboid, "name", comp.name)
 
             # 位置
@@ -559,6 +591,7 @@ class ECXMLToFloXMLConverter:
         xml_bytes = ET.tostring(root, encoding="utf-8")
         text = '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n' + xml_bytes.decode("utf-8")
 
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(text, encoding="utf-8")
 
     def _indent_xml(self, elem: ET.Element, level: int = 0, space: str = "    ") -> None:
