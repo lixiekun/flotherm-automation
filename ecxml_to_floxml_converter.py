@@ -125,6 +125,7 @@ class ConversionConfig:
     fluid_name: str = "Air"
     outer_iterations: int = 500
     default_material: str = "Default"
+    grid_config_file: Optional[str] = None  # Excel 网格配置文件路径
 
 
 # ============================================================================
@@ -392,6 +393,23 @@ class FloXMLBuilder:
 
     def __init__(self, config: ConversionConfig):
         self.config = config
+        self._grid_config = None
+
+        # 加载网格配置
+        if config.grid_config_file:
+            self._load_grid_config(config.grid_config_file)
+
+    def _load_grid_config(self, filepath: str) -> None:
+        """加载网格配置文件"""
+        try:
+            from grid_config import GridExcelReader, GridConfig
+            reader = GridExcelReader(filepath)
+            self._grid_config = reader.read_config()
+            print(f"[INFO] 已加载网格配置: {filepath}")
+        except ImportError:
+            print(f"[WARN] 无法加载网格配置: 需要 openpyxl 或 pandas")
+        except Exception as e:
+            print(f"[WARN] 加载网格配置失败: {e}")
 
     def _append_text(self, parent: ET.Element, tag: str, text: str) -> ET.Element:
         """添加带文本的子元素"""
@@ -548,6 +566,21 @@ class FloXMLBuilder:
 
     def _build_grid(self, domain_size: Tuple[float, float, float]) -> ET.Element:
         """构建 grid 节"""
+        # 如果有 Excel 网格配置，使用它
+        if self._grid_config:
+            return self._build_grid_from_config()
+
+        # 否则使用自动计算
+        return self._build_grid_auto(domain_size)
+
+    def _build_grid_from_config(self) -> ET.Element:
+        """从配置构建 grid"""
+        from grid_config import GridBuilder
+        builder = GridBuilder()
+        return builder.build_grid(self._grid_config)
+
+    def _build_grid_auto(self, domain_size: Tuple[float, float, float]) -> ET.Element:
+        """自动计算并构建 grid"""
         x_size, y_size, z_size = domain_size
 
         grid = ET.Element("grid")
@@ -1001,6 +1034,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--outer-iterations", type=int, default=500,
                         help="求解迭代次数 (默认: 500)")
 
+    # 网格配置
+    parser.add_argument("--grid-config", type=str,
+                        help="Excel 网格配置文件路径")
+
     # 其他选项
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="详细输出")
@@ -1018,6 +1055,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         minimum_padding=args.minimum_padding,
         ambient_temp=args.ambient_temp,
         outer_iterations=args.outer_iterations,
+        grid_config_file=args.grid_config,
     )
 
     converter = ECXMLToFloXMLConverter(config)
