@@ -686,6 +686,12 @@ class FloXMLBuilder:
         self._append_text(fluid, "expansivity", "0.003")
         self._append_text(fluid, "diffusivity", "0")
 
+        # 网格约束 (如果有)
+        if self._grid_config and self._grid_config.constraints:
+            from grid_config import GridBuilder
+            builder = GridBuilder()
+            attributes.append(builder.build_constraints_attributes(self._grid_config.constraints))
+
         return attributes
 
     def _build_source_att(self, parent: ET.Element, name: str, power: float) -> None:
@@ -736,6 +742,9 @@ class FloXMLBuilder:
         self._append_text(assembly_elem, "material", assembly.material or self.config.default_material)
         self._append_text(assembly_elem, "localized_grid", "false")
 
+        # 应用网格约束
+        self._apply_grid_constraints(assembly_elem, assembly.name)
+
         # 子几何体
         if assembly.cuboids or assembly.sub_assemblies:
             geometry_elem = ET.SubElement(assembly_elem, "geometry")
@@ -749,6 +758,27 @@ class FloXMLBuilder:
                 self._build_assembly_element(geometry_elem, sub_assembly)
 
         return assembly_elem
+
+    def _apply_grid_constraints(self, elem: ET.Element, assembly_name: str) -> None:
+        """根据配置应用网格约束到元素"""
+        if not self._grid_config or not self._grid_config.assembly_constraints:
+            return
+
+        import fnmatch
+
+        for mapping in self._grid_config.assembly_constraints:
+            # 支持通配符匹配
+            if fnmatch.fnmatch(assembly_name, mapping.assembly_name):
+                if mapping.all_constraint:
+                    self._append_text(elem, "all_grid_constraint", mapping.all_constraint)
+                else:
+                    if mapping.x_constraint:
+                        self._append_text(elem, "x_grid_constraint", mapping.x_constraint)
+                    if mapping.y_constraint:
+                        self._append_text(elem, "y_grid_constraint", mapping.y_constraint)
+                    if mapping.z_constraint:
+                        self._append_text(elem, "z_grid_constraint", mapping.z_constraint)
+                break
 
     def _build_cuboid_element(self, parent: ET.Element, cuboid: CuboidData) -> ET.Element:
         """构建 cuboid 元素"""

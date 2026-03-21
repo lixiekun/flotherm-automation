@@ -7,6 +7,8 @@ Grid Configuration Module
 Excel 格式:
   Sheet 1 "system_grid": 全局网格配置
   Sheet 2 "grid_patches": 局部加密补丁 (可选)
+  Sheet 3 "grid_constraints": 网格约束 (可选)
+  Sheet 4 "assembly_constraints": 装配件网格约束映射 (可选)
 """
 
 from __future__ import annotations
@@ -58,10 +60,46 @@ class GridPatch:
 
 
 @dataclass
+class GridInflation:
+    """网格膨胀配置"""
+    inflation_type: str = "size"  # "size" 或 "percent"
+    inflation_size: float = 0.005
+    inflation_percent: float = 10.0
+    number_cells_control: str = "min_number"  # "max_size" 或 "min_number"
+    max_size: float = 0.001
+    min_number: int = 10
+
+
+@dataclass
+class GridConstraint:
+    """网格约束配置"""
+    name: str = "Grid Constraint"
+    enable_min_cell_size: bool = True
+    min_cell_size: float = 0.001
+    number_cells_control: str = "min_number"  # "max_size" 或 "min_number"
+    max_size: float = 0.001
+    min_number: int = 10
+    high_inflation: Optional[GridInflation] = None
+    low_inflation: Optional[GridInflation] = None
+
+
+@dataclass
+class AssemblyGridConstraint:
+    """装配件网格约束映射"""
+    assembly_name: str = ""  # 装配件名称 (支持通配符 *)
+    x_constraint: str = ""  # X方向约束名称
+    y_constraint: str = ""  # Y方向约束名称
+    z_constraint: str = ""  # Z方向约束名称
+    all_constraint: str = ""  # 所有方向约束名称
+
+
+@dataclass
 class GridConfig:
     """完整的网格配置"""
     system_grid: SystemGrid = field(default_factory=SystemGrid)
     patches: List[GridPatch] = field(default_factory=list)
+    constraints: List[GridConstraint] = field(default_factory=list)
+    assembly_constraints: List[AssemblyGridConstraint] = field(default_factory=list)
 
 
 # ============================================================================
@@ -101,6 +139,8 @@ class GridExcelReader:
         config = GridConfig()
         config.system_grid = self._read_system_grid()
         config.patches = self._read_patches()
+        config.constraints = self._read_constraints()
+        config.assembly_constraints = self._read_assembly_constraints()
 
         return config
 
@@ -325,6 +365,131 @@ class GridExcelReader:
 
         return patches
 
+    def _read_constraints(self) -> List[GridConstraint]:
+        """读取 grid_constraints 配置"""
+        constraints = []
+
+        # 查找 constraints sheet
+        if self._use_openpyxl:
+            sheet_name = None
+            for name in self._workbook.sheetnames:
+                if 'constraint' in name.lower():
+                    sheet_name = name
+                    break
+
+            if sheet_name is None:
+                return constraints
+
+            sheet = self._workbook[sheet_name]
+
+            # 读取表头
+            headers = []
+            first_row = True
+            for row in sheet.iter_rows(values_only=True):
+                if first_row:
+                    headers = [str(h).lower().strip() if h else '' for h in row]
+                    first_row = False
+                    continue
+
+                if row[0] is None:
+                    continue
+
+                constraint = GridConstraint()
+                for i, header in enumerate(headers):
+                    if i >= len(row):
+                        break
+                    val = row[i]
+                    if val is None:
+                        continue
+
+                    if header == 'name':
+                        constraint.name = str(val)
+                    elif 'enable_min_cell' in header:
+                        constraint.enable_min_cell_size = self._parse_bool(val)
+                    elif header == 'min_cell_size':
+                        constraint.min_cell_size = float(val)
+                    elif header == 'number_cells_control':
+                        constraint.number_cells_control = str(val).lower()
+                    elif header == 'max_size':
+                        constraint.max_size = float(val)
+                    elif header == 'min_number':
+                        constraint.min_number = int(val)
+                    elif 'high_inflation' in header:
+                        if constraint.high_inflation is None:
+                            constraint.high_inflation = GridInflation()
+                        if 'type' in header:
+                            constraint.high_inflation.inflation_type = str(val).lower()
+                        elif 'size' in header:
+                            constraint.high_inflation.inflation_size = float(val)
+                        elif 'percent' in header:
+                            constraint.high_inflation.inflation_percent = float(val)
+                    elif 'low_inflation' in header:
+                        if constraint.low_inflation is None:
+                            constraint.low_inflation = GridInflation()
+                        if 'type' in header:
+                            constraint.low_inflation.inflation_type = str(val).lower()
+                        elif 'size' in header:
+                            constraint.low_inflation.inflation_size = float(val)
+                        elif 'percent' in header:
+                            constraint.low_inflation.inflation_percent = float(val)
+
+                constraints.append(constraint)
+
+        return constraints
+
+    def _read_assembly_constraints(self) -> List[AssemblyGridConstraint]:
+        """读取 assembly_constraints 配置"""
+        mappings = []
+
+        # 查找 assembly_constraints sheet
+        if self._use_openpyxl:
+            sheet_name = None
+            for name in self._workbook.sheetnames:
+                if 'assembly' in name.lower():
+                    sheet_name = name
+                    break
+
+            if sheet_name is None:
+                return mappings
+
+            sheet = self._workbook[sheet_name]
+
+            # 读取表头
+            headers = []
+            first_row = True
+            for row in sheet.iter_rows(values_only=True):
+                if first_row:
+                    headers = [str(h).lower().strip() if h else '' for h in row]
+                    first_row = False
+                    continue
+
+                if row[0] is None:
+                    continue
+
+                mapping = AssemblyGridConstraint()
+                for i, header in enumerate(headers):
+                    if i >= len(row):
+                        break
+                    val = row[i]
+                    if val is None:
+                        continue
+
+                    if 'assembly' in header and 'name' in header:
+                        mapping.assembly_name = str(val)
+                    elif header == 'x_constraint':
+                        mapping.x_constraint = str(val)
+                    elif header == 'y_constraint':
+                        mapping.y_constraint = str(val)
+                    elif header == 'z_constraint':
+                        mapping.z_constraint = str(val)
+                    elif header == 'all_constraint':
+                        mapping.all_constraint = str(val)
+
+                if mapping.assembly_name:
+                    mappings.append(mapping)
+
+        return mappings
+
 
 # ============================================================================
 # Grid XML 构建器
@@ -409,6 +574,57 @@ class GridBuilder:
 
         return elem
 
+    def build_constraints_attributes(self, constraints: List[GridConstraint]) -> ET.Element:
+        """构建 grid_constraints 属性元素 (用于 attributes 节)"""
+        constraints_elem = ET.Element("grid_constraints")
+
+        for constraint in constraints:
+            constraints_elem.append(self._build_constraint(constraint))
+
+        return constraints_elem
+
+    def _build_constraint(self, constraint: GridConstraint) -> ET.Element:
+        """构建单个 grid_constraint_att 元素"""
+        elem = ET.Element("grid_constraint_att")
+
+        self._append_text(elem, "name", constraint.name)
+        self._append_text(elem, "enable_min_cell_size", "true" if constraint.enable_min_cell_size else "false")
+        self._append_text(elem, "min_cell_size", f"{constraint.min_cell_size:.6g}")
+        self._append_text(elem, "number_cells_control", constraint.number_cells_control)
+
+        if constraint.number_cells_control == "max_size":
+            self._append_text(elem, "max_size", f"{constraint.max_size:.6g}")
+        else:
+            self._append_text(elem, "min_number", str(constraint.min_number))
+
+        if constraint.high_inflation:
+            elem.append(self._build_inflation("high_inflation", constraint.high_inflation))
+
+        if constraint.low_inflation:
+            elem.append(self._build_inflation("low_inflation", constraint.low_inflation))
+
+        return elem
+
+    def _build_inflation(self, tag: str, inflation: GridInflation) -> ET.Element:
+        """构建 inflation 元素"""
+        elem = ET.Element(tag)
+
+        self._append_text(elem, "inflation_type", inflation.inflation_type)
+
+        if inflation.inflation_type == "size":
+            self._append_text(elem, "inflation_size", f"{inflation.inflation_size:.6g}")
+        else:
+            self._append_text(elem, "inflation_percent", f"{inflation.inflation_percent:.6g}")
+
+        self._append_text(elem, "number_cells_control", inflation.number_cells_control)
+
+        if inflation.number_cells_control == "max_size":
+            self._append_text(elem, "max_size", f"{inflation.max_size:.6g}")
+        else:
+            self._append_text(elem, "min_number", str(inflation.min_number))
+
+        return elem
+
     def _append_text(self, parent: ET.Element, tag: str, text: str) -> ET.Element:
         """添加带文本的子元素"""
         elem = ET.SubElement(parent, tag)
@@ -489,6 +705,49 @@ def create_template_excel(output_path: str) -> None:
         # 调整列宽
         for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
             ws2.column_dimensions[col].width = 18
+
+        # Sheet 3: grid_constraints
+        ws3 = wb.create_sheet("grid_constraints")
+
+        headers3 = ["name", "enable_min_cell_size", "min_cell_size", "number_cells_control",
+                    "max_size", "min_number", "说明"]
+        for col, header in enumerate(headers3, 1):
+            cell = ws3.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.alignment = center_align
+
+        data3 = [
+            ["Fin_Constraint", "true", 0.0005, "min_number", 0.002, 20, "鳍片区域网格约束"],
+            ["Base_Constraint", "true", 0.001, "max_size", 0.002, 10, "基座区域网格约束"],
+        ]
+
+        for row_idx, row_data in enumerate(data3, 2):
+            for col_idx, value in enumerate(row_data, 1):
+                ws3.cell(row=row_idx, column=col_idx, value=value)
+
+        for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G']:
+            ws3.column_dimensions[col].width = 20
+
+        # Sheet 4: assembly_constraints
+        ws4 = wb.create_sheet("assembly_constraints")
+
+        headers4 = ["assembly_name", "x_constraint", "y_constraint", "z_constraint", "all_constraint", "说明"]
+        for col, header in enumerate(headers4, 1):
+            cell = ws4.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.alignment = center_align
+
+        data4 = [
+            ["Fin*", "Fin_Constraint", "", "", "", "所有 Fin 开头的装配件应用 X 方向约束"],
+            ["Base", "", "", "", "Base_Constraint", "Base 装配件应用全方向约束"],
+        ]
+
+        for row_idx, row_data in enumerate(data4, 2):
+            for col_idx, value in enumerate(row_data, 1):
+                ws4.cell(row=row_idx, column=col_idx, value=value)
+
+        for col in ['A', 'B', 'C', 'D', 'E', 'F']:
+            ws4.column_dimensions[col].width = 20
 
         wb.save(output_path)
         print(f"模板已创建: {output_path}")
