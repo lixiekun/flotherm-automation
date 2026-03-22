@@ -1,0 +1,944 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<neutralXML>
+
+  <name>Heatsink</name>
+
+  <producer>FloTHERM</producer>
+
+  <solutionDomain>
+    <location>
+      <x>0.000000000000000</x>
+      <y>-0.005000000000000</y>
+      <z>0.000000000000000</z>
+    </location>
+    <size>
+      <x>0.040000000000000</x>
+      <y>0.020000000000000</y>
+      <z>0.040000000000000</z>
+    </size>
+  </solutionDomain>
+
+  <materials>
+    <material>
+      <name>Heatsink Material</name>
+      <density>1.000000000000000</density>
+      <specific_heat>1.000000000000000</specific_heat>
+      <surfaceEmissivity>0.899999976158142</surfaceEmissivity>
+      <thermalConductivity>
+        <isotropic>
+          <conductivity>205.000000000000000</conductivity>
+        </isotropic>
+      </thermalConductivity>
+    </material>
+  </materials>
+
+  <geometry>
+    <assembly>
+      <name>Heat Sink Geometry</name>
+      <active>true</active>
+      <geometry>
+        <solid3dBlock>
+          <name>Base</name>
+          <active>true</active>
+          <location>
+            <x>0.000000000000000</x>
+            <y>-0.005000000000000</y>
+            <z>0.000000000000000</z>
+          </location>
+          <size>
+            <x>0.040000000000000</x>
+            <y>0.005000000000000</y>
+            <z>0.040000000000000</z>
+          </size>
+          <material>Heatsink Material</material>
+          <powerDissipation>0.000000000000000</powerDissipation>
+        </solid3dBlock>
+        <assembly>
+          <name>Fin 1</name>
+          <active>true</active>
+          <geometry>
+            <solid3dBlock>
+              <name>Low A - 1</name>
+              <active>true</active>
+              <location>
+                <x>0.000000000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Low B - 1</name>
+              <active>true</active>
+              <location>
+                <x>0.003200000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Upper - 1</name>
+              <active>true</active>
+              <location>
+                <x>0.001200000000000</x>
+                <y>0.014600000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.001600000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical A - 1</name>
+              <active>true</active>
+              <location>
+                <x>0.000800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical B - 1</name>
+              <active>true</active>
+              <location>
+                <x>0.002800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+          </geometry>
+        </assembly>
+        <assembly>
+          <name>Fin 2</name>
+          <active>true</active>
+          <geometry>
+            <solid3dBlock>
+              <name>Low A - 2</name>
+              <active>true</active>
+              <location>
+                <x>0.004000000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Low B - 2</name>
+              <active>true</active>
+              <location>
+                <x>0.007200000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Upper - 2</name>
+              <active>true</active>
+              <location>
+                <x>0.005200000000000</x>
+                <y>0.014600000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.001600000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical A - 2</name>
+              <active>true</active>
+              <location>
+                <x>0.004800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical B - 2</name>
+              <active>true</active>
+              <location>
+                <x>0.006800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+          </geometry>
+        </assembly>
+        <assembly>
+          <name>Fin 3</name>
+          <active>true</active>
+          <geometry>
+            <solid3dBlock>
+              <name>Low A - 3</name>
+              <active>true</active>
+              <location>
+                <x>0.008000000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Low B - 3</name>
+              <active>true</active>
+              <location>
+                <x>0.011200000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Upper - 3</name>
+              <active>true</active>
+              <location>
+                <x>0.009200000000000</x>
+                <y>0.014600000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.001600000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical A - 3</name>
+              <active>true</active>
+              <location>
+                <x>0.008800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical B - 3</name>
+              <active>true</active>
+              <location>
+                <x>0.010800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+          </geometry>
+        </assembly>
+        <assembly>
+          <name>Fin 4</name>
+          <active>true</active>
+          <geometry>
+            <solid3dBlock>
+              <name>Low A - 4</name>
+              <active>true</active>
+              <location>
+                <x>0.012000000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Low B - 4</name>
+              <active>true</active>
+              <location>
+                <x>0.015200000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Upper - 4</name>
+              <active>true</active>
+              <location>
+                <x>0.013200000000000</x>
+                <y>0.014600000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.001600000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical A - 4</name>
+              <active>true</active>
+              <location>
+                <x>0.012800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical B - 4</name>
+              <active>true</active>
+              <location>
+                <x>0.014800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+          </geometry>
+        </assembly>
+        <assembly>
+          <name>Fin 5</name>
+          <active>true</active>
+          <geometry>
+            <solid3dBlock>
+              <name>Low A - 5</name>
+              <active>true</active>
+              <location>
+                <x>0.016000000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Low B - 5</name>
+              <active>true</active>
+              <location>
+                <x>0.019200000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Upper - 5</name>
+              <active>true</active>
+              <location>
+                <x>0.017200000000000</x>
+                <y>0.014600000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.001600000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical A - 5</name>
+              <active>true</active>
+              <location>
+                <x>0.016800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical B - 5</name>
+              <active>true</active>
+              <location>
+                <x>0.018800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+          </geometry>
+        </assembly>
+        <assembly>
+          <name>Fin 6</name>
+          <active>true</active>
+          <geometry>
+            <solid3dBlock>
+              <name>Low A - 6</name>
+              <active>true</active>
+              <location>
+                <x>0.020000000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Low B - 6</name>
+              <active>true</active>
+              <location>
+                <x>0.023200000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Upper - 6</name>
+              <active>true</active>
+              <location>
+                <x>0.021200000000000</x>
+                <y>0.014600000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.001600000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical A - 6</name>
+              <active>true</active>
+              <location>
+                <x>0.020800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical B - 6</name>
+              <active>true</active>
+              <location>
+                <x>0.022800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+          </geometry>
+        </assembly>
+        <assembly>
+          <name>Fin 7</name>
+          <active>true</active>
+          <geometry>
+            <solid3dBlock>
+              <name>Low A - 7</name>
+              <active>true</active>
+              <location>
+                <x>0.024000000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Low B - 7</name>
+              <active>true</active>
+              <location>
+                <x>0.027200000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Upper - 7</name>
+              <active>true</active>
+              <location>
+                <x>0.025200000000000</x>
+                <y>0.014600000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.001600000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical A - 7</name>
+              <active>true</active>
+              <location>
+                <x>0.024800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical B - 7</name>
+              <active>true</active>
+              <location>
+                <x>0.026800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+          </geometry>
+        </assembly>
+        <assembly>
+          <name>Fin 8</name>
+          <active>true</active>
+          <geometry>
+            <solid3dBlock>
+              <name>Low A - 8</name>
+              <active>true</active>
+              <location>
+                <x>0.028000000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Low B - 8</name>
+              <active>true</active>
+              <location>
+                <x>0.031200000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Upper - 8</name>
+              <active>true</active>
+              <location>
+                <x>0.029200000000000</x>
+                <y>0.014600000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.001600000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical A - 8</name>
+              <active>true</active>
+              <location>
+                <x>0.028800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical B - 8</name>
+              <active>true</active>
+              <location>
+                <x>0.030800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+          </geometry>
+        </assembly>
+        <assembly>
+          <name>Fin 9</name>
+          <active>true</active>
+          <geometry>
+            <solid3dBlock>
+              <name>Low A - 9</name>
+              <active>true</active>
+              <location>
+                <x>0.032000000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Low B - 9</name>
+              <active>true</active>
+              <location>
+                <x>0.035200000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Upper - 9</name>
+              <active>true</active>
+              <location>
+                <x>0.033200000000000</x>
+                <y>0.014600000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.001600000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical A - 9</name>
+              <active>true</active>
+              <location>
+                <x>0.032800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical B - 9</name>
+              <active>true</active>
+              <location>
+                <x>0.034800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+          </geometry>
+        </assembly>
+        <assembly>
+          <name>Fin 10</name>
+          <active>true</active>
+          <geometry>
+            <solid3dBlock>
+              <name>Low A - 10</name>
+              <active>true</active>
+              <location>
+                <x>0.036000000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Low B - 10</name>
+              <active>true</active>
+              <location>
+                <x>0.039200000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000800000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Upper - 10</name>
+              <active>true</active>
+              <location>
+                <x>0.037200000000000</x>
+                <y>0.014600000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.001600000000000</x>
+                <y>0.000400000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical A - 10</name>
+              <active>true</active>
+              <location>
+                <x>0.036800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+            <solid3dBlock>
+              <name>Vertical B - 10</name>
+              <active>true</active>
+              <location>
+                <x>0.038800000000000</x>
+                <y>0.000000000000000</y>
+                <z>0.000000000000000</z>
+              </location>
+              <size>
+                <x>0.000400000000000</x>
+                <y>0.015000000000000</y>
+                <z>0.040000000000000</z>
+              </size>
+              <material>Heatsink Material</material>
+              <powerDissipation>0.000000000000000</powerDissipation>
+            </solid3dBlock>
+          </geometry>
+        </assembly>
+      </geometry>
+    </assembly>
+    <sourceBlock>
+      <name>Heat Source</name>
+      <active>true</active>
+      <location>
+        <x>0.017500000000000</x>
+        <y>-0.005000000000000</y>
+        <z>0.017500000000000</z>
+      </location>
+      <size>
+        <x>0.005000000000000</x>
+        <y>0.000500000000000</y>
+        <z>0.005000000000000</z>
+      </size>
+      <powerDissipation>1.000000000000000</powerDissipation>
+    </sourceBlock>
+    <monitorPoint>
+      <name>Source Temperature</name>
+      <active>true</active>
+      <location>
+        <x>0.020000000000000</x>
+        <y>-0.004750000000000</y>
+        <z>0.020000000000000</z>
+      </location>
+    </monitorPoint>
+  </geometry>
+
+</neutralXML>
