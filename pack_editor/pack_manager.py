@@ -167,12 +167,30 @@ class PackManager:
             output_path = output_path.with_suffix(".pack")
 
         # 创建 pack 文件
-        with zipfile.ZipFile(output_path, "w", compression=compression) as zf:
+        with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            # 收集所有目录（包括空目录）
+            all_dirs = set()
+            for file_path in self.extracted.extract_dir.rglob("*"):
+                if file_path.is_dir():
+                    arcname = file_path.relative_to(self.extracted.extract_dir)
+                    all_dirs.add(str(arcname))
+
+            # 先添加所有目录
+            for dir_path in sorted(all_dirs):
+                zf.write(self.extracted.extract_dir / dir_path, dir_path + "/",
+                        compress_type=zipfile.ZIP_STORED)
+
+            # 添加所有文件，保留原始压缩方式
             for file_path in self.extracted.extract_dir.rglob("*"):
                 if file_path.is_file():
-                    # 计算相对路径
                     arcname = file_path.relative_to(self.extracted.extract_dir)
-                    zf.write(file_path, arcname)
+                    # 查找原始压缩方式
+                    orig_compress = zipfile.ZIP_DEFLATED
+                    if self.structure:
+                        entry = self.structure.entries.get(str(arcname))
+                        if entry:
+                            orig_compress = entry.compress_type
+                    zf.write(file_path, arcname, compress_type=orig_compress)
 
         return output_path
 
