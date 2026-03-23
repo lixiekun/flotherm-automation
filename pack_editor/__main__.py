@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+"""Pack Editor CLI 入口点"""
+
+from .cli import main
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())
