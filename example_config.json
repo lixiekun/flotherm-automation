@@ -1,0 +1,10 @@
+{
+    "input_pack": "model.pack",
+    "output_pack": "output_{value}.pack",
+    "modifications": [
+        {"type": "power", "component": "U1_CPU", "value": 15.0},
+        {"type": "power", "component": "U2_GPU", "value": 10.0},
+        {"type": "solver", "max_iterations": 500}
+    ],
+    "solve": true
+}

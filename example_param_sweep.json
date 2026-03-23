@@ -1,0 +1,10 @@
+{
+    "input_pack": "model.pack",
+    "output_pack": "output_{value}.pack",
+    "parameter_sweep": {
+        "component": "U1_CPU",
+        "parameter": "power",
+        "values": [5.0, 10.0, 15.0, 20.0]
+    },
+    "solve": true
+}
