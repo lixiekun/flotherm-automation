@@ -41,13 +41,14 @@ def decode_pdml(filepath: str):
 
         if marker == b'\x07\x02':
             # 类型标记 + 长度前缀字符串
+            # 格式: 07 02 + offset(4B BE) + length(4B BE) + string
             print(f"{'  '*indent}[0x{pos:04X}] STRING_BLOCK (07 02)")
             pos += 2
-            # 读取长度和偏移
+            # 读取偏移和长度 (使用大端序)
             if pos + 8 <= len(data):
-                str_len = struct.unpack('<I', data[pos:pos+4])[0]
-                str_off = struct.unpack('<I', data[pos+4:pos+8])[0]
-                print(f"{'  '*indent}        len={str_len}, offset=0x{str_off:04X}")
+                str_off = struct.unpack('>I', data[pos:pos+4])[0]
+                str_len = struct.unpack('>I', data[pos+4:pos+8])[0]
+                print(f"{'  '*indent}        offset=0x{str_off:04X}, len={str_len}")
                 pos += 8
                 # 读取字符串
                 if pos + str_len <= len(data):

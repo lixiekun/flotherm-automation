@@ -418,37 +418,52 @@ class PDMLBinaryReader:
             position=(0.0, 0.0, 0.0)
         )
 
+        # 几何关键词（扩展版）
+        geometry_keywords = [
+            'coldplate', 'plate', 'block', 'cuboid', 'assembly',
+            'heatsink', 'fan', 'pcb', 'enclosure', 'chassis',
+            'source', 'ambient', 'aluminum', 'copper', 'steel',
+            'plastic', 'ceramic', 'fr4', 'die', 'package'
+        ]
+
         # 尝试从字符串中提取几何体信息
-        cuboid_names = []
-        assembly_names = []
+        geometry_items = []
 
         for pos, s in self.strings.items():
             s_lower = s.lower()
-            if 'assembly' in s_lower or 'modeldata' in s_lower:
-                if len(s) > 3 and len(s) < 100:
-                    assembly_names.append((pos, s))
-            elif 'cuboid' in s_lower or 'block' in s_lower or 'plate' in s_lower:
-                if len(s) > 3 and len(s) < 100:
-                    cuboid_names.append((pos, s))
+            # 过滤 GUID
+            if len(s) == 32 and all(c in '0123456789ABCDEFabcdef' for c in s):
+                continue
+            # 过滤日期
+            if len(s) == 16 and '-' in s and ':' in s:
+                continue
+            # 过滤太短或太长的字符串
+            if len(s) < 3 or len(s) > 100:
+                continue
 
-        # 简单处理：将找到的名称添加为 cuboids
-        for pos, name in cuboid_names[:20]:  # 限制数量
-            # 尝试在附近查找位置和尺寸
-            doubles = self._find_double_near(pos, 100)
+            # 检查是否包含几何关键词
+            if any(kw in s_lower for kw in geometry_keywords):
+                geometry_items.append((pos, s))
+
+        # 为找到的几何项创建 cuboids
+        for pos, name in geometry_items[:20]:  # 限制数量
+            # 尝试在附近查找位置和尺寸（扩大搜索范围）
+            doubles = self._find_double_near(pos, 200)
+            # 过滤合理的坐标和尺寸值
             coords = [v for p, v in doubles if -10 < v < 10][:6]
 
-            if len(coords) >= 3:
-                cuboid = PDMLGeometryNode(
-                    node_type='cuboid',
-                    name=name,
-                    position=(coords[0] if len(coords) > 0 else 0.0,
-                              coords[1] if len(coords) > 1 else 0.0,
-                              coords[2] if len(coords) > 2 else 0.0),
-                    size=(coords[3] if len(coords) > 3 else 0.01,
-                          coords[4] if len(coords) > 4 else 0.01,
-                          coords[5] if len(coords) > 5 else 0.01)
-                )
-                root.children.append(cuboid)
+            # 即使没有足够的坐标也创建几何体
+            cuboid = PDMLGeometryNode(
+                node_type='cuboid',
+                name=name,
+                position=(coords[0] if len(coords) > 0 else 0.0,
+                          coords[1] if len(coords) > 1 else 0.0,
+                          coords[2] if len(coords) > 2 else 0.0),
+                size=(coords[3] if len(coords) > 3 else 0.01,
+                      coords[4] if len(coords) > 4 else 0.01,
+                      coords[5] if len(coords) > 5 else 0.01)
+            )
+            root.children.append(cuboid)
 
         # 如果没有找到任何几何体，创建一个默认的
         if not root.children:
@@ -810,7 +825,7 @@ class PDMLToFloXMLConverter:
 
         print(f"[INFO] 项目: {data.name}")
         print(f"[INFO] 版本: {data.product}")
-        print(f"[INFO] 重力: {data.model.gravity_value} m/s²")
+        print(f"[INFO] 重力: {data.model.gravity_value} m/s2")
         print(f"[INFO] 迭代: {data.solve.outer_iterations}")
         print(f"[INFO] 温度: {data.model.ambient_temperature} K")
 

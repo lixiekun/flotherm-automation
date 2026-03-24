@@ -117,13 +117,14 @@ class PDMLBinaryParser:
     def _extract_strings(self):
         """提取所有字符串"""
         # 方法1: 查找 0x07 0x02 模式
+        # 格式: 07 02 + offset(4B) + length(4B BE) + string
         pos = 0
         while pos < len(self.data) - 10:
             if self.data[pos:pos+2] == b'\x07\x02':
-                # 读取偏移和长度
+                # 读取偏移和长度 (使用大端序)
                 if pos + 10 <= len(self.data):
-                    offset_val = struct.unpack('<I', self.data[pos+2:pos+6])[0]
-                    length = struct.unpack('<I', self.data[pos+6:pos+10])[0]
+                    offset_val = struct.unpack('>I', self.data[pos+2:pos+6])[0]
+                    length = struct.unpack('>I', self.data[pos+6:pos+10])[0]
 
                     if 0 < length < 1000 and pos + 10 + length <= len(self.data):
                         str_data = self.data[pos+10:pos+10+length]
