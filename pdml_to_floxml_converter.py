@@ -197,12 +197,12 @@ class PDMLBinaryReader:
 
     # Section 标记字符串
     SECTION_MARKERS = {
-        b'gravity': 'model',
-        b'overall control': 'solve',
-        b'grid smooth': 'grid',
-        b'modeldata': 'attributes',
-        b'solution domain': 'solution_domain',
-        b'geometry': 'geometry',
+        'gravity': 'model',
+        'overall control': 'solve',
+        'grid smooth': 'grid',
+        'modeldata': 'attributes',
+        'solution domain': 'solution_domain',
+        'geometry': 'geometry',
     }
 
     def __init__(self, filepath: str):
@@ -256,12 +256,13 @@ class PDMLBinaryReader:
         }
 
     def _extract_strings(self):
-        """提取所有字符串块"""
+        """提取所有字符串块 - 修复版本，使用大端序解析长度"""
         pos = 0
         while pos < len(self.data) - 10:
             if self.data[pos:pos+2] == b'\x07\x02':
                 if pos + 10 <= len(self.data):
-                    length = struct.unpack('<I', self.data[pos+6:pos+10])[0]
+                    # 使用大端序解析长度
+                    length = struct.unpack('>I', self.data[pos+6:pos+10])[0]
                     if 0 < length < 1000 and pos + 10 + length <= len(self.data):
                         str_data = self.data[pos+10:pos+10+length]
                         try:

@@ -59,13 +59,14 @@ class PDMLGeometryParser:
         return result
 
     def _extract_strings(self):
-        """提取所有字符串 (0x07 0x02 + 6 bytes + length + string)"""
+        """提取所有字符串 - 修复版本，使用大端序解析长度"""
         pos = 0
         while pos < len(self.data) - 10:
             if self.data[pos:pos+2] == b'\x07\x02':
                 if pos + 10 <= len(self.data):
-                    # 格式: 07 02 + 4 bytes + length(4B) + string
-                    length = struct.unpack('<I', self.data[pos+6:pos+10])[0]
+                    # 格式: 07 02 + 4 bytes offset + length(4B BE) + string
+                    # 注意: length 使用大端序
+                    length = struct.unpack('>I', self.data[pos+6:pos+10])[0]
                     if 0 < length < 1000 and pos + 10 + length <= len(self.data):
                         str_data = self.data[pos+10:pos+10+length]
                         try:
