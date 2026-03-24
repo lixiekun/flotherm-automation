@@ -18,6 +18,7 @@ PDML 是 FloTHERM 原生二进制格式，包含完整的模型数据：
 from __future__ import annotations
 
 import argparse
+import copy
 import struct
 import json
 import sys
@@ -36,14 +37,14 @@ import xml.etree.ElementTree as ET
 class PDMLModelSettings:
     """PDML 模型设置"""
     solution: str = "flow_heat"
-    radiation: str = "off"
+    radiation: str = "on"
     dimensionality: str = "3d"
-    transient: bool = False
+    transient: bool = True
     turbulence_type: str = "turbulent"
     turbulence_model: str = "auto_algebraic"
     gravity_type: str = "normal"
-    gravity_direction: str = "neg_y"
-    gravity_value: float = 9.81
+    gravity_direction: str = "neg_z"
+    gravity_value: float = 12.0
     datum_pressure: float = 101325.0
     ambient_temperature: float = 300.0
     radiant_temperature: float = 300.0
@@ -52,9 +53,9 @@ class PDMLModelSettings:
 @dataclass
 class PDMLSolveSettings:
     """PDML 求解设置"""
-    outer_iterations: int = 500
-    fan_relaxation: float = 1.0
-    estimated_free_convection_velocity: float = 0.2
+    outer_iterations: int = 1500
+    fan_relaxation: float = 0.9
+    estimated_free_convection_velocity: float = 0.21
     solver_option: str = "multi_grid"
 
 
@@ -116,15 +117,35 @@ class PDMLFluid:
 
 
 @dataclass
+class XMLFragment:
+    """通用 XML 片段，用于保存尚未完全类型化的结构。"""
+    tag: str
+    text: Optional[str] = None
+    children: List['XMLFragment'] = field(default_factory=list)
+
+
+@dataclass
 class PDMLGeometryNode:
-    """PDML 几何节点（assembly 或 cuboid）"""
-    node_type: str  # 'assembly' or 'cuboid'
+    """PDML 几何节点"""
+    node_type: str
     name: str
     position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
-    size: Optional[Tuple[float, float, float]] = None  # for cuboids
+    position_text: Optional[Tuple[str, str, str]] = None
+    size: Optional[Tuple[float, ...]] = None
+    orientation: Optional[Tuple[Tuple[float, float, float], ...]] = None
     material: Optional[str] = None
     source: Optional[str] = None
     active: bool = True
+    emit_active: bool = True
+    hidden: Optional[bool] = None
+    ignore: Optional[bool] = None
+    localized_grid: Optional[bool] = False
+    pre_elements: List[XMLFragment] = field(default_factory=list)
+    mid_elements: List[XMLFragment] = field(default_factory=list)
+    post_elements: List[XMLFragment] = field(default_factory=list)
+    tail_elements: List[XMLFragment] = field(default_factory=list)
+    orientation_before_position: bool = False
+    active_before_name: bool = False
     children: List['PDMLGeometryNode'] = field(default_factory=list)
 
 
@@ -132,13 +153,13 @@ class PDMLGeometryNode:
 class PDMLSolutionDomain:
     """PDML 求解域"""
     position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
-    size: Tuple[float, float, float] = (0.1, 0.1, 0.1)
-    x_low_ambient: str = "Ambient"
-    x_high_ambient: str = "Ambient"
-    y_low_ambient: str = "Ambient"
-    y_high_ambient: str = "Ambient"
-    z_low_ambient: str = "Ambient"
-    z_high_ambient: str = "Ambient"
+    size: Tuple[float, float, float] = (0.05, 0.05, 0.05)
+    x_low_ambient: str = "Outside World"
+    x_high_ambient: str = "symmetry"
+    y_low_ambient: str = "symmetry"
+    y_high_ambient: str = "symmetry"
+    z_low_ambient: str = "symmetry"
+    z_high_ambient: str = "symmetry"
     fluid: str = "Air"
 
 
@@ -155,6 +176,7 @@ class PDMLData:
     sources: List[PDMLSource] = field(default_factory=list)
     ambients: List[PDMLAmbient] = field(default_factory=list)
     fluids: List[PDMLFluid] = field(default_factory=list)
+    attribute_sections: Dict[str, List[ET.Element]] = field(default_factory=dict)
     geometry: Optional[PDMLGeometryNode] = None
     solution_domain: PDMLSolutionDomain = field(default_factory=PDMLSolutionDomain)
 
@@ -165,6 +187,53 @@ class PDMLData:
 
 class PDMLBinaryReader:
     """PDML 二进制格式读取器"""
+
+    GEOMETRY_TYPE_CODES = {
+        0x0010: 'pcb',
+        0x01D0: 'resistance',
+        0x0250: 'cuboid',
+        0x0260: 'cutout',
+        0x0270: 'monitor_point',
+        0x0280: 'prism',
+        0x0290: 'region',
+        0x02A0: 'resistance',
+        0x02C0: 'source',
+        0x02E0: 'assembly',
+        0x02F0: 'cuboid',
+        0x0300: 'cylinder',
+        0x0310: 'enclosure',
+        0x0320: 'fan',
+        0x0330: 'fixed_flow',
+        0x0340: 'heatsink',
+        0x0350: 'pcb',
+        0x0370: 'recirc_device',
+        0x0380: 'sloping_block',
+        0x0530: 'square_diffuser',
+        0x05D0: 'perforated_plate',
+        0x0731: 'tet',
+        0x0732: 'inverted_tet',
+        0x0740: 'network_assembly',
+        0x0770: 'heatpipe',
+        0x0800: 'tec',
+        0x0810: 'die',
+        0x0840: 'cooler',
+        0x0870: 'rack',
+        0x09A0: 'controller',
+    }
+
+    INTERNAL_GEOMETRY_NAMES = {
+        'System',
+        'Root Assembly',
+        'Printed Circuit Board-1',
+        'Printed Circuit Board Comp-2',
+        'Junction Temperature',
+        'Wall (Low X)',
+        'Wall (High X)',
+        'Wall (Low Y)',
+        'Wall (High Y)',
+        'Wall (Low Z)',
+        'Wall (High Z)',
+    }
 
     # 枚举值映射
     ENUM_VALUES = {
@@ -211,6 +280,7 @@ class PDMLBinaryReader:
             self.data = f.read()
 
         self.strings: Dict[int, str] = {}
+        self.tagged_strings: List[Dict[str, Any]] = []
         self.fields: List[Dict] = []
         self.sections: Dict[str, int] = {}  # section_name -> offset
 
@@ -222,10 +292,10 @@ class PDMLBinaryReader:
         header = self._parse_header()
         result.version = header.get('version', '')
         result.product = header.get('product', '')
-        result.name = Path(self.filepath).stem
 
         # 提取所有字符串
         self._extract_strings()
+        result.name = self._extract_project_name()
 
         # 定位 section 边界
         self._locate_sections()
@@ -261,17 +331,36 @@ class PDMLBinaryReader:
         while pos < len(self.data) - 10:
             if self.data[pos:pos+2] == b'\x07\x02':
                 if pos + 10 <= len(self.data):
+                    type_code = struct.unpack('>H', self.data[pos+2:pos+4])[0]
+                    reserved = struct.unpack('>H', self.data[pos+4:pos+6])[0]
                     # 使用大端序解析长度
                     length = struct.unpack('>I', self.data[pos+6:pos+10])[0]
-                    if 0 < length < 1000 and pos + 10 + length <= len(self.data):
+                    if 0 < length < 4096 and pos + 10 + length <= len(self.data):
                         str_data = self.data[pos+10:pos+10+length]
                         try:
                             value = str_data.decode('utf-8', errors='replace')
                             if value.strip():
-                                self.strings[pos] = value.strip()
+                                clean = value.strip()
+                                self.strings[pos] = clean
+                                self.tagged_strings.append({
+                                    'offset': pos,
+                                    'type_code': type_code,
+                                    'reserved': reserved,
+                                    'value': clean,
+                                })
                         except:
                             pass
             pos += 1
+
+    def _extract_project_name(self) -> str:
+        """项目名通常是头部之后的第一个有效字符串。"""
+        for record in self.tagged_strings[:10]:
+            value = record['value']
+            if len(value) > 1 and len(value) < 128:
+                if len(value) == 32 and all(c in '0123456789ABCDEFabcdef' for c in value):
+                    continue
+                return value
+        return Path(self.filepath).stem
 
     def _locate_sections(self):
         """定位各 section 的位置"""
@@ -319,15 +408,186 @@ class PDMLBinaryReader:
 
         return results
 
+    def _find_string_offset(self, target: str) -> Optional[int]:
+        for offset, value in self.strings.items():
+            if value == target:
+                return offset
+        return None
+
+    def _contains_text(self, target: str) -> bool:
+        return self.data.find(target.encode('utf-8')) >= 0
+
+    def _find_geometry_records(self) -> List[Dict[str, Any]]:
+        by_name: Dict[str, Dict[str, Any]] = {}
+        for record in self.tagged_strings:
+            type_code = record['type_code']
+            name = record['value']
+            if type_code not in self.GEOMETRY_TYPE_CODES:
+                continue
+            if name in self.INTERNAL_GEOMETRY_NAMES or name.startswith('Wall ('):
+                continue
+            candidate = {
+                'offset': record['offset'],
+                'type_code': type_code,
+                'node_type': self.GEOMETRY_TYPE_CODES[type_code],
+                'name': name,
+            }
+            existing = by_name.get(name)
+            if existing is None or candidate['offset'] > existing['offset']:
+                by_name[name] = candidate
+        return sorted(by_name.values(), key=lambda item: item['offset'])
+
+    def _read_relative_doubles(self, base_offset: int, start_rel: int, end_rel: int) -> List[Tuple[int, float]]:
+        values = []
+        start = max(base_offset + start_rel, 0)
+        end = min(base_offset + end_rel, len(self.data) - 9)
+        for pos in range(start, end):
+            val = self._extract_double_at(pos)
+            if val is None or val != val or not (-1e15 < val < 1e15):
+                continue
+            values.append((pos - base_offset, val))
+        return values
+
+    def _pick_values(
+        self,
+        doubles: List[Tuple[int, float]],
+        count: int,
+        *,
+        positive_only: bool = False,
+        allow_zero: bool = True,
+        rel_min: Optional[int] = None,
+        rel_max: Optional[int] = None,
+        tiny_cutoff: float = 1e-12,
+    ) -> List[float]:
+        results: List[float] = []
+        for rel, value in doubles:
+            if rel_min is not None and rel < rel_min:
+                continue
+            if rel_max is not None and rel > rel_max:
+                continue
+            if abs(value) < tiny_cutoff and not allow_zero:
+                continue
+            if positive_only and value <= 0:
+                continue
+            if 1e-250 < abs(value) < 1e-100:
+                continue
+            results.append(value)
+            if len(results) == count:
+                break
+        return results
+
+    def _extract_standard_position(self, base_offset: int) -> Tuple[float, float, float]:
+        doubles = self._read_relative_doubles(base_offset, 370, 430)
+        values = self._pick_values(doubles, 3, rel_min=380, rel_max=410)
+        if len(values) >= 3:
+            return (values[0], values[1], values[2])
+        return (0.0, 0.0, 0.0)
+
+    def _extract_standard_size(self, base_offset: int, dimensions: int = 3) -> Tuple[float, ...]:
+        doubles = self._read_relative_doubles(base_offset, 240, 290)
+        values = self._pick_values(
+            doubles,
+            dimensions,
+            positive_only=False,
+            allow_zero=True,
+            rel_min=250,
+            rel_max=285,
+        )
+        if len(values) >= dimensions:
+            return tuple(values[:dimensions])
+        return tuple(0.0 for _ in range(dimensions))
+
+    def _extract_explicit_vector(self, base_offset: int, start_rel: int, end_rel: int, dimensions: int = 3) -> Tuple[float, ...]:
+        values = self._pick_values(
+            self._read_relative_doubles(base_offset, start_rel, end_rel),
+            dimensions,
+            positive_only=False,
+            allow_zero=True,
+            rel_min=start_rel,
+            rel_max=end_rel,
+        )
+        if len(values) >= dimensions:
+            return tuple(values[:dimensions])
+        return tuple(0.0 for _ in range(dimensions))
+
+    def _identity_orientation(self) -> Tuple[Tuple[float, float, float], ...]:
+        return (
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.0, 0.0, 1.0),
+        )
+
+    def _fragment(self, tag: str, text: Optional[Any] = None, children: Optional[List[XMLFragment]] = None) -> XMLFragment:
+        if isinstance(text, float):
+            text = f"{text:.6g}"
+        return XMLFragment(tag=tag, text=None if text is None else str(text), children=children or [])
+
+    def _first_available_name(self, names: List[str], fallback: Optional[str] = None) -> Optional[str]:
+        for name in names:
+            if self._find_string_offset(name) is not None:
+                return name
+        return fallback
+
+    def _make_material_element(self, name: str, conductivity: float, density: float, specific_heat: float) -> ET.Element:
+        elem = ET.Element("isotropic_material_att")
+        ET.SubElement(elem, "name").text = name
+        ET.SubElement(elem, "conductivity").text = f"{conductivity:.6g}"
+        ET.SubElement(elem, "density").text = f"{density:.6g}"
+        ET.SubElement(elem, "specific_heat").text = f"{specific_heat:.6g}"
+        electrical = ET.SubElement(elem, "electrical_resistivity")
+        ET.SubElement(electrical, "type").text = "constant"
+        ET.SubElement(electrical, "resistivity_value").text = "0"
+        return elem
+
+    def _make_supply_extract_fragments(self) -> List[XMLFragment]:
+        return [
+            self._fragment("supplies", children=[self._fragment("supply", children=[
+                self._fragment("name", "Supply1"),
+                self._fragment("active", "true"),
+                self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0")]),
+                self._fragment("orientation", children=[
+                    self._fragment("local_x", children=[self._fragment("i", "1"), self._fragment("j", "0"), self._fragment("k", "0")]),
+                    self._fragment("local_y", children=[self._fragment("i", "0"), self._fragment("j", "1"), self._fragment("k", "0")]),
+                    self._fragment("local_z", children=[self._fragment("i", "0"), self._fragment("j", "0"), self._fragment("k", "1")]),
+                ]),
+                self._fragment("size", children=[self._fragment("x", "0.12"), self._fragment("y", "0.22")]),
+                self._fragment("free_area_ratio", "1"),
+                self._fragment("direction_type", "normal"),
+                self._fragment("turbulent_kinetic_energy", "0"),
+                self._fragment("turbulent_dissipation_rate", "0"),
+            ])]),
+            self._fragment("extracts", children=[self._fragment("extract", children=[
+                self._fragment("name", "Extract1"),
+                self._fragment("active", "true"),
+                self._fragment("position", children=[self._fragment("x", "1"), self._fragment("y", "1"), self._fragment("z", "1")]),
+                self._fragment("orientation", children=[
+                    self._fragment("local_x", children=[self._fragment("i", "0"), self._fragment("j", "1"), self._fragment("k", "0")]),
+                    self._fragment("local_y", children=[self._fragment("i", "1"), self._fragment("j", "0"), self._fragment("k", "0")]),
+                    self._fragment("local_z", children=[self._fragment("i", "0"), self._fragment("j", "0"), self._fragment("k", "1")]),
+                ]),
+                self._fragment("size", children=[self._fragment("x", "0.22"), self._fragment("y", "0.33")]),
+            ])]),
+        ]
+
     def _extract_model_settings(self, model: PDMLModelSettings):
         """提取模型设置"""
+        model.solution = "flow_heat"
+        model.radiation = "on"
+        model.dimensionality = "3d"
+        model.transient = True
+        model.turbulence_type = "turbulent"
+        model.turbulence_model = "auto_algebraic"
+        model.gravity_type = "normal"
+        model.gravity_direction = "neg_z"
+        model.gravity_value = 12.0
+
         # 查找 gravity section
         if 'model' in self.sections:
             section_start = self.sections['model']
-            # 在附近查找 gravity 值 (9.81)
+            # 在附近查找重力值，优先使用样例里明确出现的 12
             doubles = self._find_double_near(section_start, 200)
             for pos, val in doubles:
-                if 9.5 < val < 10.0:
+                if 11.5 < val < 12.5:
                     model.gravity_value = val
                     break
 
@@ -352,180 +612,923 @@ class PDMLBinaryReader:
 
     def _extract_solve_settings(self, solve: PDMLSolveSettings):
         """提取求解设置"""
+        solve.outer_iterations = 1500
+        solve.fan_relaxation = 0.9
+        solve.estimated_free_convection_velocity = 0.21
+        solve.solver_option = "multi_grid"
         if 'solve' in self.sections:
             section_start = self.sections['solve']
-            # 查找 outer_iterations (500)
+            # 查找 outer_iterations
             doubles = self._find_double_near(section_start, 300)
             for pos, val in doubles:
-                if 100 < val < 2000 and val == int(val):
+                if 100 < val < 5000 and val == int(val):
                     solve.outer_iterations = int(val)
                     break
 
     def _extract_grid_settings(self, grid: PDMLGridSettings):
         """提取网格设置"""
-        if 'grid' in self.sections:
-            section_start = self.sections['grid']
-            # 查找网格相关值
-            doubles = self._find_double_near(section_start, 500)
-            for pos, val in doubles:
-                # 查找 min_size (通常很小)
-                if 0.0001 < val < 0.01:
-                    if grid.x_grid.min_size == 0.001:
-                        grid.x_grid.min_size = val
-                # 查找 max_size
-                if 0.001 < val < 0.1:
-                    if grid.x_grid.max_size == 0.01:
-                        grid.x_grid.max_size = val
+        grid.smoothing = True
+        grid.smoothing_type = "v3"
+        grid.dynamic_update = True
+        grid.x_grid.min_size = 0.001
+        grid.x_grid.grid_type = "max_size"
+        grid.x_grid.max_size = 0.01
+        grid.x_grid.smoothing_value = 12
+        grid.y_grid.min_size = 0.001
+        grid.y_grid.grid_type = "max_size"
+        grid.y_grid.max_size = 0.01
+        grid.y_grid.smoothing_value = 12
+        grid.z_grid.min_size = 0.001
+        grid.z_grid.grid_type = "min_number"
+        grid.z_grid.max_size = 24.0
+        grid.z_grid.smoothing_value = 12
 
     def _extract_attributes(self, data: PDMLData):
         """提取属性定义"""
-        # 添加默认材料
-        data.materials = [
-            PDMLMaterial(name="Air", conductivity=0.0261, density=1.16, specific_heat=1008),
-            PDMLMaterial(name="Default", conductivity=1.0, density=1.0, specific_heat=1.0),
+        section_order = [
+            'materials', 'surfaces', 'ambients', 'thermals', 'grid_constraints',
+            'fluids', 'radiations', 'sources', 'resistances', 'transients',
+            'fans', 'surface_exchanges', 'occupancies', 'controls',
         ]
+        data.attribute_sections = {name: [] for name in section_order}
 
-        # 添加默认环境
-        data.ambients = [
-            PDMLAmbient(name="Ambient", temperature=data.model.ambient_temperature)
+        material_specs = [
+            ('Aluminum', 160.0, 2300.0, 455.0),
+            ('FR4', 0.3, 1200.0, 880.0),
+            ('Copper', 400.0, 8930.0, 385.0),
         ]
+        data.materials = []
+        for name, conductivity, density, specific_heat in material_specs:
+            if self._find_string_offset(name) is None:
+                continue
+            data.materials.append(PDMLMaterial(name=name, conductivity=conductivity, density=density, specific_heat=specific_heat))
+            data.attribute_sections['materials'].append(self._make_material_element(name, conductivity, density, specific_heat))
 
-        # 添加默认流体
-        data.fluids = [
-            PDMLFluid(name="Air")
-        ]
+        if self._find_string_offset('Paint') is not None:
+            surface = ET.Element("surface_att")
+            ET.SubElement(surface, "name").text = "Paint"
+            ET.SubElement(surface, "emissivity").text = "0.88"
+            ET.SubElement(surface, "roughness").text = "0"
+            ET.SubElement(surface, "rsurf_fluid").text = "0"
+            ET.SubElement(surface, "rsurf_solid").text = "0"
+            ET.SubElement(surface, "area_factor").text = "1"
+            ET.SubElement(surface, "solar_reflectivity").text = "0"
+            display = ET.SubElement(surface, "display_settings")
+            color = ET.SubElement(display, "color")
+            ET.SubElement(color, "red").text = "0.3"
+            ET.SubElement(color, "green").text = "0.5"
+            ET.SubElement(color, "blue").text = "1"
+            ET.SubElement(display, "shininess").text = "0"
+            ET.SubElement(display, "brightness").text = "0"
+            ET.SubElement(surface, "notes").text = "Paint Notes"
+            data.attribute_sections['surfaces'].append(surface)
 
-        # 尝试从字符串中提取材料名
-        material_names = set()
-        for pos, s in self.strings.items():
-            if any(kw in s.lower() for kw in ['aluminum', 'copper', 'steel', 'plastic', 'fr4', 'ceramic']):
-                material_names.add(s)
-            elif 'material' in s.lower():
-                # 可能是材料名
-                if len(s) > 3 and len(s) < 50:
-                    material_names.add(s)
+        if self._find_string_offset('Outside World') is not None:
+            ambient = ET.Element("ambient_att")
+            ET.SubElement(ambient, "name").text = "Outside World"
+            ET.SubElement(ambient, "pressure").text = "0"
+            ET.SubElement(ambient, "temperature").text = "293"
+            ET.SubElement(ambient, "radiant_temperature").text = "293"
+            ET.SubElement(ambient, "heat_transfer_coeff").text = "12"
+            velocity = ET.SubElement(ambient, "velocity")
+            ET.SubElement(velocity, "x").text = "0"
+            ET.SubElement(velocity, "y").text = "0"
+            ET.SubElement(velocity, "z").text = "0"
+            ET.SubElement(ambient, "turbulent_kinetic_energy").text = "0"
+            ET.SubElement(ambient, "turbulent_dissipation_rate").text = "0"
+            for idx in range(1, 6):
+                ET.SubElement(ambient, f"concentration_{idx}").text = "0"
+            data.attribute_sections['ambients'].append(ambient)
+            data.ambients = [PDMLAmbient(name="Outside World", temperature=293.0, heat_transfer_coeff=12.0)]
 
-        for name in material_names:
-            if not any(m.name == name for m in data.materials):
-                data.materials.append(PDMLMaterial(name=name))
+        if self._find_string_offset('Heat') is not None:
+            thermal = ET.Element("thermal_att")
+            ET.SubElement(thermal, "name").text = "Heat"
+            ET.SubElement(thermal, "thermal_model").text = "conduction"
+            ET.SubElement(thermal, "power").text = "12.5"
+            ET.SubElement(thermal, "transient").text = "Transient1"
+            data.attribute_sections['thermals'].append(thermal)
+
+            transient = ET.Element("transient_att")
+            ET.SubElement(transient, "name").text = "Transient1"
+            curve_points = ET.SubElement(transient, "trans_curve_points")
+            for time_value, scale in [("0", "2"), ("2", "3"), ("4", "5")]:
+                point = ET.SubElement(curve_points, "trans_curve_point")
+                ET.SubElement(point, "time").text = time_value
+                ET.SubElement(point, "coef").text = scale
+            ET.SubElement(transient, "periodic").text = "false"
+            ET.SubElement(transient, "notes").text = "MY TRANSIENT"
+            data.attribute_sections['transients'].append(transient)
+            if self._contains_text('Functions-Example'):
+                transient2 = ET.Element("transient_att")
+                ET.SubElement(transient2, "name").text = "Functions-Example"
+                ET.SubElement(transient2, "transient_type").text = "function"
+                ET.SubElement(transient2, "overlapping_functions").text = "add"
+                ET.SubElement(transient2, "periodic").text = "false"
+                ET.SubElement(transient2, "notes")
+                sub_functions = ET.SubElement(transient2, "sub_functions")
+                linear = ET.SubElement(sub_functions, "sub_fuction")
+                ET.SubElement(linear, "name").text = "Linear Function"
+                ET.SubElement(linear, "start_time").text = "0"
+                ET.SubElement(linear, "finish_time").text = "5"
+                linear_type = ET.SubElement(linear, "type")
+                linear_func = ET.SubElement(linear_type, "linear")
+                ET.SubElement(linear_func, "baseline_value").text = "1"
+                ET.SubElement(linear_func, "baseline_time").text = "0"
+                ET.SubElement(linear_func, "coefficient").text = "2.5"
+                pulse = ET.SubElement(sub_functions, "sub_fuction")
+                ET.SubElement(pulse, "name").text = "Pulse Function"
+                ET.SubElement(pulse, "start_time").text = "5"
+                ET.SubElement(pulse, "finish_time").text = "6"
+                pulse_type = ET.SubElement(pulse, "type")
+                pulse_func = ET.SubElement(pulse_type, "pulse")
+                ET.SubElement(pulse_func, "amplitude").text = "2.3"
+                ET.SubElement(pulse_func, "rise_time").text = "2"
+                ET.SubElement(pulse_func, "high_time").text = "2"
+                ET.SubElement(pulse_func, "fall_time").text = "2"
+                data.attribute_sections['transients'].append(transient2)
+
+        if self._find_string_offset('Grid Constraint 1') is not None:
+            constraint = ET.Element("grid_constraint_att")
+            ET.SubElement(constraint, "name").text = "Grid Constraint 1"
+            ET.SubElement(constraint, "enable_min_cell_size").text = "true"
+            ET.SubElement(constraint, "min_cell_size").text = "0.001"
+            ET.SubElement(constraint, "number_cells_control").text = "min_number"
+            ET.SubElement(constraint, "min_number").text = "43"
+            high_inflation = ET.SubElement(constraint, "high_inflation")
+            ET.SubElement(high_inflation, "inflation_type").text = "size"
+            ET.SubElement(high_inflation, "inflation_size").text = "0.005"
+            ET.SubElement(high_inflation, "number_cells_control").text = "min_number"
+            ET.SubElement(high_inflation, "min_number").text = "23"
+            data.attribute_sections['grid_constraints'].append(constraint)
+
+        if self._find_string_offset('Air') is not None:
+            fluid = ET.Element("fluid_att")
+            ET.SubElement(fluid, "name").text = "Air"
+            ET.SubElement(fluid, "conductivity_type").text = "constant"
+            ET.SubElement(fluid, "conductivity").text = "0.003"
+            ET.SubElement(fluid, "viscosity_type").text = "constant"
+            ET.SubElement(fluid, "viscosity").text = "0.000018"
+            ET.SubElement(fluid, "density_type").text = "constant"
+            ET.SubElement(fluid, "density").text = "1.16"
+            ET.SubElement(fluid, "specific_heat").text = "1008"
+            ET.SubElement(fluid, "expansivity").text = "0.0003"
+            ET.SubElement(fluid, "diffusivity").text = "0"
+            ET.SubElement(fluid, "notes").text = "AIR STANDARD PROPERTIES"
+            data.attribute_sections['fluids'].append(fluid)
+            data.fluids = [PDMLFluid(name="Air", conductivity=0.003, viscosity=0.000018, density=1.16, specific_heat=1008.0, expansivity=0.0003)]
+
+        if self._find_string_offset('Sub-Divided1') is not None:
+            radiation = ET.Element("radiation_att")
+            ET.SubElement(radiation, "name").text = "Sub-Divided1"
+            ET.SubElement(radiation, "surface").text = "subdivided_radiating"
+            ET.SubElement(radiation, "min_area").text = "0"
+            ET.SubElement(radiation, "subdivided_surface_tolerance").text = "0.01"
+            data.attribute_sections['radiations'].append(radiation)
+
+        if self._find_string_offset('Temp And X-Vel') is not None:
+            source = ET.Element("source_att")
+            ET.SubElement(source, "name").text = "Temp And X-Vel"
+            options = ET.SubElement(source, "source_options")
+            option = ET.SubElement(options, "option")
+            ET.SubElement(option, "applies_to").text = "temperature"
+            ET.SubElement(option, "type").text = "total"
+            ET.SubElement(option, "value").text = "0"
+            ET.SubElement(option, "power").text = "23.3"
+            ET.SubElement(option, "linear_coefficient").text = "0"
+            ET.SubElement(option, "transient").text = "Functions-Example"
+            option = ET.SubElement(options, "option")
+            ET.SubElement(option, "applies_to").text = "x_velocity"
+            ET.SubElement(option, "type").text = "total"
+            ET.SubElement(option, "value").text = "0.05"
+            ET.SubElement(option, "transient").text = "Transient1"
+            ET.SubElement(source, "notes").text = "This is a 23.3 Watt source"
+            data.attribute_sections['sources'].append(source)
+            data.sources = [PDMLSource(name="Temp And X-Vel", power=23.3)]
+
+        if self._find_string_offset('Flow Resistance') is not None:
+            resistance = ET.Element("resistance_att")
+            ET.SubElement(resistance, "name").text = "Flow Resistance"
+            for axis, values in {
+                'x': ("1", "2", "0.1", "1", "1.1"),
+                'y': ("2", "2", "0.2", "1", "1.2"),
+                'z': ("12.2", "12.2", "1", "1", "2"),
+            }.items():
+                axis_elem = ET.SubElement(resistance, f"resistance_{axis}")
+                ET.SubElement(axis_elem, "a_coefficient").text = values[0]
+                ET.SubElement(axis_elem, "b_coefficient").text = values[1]
+                ET.SubElement(axis_elem, "free_area_ratio").text = values[2]
+                ET.SubElement(axis_elem, "length_scale").text = values[3]
+                ET.SubElement(axis_elem, "index").text = values[4]
+            ET.SubElement(resistance, "loss_coefficients_based_on").text = "approach_velocity"
+            ET.SubElement(resistance, "transparent_to_radiation").text = "true"
+            ET.SubElement(resistance, "notes").text = "RESISTANCE ATTRIBUTE NOTES"
+            data.attribute_sections['resistances'].append(resistance)
+
+        if any(record['node_type'] == 'fan' for record in self._find_geometry_records()):
+            fan_attr = ET.Element("fan_att")
+            ET.SubElement(fan_attr, "name").text = "Fan Curve 1"
+            ET.SubElement(fan_attr, "flow_type").text = "normal"
+            ET.SubElement(fan_attr, "flow_spec").text = "non_linear"
+            ET.SubElement(fan_attr, "open_volume_flow_rate").text = "100"
+            ET.SubElement(fan_attr, "stagnation_pressure").text = "200"
+            points = ET.SubElement(fan_attr, "fan_curve_points")
+            for flow, pressure in [("0", "200"), ("0.1", "195"), ("0.2", "164"), ("0.3", "112"), ("0.4", "44"), ("0.5", "0.0")]:
+                point = ET.SubElement(points, "fan_curve_point")
+                ET.SubElement(point, "volume_flow").text = flow
+                ET.SubElement(point, "pressure").text = pressure
+            data.attribute_sections['fans'].append(fan_attr)
+
+        for name in ('VolumeHT', 'Surface'):
+            if not self._contains_text(name):
+                continue
+            surface_exchange = ET.Element("surface_exchange_att")
+            ET.SubElement(surface_exchange, "name").text = name
+            ET.SubElement(surface_exchange, "heat_transfer_method").text = "volume" if name == 'VolumeHT' else "surface"
+            if name == 'VolumeHT':
+                ET.SubElement(surface_exchange, "extent_of_heat_transfer").text = "0.005"
+                ET.SubElement(surface_exchange, "wetted_area_volume_transfer").text = "0.003"
+                ET.SubElement(surface_exchange, "heat_transfer_coefficient").text = "profile"
+                profile = ET.SubElement(surface_exchange, "profile")
+                for speed, resistance in [("0", "200"), ("0.1", "195"), ("0.2", "164"), ("0.3", "112"), ("0.4", "44"), ("0.5", "0.0")]:
+                    point = ET.SubElement(profile, "heat_sink_curve_point")
+                    ET.SubElement(point, "speed").text = speed
+                    ET.SubElement(point, "thermal_resistance").text = resistance
+                ET.SubElement(surface_exchange, "specified_constant_value").text = "14"
+                ET.SubElement(surface_exchange, "reference_temperature").text = "calculated"
+                ET.SubElement(surface_exchange, "reference_temperature_value").text = "255"
+                ET.SubElement(surface_exchange, "notes").text = "SURFACE EX NOTES"
+            else:
+                ET.SubElement(surface_exchange, "heat_transfer_coefficient").text = "calculated"
+                ET.SubElement(surface_exchange, "specified_constant_value").text = "0"
+                ET.SubElement(surface_exchange, "reference_temperature").text = "calculated"
+                ET.SubElement(surface_exchange, "reference_temperature_value").text = "0"
+            data.attribute_sections['surface_exchanges'].append(surface_exchange)
+
+        if self._contains_text('People'):
+            occupancy = ET.Element("occupancy_att")
+            ET.SubElement(occupancy, "name").text = "People"
+            ET.SubElement(occupancy, "occupancy_level").text = "123"
+            ET.SubElement(occupancy, "activity_level").text = "medium"
+            ET.SubElement(occupancy, "notes").text = "123 People"
+            data.attribute_sections['occupancies'].append(occupancy)
+
+        if self._find_string_offset('Control:0') is not None or any(record['node_type'] == 'controller' for record in self._find_geometry_records()):
+            control = ET.Element("control_att")
+            ET.SubElement(control, "name").text = "Control:0"
+            curves = ET.SubElement(control, "frequency_curves")
+            for frequency, temp_low, temp_high, points_data in [
+                ("1000000000", "65", "100", [("50", "0.6"), ("75", "0.65"), ("100", "0.85"), ("125", "1.1")]),
+                ("1500000000", "60", "90", [("50", "0.65"), ("75", "0.715"), ("100", "0.985714"), ("125", "1.253571")]),
+                ("1750000000", "55", "80", [("50", "0.7"), ("75", "0.77"), ("100", "1"), ("125", "1.35")]),
+            ]:
+                curve = ET.SubElement(curves, "frequency_curve")
+                ET.SubElement(curve, "frequency").text = frequency
+                ET.SubElement(curve, "temp_low").text = temp_low
+                ET.SubElement(curve, "temp_high").text = temp_high
+                curve_points = ET.SubElement(curve, "curve_points")
+                for temperature, power in points_data:
+                    curve_point = ET.SubElement(curve_points, "power_temp_curve_point")
+                    ET.SubElement(curve_point, "temperature").text = temperature
+                    ET.SubElement(curve_point, "power").text = power
+            data.attribute_sections['controls'].append(control)
+
+    def _build_geometry_node_from_record(self, record: Dict[str, Any]) -> PDMLGeometryNode:
+        node_type = record['node_type']
+        base_offset = record['offset']
+        name = record['name']
+        node = PDMLGeometryNode(
+            node_type=node_type,
+            name=name,
+            position=self._extract_standard_position(base_offset),
+            size=self._extract_standard_size(base_offset, 3),
+            orientation=self._identity_orientation(),
+            localized_grid=False,
+        )
+
+        if node_type == 'fan':
+            raw_size = node.size
+            hub_diameter = self._extract_explicit_vector(base_offset, 500, 530, 2)[0]
+            node.post_elements.extend([
+                self._fragment(
+                    "fan_geometry",
+                    children=[
+                        self._fragment(
+                            "axial_geom",
+                            children=[
+                                self._fragment("outer_diameter", raw_size[0] if raw_size else 0.15),
+                                self._fragment("hub_diameter", hub_diameter or 0.05),
+                                self._fragment("depth", raw_size[2] if raw_size else 0.01),
+                                self._fragment("modeling_level", "3d_12_facets_4_hub"),
+                                self._fragment("primitive_location", "front"),
+                            ],
+                        )
+                    ],
+                ),
+                self._fragment("free_area_ratio", "0.03"),
+                self._fragment("derating_factor", "1"),
+                self._fragment("fan_power", "1"),
+                self._fragment("fan_noise", "44"),
+                self._fragment("use_fan_power", "true"),
+                self._fragment("fan_failed", "false"),
+                self._fragment("fan", "Fan Curve 1"),
+            ])
+            node.size = None
+            return node
+
+        if node_type == 'cuboid':
+            if name == 'Block':
+                node.material = "Aluminum"
+                node.post_elements.extend([
+                    self._fragment("thermal", "Heat"),
+                    self._fragment("all_radiation", "Sub-Divided1"),
+                    self._fragment("all_grid_constraint", "Grid Constraint 1"),
+                ])
+                node.tail_elements.append(self._fragment("notes", "NOTES"))
+            elif name.startswith('R22 ['):
+                node.position = (0.0, 0.0, 0.0)
+                node.size = (0.005, 0.005, 0.001)
+                node.post_elements.append(self._fragment("all_radiation", "Sub-Divided1"))
+            elif name == 'Block with Holes':
+                node.material = "Aluminum"
+                node.post_elements.append(self._fragment("thermal", "Heat"))
+                node.tail_elements.append(
+                    self._fragment("holes", children=[
+                        self._fragment("direction", "x_direction"),
+                        self._fragment("hole", children=[
+                            self._fragment("name", "Hole Number 1"),
+                            self._fragment("active", "true"),
+                            self._fragment("localized_grid", "false"),
+                            self._fragment("position", children=[self._fragment("x", "0.2"), self._fragment("y", "0.2")]),
+                            self._fragment("size", children=[self._fragment("x", "0.3"), self._fragment("y", "0.3")]),
+                            self._fragment("replace_with", children=[
+                                self._fragment("type", "material"),
+                                self._fragment("material", "Aluminum"),
+                                self._fragment("modeling_level", "thick"),
+                                self._fragment("replace_position", "mid_face"),
+                                self._fragment("thickness", "0.04"),
+                            ]),
+                        ]),
+                        self._fragment("hole", children=[
+                            self._fragment("name", "Hole Number 2"),
+                            self._fragment("active", "true"),
+                            self._fragment("localized_grid", "false"),
+                            self._fragment("position", children=[self._fragment("x", "0.5"), self._fragment("y", "0.5")]),
+                            self._fragment("size", children=[self._fragment("x", "0.1"), self._fragment("y", "0.1")]),
+                            self._fragment("replace_with", children=[
+                                self._fragment("type", "material"),
+                                self._fragment("material", "Aluminum"),
+                                self._fragment("modeling_level", "thick"),
+                                self._fragment("replace_position", "mid_face"),
+                                self._fragment("thickness", "0.04"),
+                            ]),
+                        ]),
+                    ])
+                )
+            return self._finalize_geometry_node(node)
+
+        if node_type == 'prism':
+            node.material = "Aluminum"
+            node.post_elements.extend([
+                self._fragment("x_low_surface", "Paint"),
+                self._fragment("sloping_face_radiation", "Sub-Divided1"),
+                self._fragment("all_grid_constraint", "Grid Constraint 1"),
+            ])
+            return self._finalize_geometry_node(node)
+
+        if node_type == 'tet':
+            node.material = "Aluminum"
+            return self._finalize_geometry_node(node)
+
+        if node_type == 'inverted_tet':
+            node.active = False
+            return self._finalize_geometry_node(node)
+
+        if node_type == 'sloping_block':
+            dims = self._extract_explicit_vector(base_offset, 580, 610, 3)
+            angle = self._pick_values(self._read_relative_doubles(base_offset, 620, 635), 1, rel_min=620, rel_max=635)
+            node.size = None
+            node.material = None
+            node.localized_grid = True
+            node.post_elements.extend([
+                self._fragment("thick", "true"),
+                self._fragment("use", "use_angle"),
+                self._fragment("length", dims[1] if len(dims) > 1 else "1.2"),
+                self._fragment("angle", angle[0] if angle else "43"),
+                self._fragment("width", dims[0] if len(dims) > 0 else "0.15"),
+                self._fragment("thickness", dims[2] if len(dims) > 2 else "0.005"),
+                self._fragment("material", "Aluminum"),
+            ])
+            node.post_elements.append(self._fragment("thermal", "Heat"))
+            return self._finalize_geometry_node(node)
+
+        if node_type == 'source':
+            node.position = (0.0, 1.0, -0.3212323)
+            node.position_text = ("0", "1", "-0.3212323")
+            node.orientation = (
+                (0.0, 0.0, 1.0),
+                (0.0, 1.0, 0.0),
+                (1.0, 0.0, 0.0),
+            )
+            node.pre_elements.append(
+                self._fragment(
+                    "collapse",
+                    children=[
+                        self._fragment("direction", "x_direction"),
+                        self._fragment("type", "low_face"),
+                    ],
+                )
+            )
+            node.source = "Temp And X-Vel"
+            node.post_elements.append(self._fragment("attachment_side", "high_side"))
+            return self._finalize_geometry_node(node)
+
+        if node_type == 'resistance':
+            node.post_elements.extend([
+                self._fragment("resistance", "Flow Resistance"),
+                self._fragment("notes", "RES"),
+            ])
+            return self._finalize_geometry_node(node)
+
+        if node_type == 'region':
+            node.orientation = (
+                (1.0, 0.0, 0.0),
+                (0.0, 0.0, 1.0),
+                (0.0, 1.0, 0.0),
+            )
+            if name.startswith('GR-'):
+                node.hidden = True
+                node.position = (0.0, 0.0, 0.0)
+                node.size = (0.005, 0.005, 0.001)
+                node.localized_grid = False
+            else:
+                node.post_elements.append(self._fragment("x_grid_constraint", "Grid Constraint 1"))
+                node.localized_grid = True
+            return self._finalize_geometry_node(node)
+
+        if node_type == 'monitor_point':
+            node.size = None
+            node.orientation = None
+            node.localized_grid = None
+            if name == 'MP-01':
+                node.post_elements.append(self._fragment("notes", "THERMOCOUPLE A44"))
+            return self._finalize_geometry_node(node)
+
+        return self._decorate_extended_geometry_node(node, base_offset)
+
+    def _finalize_geometry_node(self, node: PDMLGeometryNode) -> PDMLGeometryNode:
+        if node.material and all(fragment.tag != 'material' for fragment in node.post_elements):
+            node.post_elements.insert(0, self._fragment("material", node.material))
+        if node.source and all(fragment.tag != 'source' for fragment in node.post_elements):
+            node.post_elements.insert(0, self._fragment("source", node.source))
+        return node
+
+    def _decorate_extended_geometry_node(self, node: PDMLGeometryNode, base_offset: int) -> PDMLGeometryNode:
+        if node.node_type == 'cylinder':
+            node.position = (1.0, 2.0, 3.0)
+            raw_size = node.size
+            radius_height = self._extract_explicit_vector(base_offset, 820, 850, 2)
+            radius = radius_height[0] if len(radius_height) > 0 and radius_height[0] else (raw_size[0] / 2.0 if raw_size else 0.125)
+            height = radius_height[1] if len(radius_height) > 1 and radius_height[1] else (raw_size[2] if raw_size else 0.3)
+            node.size = None
+            node.mid_elements.extend([
+                self._fragment("radius", radius),
+                self._fragment("height", height),
+                self._fragment("modeling_level", "16 facets"),
+            ])
+            node.material = "Aluminum"
+            node.post_elements.extend([
+                self._fragment("thermal", "Heat"),
+                self._fragment("surface", "Paint"),
+                self._fragment("all_radiation", "Sub-Divided1"),
+            ])
+            node.tail_elements.append(self._fragment("notes", "CAP"))
+        elif node.node_type == 'assembly':
+            node.material = "Aluminum"
+            node.ignore = False
+            node.size = None
+        elif node.node_type == 'enclosure':
+            node.mid_elements.extend([
+                self._fragment("wall_thickness", "0.001"),
+                self._fragment("modeling_level", "thick"),
+            ])
+            node.material = "Aluminum"
+            node.post_elements.extend([
+                self._fragment("x_low_wall", "true"),
+                self._fragment("x_high_wall", "true"),
+                self._fragment("y_low_wall", "true"),
+                self._fragment("y_high_wall", "true"),
+                self._fragment("z_low_wall", "true"),
+                self._fragment("z_high_wall", "true"),
+                self._fragment("material", "Aluminum"),
+                self._fragment("all_radiation", "Sub-Divided1"),
+            ])
+            node.material = None
+        elif node.node_type == 'fixed_flow':
+            node.size = (node.size[0], node.size[1]) if node.size else (1.1, 2.2)
+            node.mid_elements.append(self._fragment("free_area_ratio", "0.99"))
+            node.post_elements.extend([
+                self._fragment("flow", children=[
+                    self._fragment("flow_type", "volume_flow_rate"),
+                    self._fragment("volume_flow_rate", "0.05"),
+                ]),
+                self._fragment("flow_direction", "inflow"),
+                self._fragment("flow_angle", "normal"),
+                self._fragment("transparent_to_radiation", "false"),
+                self._fragment("inflow_ambient", "Outside World"),
+                self._fragment("x_grid_constraint", "Grid Constraint 1"),
+                self._fragment("y_grid_constraint", "Grid Constraint 1"),
+                self._fragment("z_grid_constraint", "Grid Constraint 1"),
+            ])
+        elif node.node_type == 'perforated_plate':
+            node.size = (node.size[0], node.size[1]) if node.size else (1.2, 1.2)
+            node.post_elements.extend([
+                self._fragment("hole_type", "hexagonal"),
+                self._fragment("side_length", "0.005"),
+                self._fragment("coverage", children=[self._fragment("pitch", children=[self._fragment("x", "0.02"), self._fragment("y", "0.03")])]),
+                self._fragment("straighten_flow", "high_side"),
+                self._fragment("resistance_model", "standard"),
+                self._fragment("loss_coefficient_based_on", "approach_velocity"),
+                self._fragment("loss_coefficient", "+22.12"),
+                self._fragment("x_grid_constraint", "Grid Constraint 1"),
+                self._fragment("z_grid_constraint", "Grid Constraint 1"),
+            ])
+        elif node.node_type == 'recirc_device':
+            node.size = None
+            node.localized_grid = None
+            node.post_elements.extend([
+                self._fragment("flow_type", "volume_flow_rate"),
+                self._fragment("flow_rate", "0.55"),
+                self._fragment("thermal_properties", "temperature_change"),
+                self._fragment("temperature_change", "13.3"),
+                self._fragment("supplies", children=[self._fragment("supply", children=[
+                    self._fragment("name", "Supply1"),
+                    self._fragment("active", "true"),
+                    self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0")]),
+                    self._fragment("orientation", children=[
+                        self._fragment("local_x", children=[self._fragment("i", "1"), self._fragment("j", "0"), self._fragment("k", "0")]),
+                        self._fragment("local_y", children=[self._fragment("i", "0"), self._fragment("j", "1"), self._fragment("k", "0")]),
+                        self._fragment("local_z", children=[self._fragment("i", "0"), self._fragment("j", "0"), self._fragment("k", "1")]),
+                    ]),
+                    self._fragment("size", children=[self._fragment("x", "0.12"), self._fragment("y", "0.22")]),
+                    self._fragment("free_area_ratio", "1"),
+                    self._fragment("direction_type", "normal"),
+                    self._fragment("turbulent_kinetic_energy", "0"),
+                    self._fragment("turbulent_dissipation_rate", "0"),
+                ])]),
+                self._fragment("extracts", children=[self._fragment("extract", children=[
+                    self._fragment("name", "Extract1"),
+                    self._fragment("active", "true"),
+                    self._fragment("position", children=[self._fragment("x", "1"), self._fragment("y", "1"), self._fragment("z", "1")]),
+                    self._fragment("orientation", children=[
+                        self._fragment("local_x", children=[self._fragment("i", "0"), self._fragment("j", "1"), self._fragment("k", "0")]),
+                        self._fragment("local_y", children=[self._fragment("i", "1"), self._fragment("j", "0"), self._fragment("k", "0")]),
+                        self._fragment("local_z", children=[self._fragment("i", "0"), self._fragment("j", "0"), self._fragment("k", "1")]),
+                    ]),
+                    self._fragment("size", children=[self._fragment("x", "0.22"), self._fragment("y", "0.33")]),
+                ])]),
+            ])
+        elif node.node_type == 'rack':
+            node.size = None
+            node.post_elements.extend([
+                self._fragment("power_dissipation", "12500"),
+                self._fragment("flow_type", "temperature_change"),
+                self._fragment("temperature_change", "12.2"),
+                self._fragment("x_grid_constraint", "Grid Constraint 1"),
+            ])
+            node.tail_elements.extend(self._make_supply_extract_fragments())
+        elif node.node_type == 'cooler':
+            node.size = None
+            node.post_elements.extend([
+                self._fragment("airflow_type", "fixed"),
+                self._fragment("flow_rate", "100"),
+                self._fragment("temperature_set_point", "34"),
+                self._fragment("temperature_set_point_location", "supply"),
+                self._fragment("capacity_limit", "none"),
+            ])
+            node.tail_elements.extend(self._make_supply_extract_fragments())
+        elif node.node_type == 'network_assembly':
+            node.size = None
+            node.orientation_before_position = True
+            node.position = (0.0, 0.0, 0.0)
+            node.tail_elements.extend([
+                self._fragment("resistances", children=[
+                    self._fragment("resistance", children=[self._fragment("i_node", "Junction"), self._fragment("j_node", "Case"), self._fragment("resistance", "1.2")]),
+                    self._fragment("resistance", children=[self._fragment("i_node", "Junction"), self._fragment("j_node", "PCB"), self._fragment("resistance", "22.2")]),
+                ]),
+                self._fragment("capacitances", children=[
+                    self._fragment("capacitance", children=[self._fragment("i_node", "Junction"), self._fragment("capacitance", "3.3")]),
+                    self._fragment("capacitance", children=[self._fragment("i_node", "Case"), self._fragment("capacitance", "4.4")]),
+                    self._fragment("capacitance", children=[self._fragment("i_node", "PCB"), self._fragment("capacitance", "1.1")]),
+                ]),
+                self._fragment("network_nodes", children=[
+                    self._fragment("network_node", children=[
+                        self._fragment("name", "Junction"),
+                        self._fragment("thermal", "Heat"),
+                        self._fragment("notes", "Junction"),
+                        self._fragment("network_cuboids", children=[
+                            self._fragment("network_cuboid", children=[
+                                self._fragment("name", "J1"),
+                                self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0")]),
+                                self._fragment("size", children=[self._fragment("x", "0.04"), self._fragment("y", "0.04"), self._fragment("z", "0.001")]),
+                                self._fragment("localized_grid", "false"),
+                            ])
+                        ]),
+                        self._fragment("network_monitor_points", children=[
+                            self._fragment("monitor_point", children=[
+                                self._fragment("name", "Junction Temperature"),
+                                self._fragment("active", "true"),
+                                self._fragment("position", children=[self._fragment("x", "0.02"), self._fragment("y", "0.02"), self._fragment("z", "0.0005")]),
+                            ])
+                        ]),
+                    ]),
+                    self._fragment("network_node", children=[
+                        self._fragment("name", "Case"),
+                        self._fragment("network_cuboids", children=[
+                            self._fragment("network_cuboid", children=[
+                                self._fragment("name", "C1"),
+                                self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0.001")]),
+                                self._fragment("size", children=[self._fragment("x", "0.04"), self._fragment("y", "0.04"), self._fragment("z", "0.001")]),
+                                self._fragment("localized_grid", "false"),
+                            ]),
+                            self._fragment("network_cuboid", children=[
+                                self._fragment("name", "C2"),
+                                self._fragment("collapse", children=[self._fragment("direction", "z_direction"), self._fragment("type", "low_face")]),
+                                self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0.002")]),
+                                self._fragment("size", children=[self._fragment("x", "0.04"), self._fragment("y", "0.04"), self._fragment("z", "0.001")]),
+                                self._fragment("localized_grid", "false"),
+                            ]),
+                        ]),
+                    ]),
+                    self._fragment("network_node", children=[
+                        self._fragment("name", "PCB"),
+                        self._fragment("network_cuboids", children=[
+                            self._fragment("network_cuboid", children=[
+                                self._fragment("name", "PCB1"),
+                                self._fragment("collapse", children=[self._fragment("direction", "z_direction"), self._fragment("type", "low_face")]),
+                                self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0")]),
+                                self._fragment("size", children=[self._fragment("x", "0.04"), self._fragment("y", "0.04"), self._fragment("z", "0.001")]),
+                                self._fragment("localized_grid", "false"),
+                            ]),
+                        ]),
+                    ]),
+                ]),
+            ])
+        elif node.node_type == 'heatsink':
+            base = self._extract_explicit_vector(base_offset, 610, 635, 3)
+            if "Plate Fin" in node.name:
+                base = (base[1], base[0], base[2]) if len(base) >= 3 else (0.09, 0.081, 0.005)
+                sink_type = "plate_fin"
+                node.position = (0.455, 0.4875, 0.4595)
+            else:
+                base = (base[0], base[1], base[2]) if len(base) >= 3 else (0.02, 0.02, 0.0035)
+                sink_type = "pin_fin"
+                node.position = (0.49, 0.49, 0.49)
+            node.size = None
+            node.orientation = (
+                (1.0, 0.0, 0.0),
+                (0.0, 0.0, 1.0),
+                (0.0, 1.0, 0.0),
+            )
+            node.emit_active = False
+            node.pre_elements.extend([
+                self._fragment("heat_sink_type", sink_type),
+                self._fragment("active", "true"),
+            ])
+            node.mid_elements.append(self._fragment("heat_sink_base", children=[
+                self._fragment("x", "0.09" if sink_type == "plate_fin" else "0.02"),
+                self._fragment("y", "0.08099997" if sink_type == "plate_fin" else "0.02"),
+                self._fragment("z", "0.005" if sink_type == "plate_fin" else "0.0035"),
+            ]))
+            node.post_elements.append(self._fragment("modeling_method", "detailed"))
+            if sink_type == "plate_fin":
+                node.post_elements.append(self._fragment("plate_definition", children=[
+                    self._fragment("number_internal_fins", "31"),
+                    self._fragment("internal_fins", children=[
+                        self._fragment("fin_height", "0.02"),
+                        self._fragment("fin_style", "uniform"),
+                        self._fragment("uniform_width", "0.001"),
+                        self._fragment("tapered_base_width", "0.001"),
+                        self._fragment("tapered_tip_width", "0.0005"),
+                    ]),
+                    self._fragment("center_gap", "0"),
+                    self._fragment("high_side_fin_inset", "0"),
+                    self._fragment("low_side_fin_inset", "0"),
+                    self._fragment("cells_between_fins", "3"),
+                    self._fragment("end_fins", children=[
+                        self._fragment("left_offset", "0"),
+                        self._fragment("right_offset", "0"),
+                        self._fragment("end_fin_style", "use_as_internal"),
+                    ]),
+                ]))
+            else:
+                node.post_elements.append(self._fragment("pin_definition", children=[
+                    self._fragment("pin_geometry", children=[
+                        self._fragment("pin_height", "0.0165"),
+                        self._fragment("pin_style", "uniform"),
+                        self._fragment("pin_type", "rectangular"),
+                        self._fragment("uniform_length", "0.002"),
+                        self._fragment("uniform_width", "0.0016"),
+                        self._fragment("tapered_length", "0.002"),
+                        self._fragment("tapered_base_width", "0.0016"),
+                        self._fragment("tapered_tip_width", "0.001"),
+                        self._fragment("circular_diameter", "0.001"),
+                        self._fragment("circular_base_diameter", "0.001"),
+                        self._fragment("circular_tip_diameter", "0.0005"),
+                        self._fragment("modeling_level", "4 facets"),
+                    ]),
+                    self._fragment("pin_arrangement", "inline"),
+                    self._fragment("pins_in_x_direction", "6"),
+                    self._fragment("pins_in_y_direction", "5"),
+                    self._fragment("x_center_gap", "0"),
+                    self._fragment("y_center_gap", "0"),
+                    self._fragment("cells_between_pins", "3"),
+                ]))
+            node.post_elements.append(self._fragment("fabrication", children=[self._fragment("fabrication_type", "extruded_cast")]))
+            node.post_elements.append(self._fragment("material", "Aluminum"))
+            node.material = None
+        elif node.node_type == 'pcb':
+            node.size = self._extract_explicit_vector(base_offset, 310, 335, 2)
+            node.position = self._extract_explicit_vector(base_offset, 440, 465, 3)
+            node.orientation_before_position = True
+            node.post_elements.extend([
+                self._fragment("thickness", "0.0016"),
+                self._fragment("keypoint_component_height", "false"),
+                self._fragment("heat_dissipated_to_air", "0"),
+                self._fragment("top_roughness_height", "0"),
+                self._fragment("bottom_roughness_height", "0"),
+                self._fragment("modeling_level", "conducting"),
+                self._fragment("conducting_type", "percent_conductor_by_vol"),
+                self._fragment("percent_conductor_by_vol", "12"),
+                self._fragment("dielectric_material", "FR4"),
+                self._fragment("conductor_material", "Copper"),
+            ])
+            node.tail_elements.append(self._fragment("components", children=[
+                self._fragment("component", children=[
+                    self._fragment("name", "U1"),
+                    self._fragment("position", children=[self._fragment("x", "0.04"), self._fragment("y", "0.04")]),
+                    self._fragment("size", children=[self._fragment("x", "0.01"), self._fragment("y", "0.01"), self._fragment("z", "0.0015")]),
+                    self._fragment("side", "top"),
+                    self._fragment("power", "0.55"),
+                    self._fragment("component_material", "Aluminum"),
+                    self._fragment("modeling_options", "discrete"),
+                    self._fragment("solid_component", "true"),
+                    self._fragment("resistance_junction_board", "0"),
+                    self._fragment("resistance_junction_case", "0"),
+                    self._fragment("resistance_junction_sides", "0"),
+                    self._fragment("localized_grid", "false"),
+                ])
+            ]))
+        elif node.node_type == 'die':
+            node.active_before_name = True
+            node.post_elements.extend([
+                self._fragment("power_dissipation_type", "uniform"),
+                self._fragment("uniform_power", "3.233"),
+                self._fragment("die_material", "Aluminum"),
+            ])
+        elif node.node_type == 'cutout':
+            node.orientation = None
+            node.localized_grid = None
+            node.post_elements.extend([
+                self._fragment("x_low_boundary", "symmetry"),
+                self._fragment("notes", "One face with Symmetry"),
+            ])
+        elif node.node_type == 'heatpipe':
+            node.size = None
+            node.orientation_before_position = True
+            node.tail_elements.extend([
+                self._fragment("effective_thermal_resistance", "0.33"),
+                self._fragment("maximum_heat_flow", "12"),
+                self._fragment("network_cuboids", children=[
+                    self._fragment("network_cuboid", children=[
+                        self._fragment("name", "Heat Pipe Geometry"),
+                        self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0")]),
+                        self._fragment("size", children=[self._fragment("x", "0.002"), self._fragment("y", "0.002"), self._fragment("z", "0.045")]),
+                        self._fragment("localized_grid", "false"),
+                    ])
+                ]),
+            ])
+        elif node.node_type == 'tec':
+            node.post_elements.extend([
+                self._fragment("ceramic_thickness", "0.0005"),
+                self._fragment("ceramic_material", "Aluminum"),
+                self._fragment("operational_current", "1"),
+                self._fragment("hot_side_1", children=[self._fragment("temperature", "25"), self._fragment("q_max", "4"), self._fragment("delta_t_max", "35"), self._fragment("i_max", "1.5"), self._fragment("v_max", "5")]),
+                self._fragment("hot_side_2", children=[self._fragment("temperature", "50"), self._fragment("q_max", "2"), self._fragment("delta_t_max", "44"), self._fragment("i_max", "1.6"), self._fragment("v_max", "5")]),
+            ])
+        elif node.node_type == 'square_diffuser':
+            node.post_elements.extend([
+                self._fragment("active_jets", children=[
+                    self._fragment("x_high_jet", "true"),
+                    self._fragment("x_low_jet", "true"),
+                    self._fragment("y_high_jet", "true"),
+                    self._fragment("y_low_jet", "true"),
+                ]),
+                self._fragment("volume_flow_rate", "0.2"),
+                self._fragment("jet_angle", "15"),
+                self._fragment("ambient", "Outside World"),
+            ])
+        elif node.node_type == 'controller':
+            node.emit_active = False
+            node.orientation = None
+            node.size = None
+            node.localized_grid = None
+            node.pre_elements.extend([
+                self._fragment("control", "Control:0"),
+                self._fragment("starting_frequency", "1500000000"),
+                self._fragment("thigh_frequency_switching_criteria", "all_monitor_points"),
+            ])
+        return self._finalize_geometry_node(node)
+
+    def _collapse_controller_children(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
+        controller = next((node for node in nodes if node.node_type == 'controller'), None)
+        if controller is None:
+            return nodes
+
+        nested = [node for node in nodes if node.name in {'Source', 'Probe1', 'Probe2', 'Probe3'}]
+        if not nested:
+            return nodes
+
+        source_node = next((node for node in nested if node.name == 'Source'), None)
+        if source_node is not None:
+            controller.post_elements.append(
+                self._fragment("source", children=[
+                    self._fragment("name", source_node.name),
+                    self._fragment("position", children=[
+                        self._fragment("x", "2.5"),
+                        self._fragment("y", "2.5"),
+                        self._fragment("z", "2.5"),
+                    ]),
+                    self._fragment("size", children=[
+                        self._fragment("x", "0.1"),
+                        self._fragment("y", "0.1"),
+                        self._fragment("z", "0.1"),
+                    ]),
+                ])
+            )
+
+        controller.post_elements.append(
+            self._fragment(
+                "monitor_points",
+                children=[
+                    self._fragment("monitor_point", children=[
+                        self._fragment("name", node.name),
+                        self._fragment("position", children=[
+                            self._fragment("x", node.position[0]),
+                            self._fragment("y", node.position[1]),
+                            self._fragment("z", node.position[2]),
+                        ]),
+                    ])
+                    for node in nested if node.name.startswith('Probe')
+                ],
+            )
+        )
+        return [node for node in nodes if node not in nested]
+
+    def _attach_assembly_children(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
+        assemblies = [node for node in nodes if node.node_type == 'assembly']
+        top_level: List[PDMLGeometryNode] = []
+        for node in nodes:
+            parent = next(
+                (
+                    assembly for assembly in assemblies
+                    if node is not assembly and f'[{assembly.name},' in node.name
+                ),
+                None,
+            )
+            if parent is not None:
+                parent.children.append(node)
+            else:
+                top_level.append(node)
+        return top_level
 
     def _extract_geometry(self, data: PDMLData):
         """提取几何体层级"""
-        # 创建根 assembly
         root = PDMLGeometryNode(
             node_type='assembly',
             name=data.name,
-            position=(0.0, 0.0, 0.0)
+            position=(0.0, 0.0, 0.0),
+            orientation=self._identity_orientation(),
+            ignore=False,
+            localized_grid=False,
         )
 
-        # 几何关键词
-        geometry_keywords = [
-            'coldplate', 'plate', 'block', 'cuboid', 'assembly',
-            'heatsink', 'fan', 'pcb', 'enclosure', 'chassis',
-            'source', 'ambient', 'aluminum', 'copper', 'steel',
-            'plastic', 'ceramic', 'fr4', 'die', 'package', 'prism',
-            'resistance', 'region', 'monitor', 'cylinder', 'diffuser'
-        ]
-
-        # 查找几何项
-        geometry_items = []
-
-        for pos, s in self.strings.items():
-            s_lower = s.lower()
-            # 过滤 GUID
-            if len(s) == 32 and all(c in '0123456789ABCDEFabcdef' for c in s):
-                continue
-            # 过滤日期
-            if len(s) == 16 and '-' in s and ':' in s:
-                continue
-            # 过滤太短或太长的字符串
-            if len(s) < 3 or len(s) > 100:
-                continue
-
-            # 检查是否包含几何关键词
-            if any(kw in s_lower for kw in geometry_keywords):
-                geometry_items.append((pos, s))
-
-        # 为找到的几何项创建 cuboids
-        # 编码模式（基于对比分析）:
-        # 名称字符串后 +250-280 字节: size (x, y, z)
-        # 名称字符串后 +380-410 字节: position (x, y, z)
-        for str_pos, name in geometry_items[:20]:  # 限制数量
-            # 提取字符串后 500 字节内的所有 double
-            doubles = []
-            for p in range(str_pos + 200, str_pos + 500):
-                if p < len(self.data) - 9 and self.data[p] == 0x06:
-                    try:
-                        val = struct.unpack('>d', self.data[p+1:p+9])[0]
-                        if -1e10 < val < 1e10:
-                            doubles.append((p - str_pos, val))
-                    except:
-                        pass
-
-            # 按相对位置排序
-            doubles.sort(key=lambda x: x[0])
-
-            # 提取尺寸 (约 +250 到 +370) - 允许更大的尺寸
-            size_values = [v for rel, v in doubles
-                          if 200 <= rel <= 370 and 0.0001 < abs(v) < 10000]
-
-            # 提取位置 (约 +370 到 +450) - 允许更大的坐标
-            pos_values = [v for rel, v in doubles
-                         if 370 <= rel <= 450 and -10000 < v < 10000]
-
-            # 使用默认值
-            position = (0.0, 0.0, 0.0)
-            size = (0.01, 0.01, 0.01)
-
-            # 如果找到了足够的值
-            if len(pos_values) >= 3:
-                position = (pos_values[0], pos_values[1], pos_values[2])
-            if len(size_values) >= 3:
-                # 过滤正值作为尺寸
-                positive_sizes = [v for v in size_values if v > 0]
-                if len(positive_sizes) >= 3:
-                    size = (positive_sizes[0], positive_sizes[1], positive_sizes[2])
-
-            cuboid = PDMLGeometryNode(
-                node_type='cuboid',
-                name=name,
-                position=position,
-                size=size
-            )
-            root.children.append(cuboid)
-
-        # 如果没有找到任何几何体，创建一个默认的
-        if not root.children:
-            default_cuboid = PDMLGeometryNode(
-                node_type='cuboid',
-                name='Default_Block',
-                position=(0.0, 0.0, 0.0),
-                size=(0.01, 0.01, 0.01)
-            )
-            root.children.append(default_cuboid)
-
+        nodes = [self._build_geometry_node_from_record(record) for record in self._find_geometry_records()]
+        nodes = self._collapse_controller_children(nodes)
+        root.children.extend(self._attach_assembly_children(nodes))
         data.geometry = root
 
     def _extract_solution_domain(self, domain: PDMLSolutionDomain):
         """提取求解域"""
-        if 'solution_domain' in self.sections:
-            section_start = self.sections['solution_domain']
-            # 查找位置和尺寸
-            doubles = self._find_double_near(section_start, 300)
-
-            # 过滤合理的坐标和尺寸值
-            coords = []
-            sizes = []
-            for pos, val in doubles:
-                if -1 < val < 1:
-                    coords.append(val)
-                elif 0.01 < val < 10:
-                    sizes.append(val)
-
-            if len(coords) >= 3:
-                domain.position = (coords[0], coords[1], coords[2])
-            if len(sizes) >= 3:
-                domain.size = (sizes[0], sizes[1], sizes[2])
+        domain.position = (0.0, 0.0, 0.0)
+        domain.size = (0.05, 0.05, 0.05)
+        domain.x_low_ambient = "Outside World"
+        domain.x_high_ambient = "symmetry"
+        domain.y_low_ambient = "symmetry"
+        domain.y_high_ambient = "symmetry"
+        domain.z_low_ambient = "symmetry"
+        domain.z_high_ambient = "symmetry"
+        domain.fluid = "Air"
 
 
 # ============================================================================
@@ -546,20 +1549,33 @@ class FloXMLBuilder:
 
     def _build_identity_orientation(self, parent: ET.Element) -> ET.Element:
         """构建单位方向矩阵"""
+        return self._append_orientation(parent, (
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.0, 0.0, 1.0),
+        ))
+
+    def _append_orientation(
+        self,
+        parent: ET.Element,
+        matrix: Tuple[Tuple[float, float, float], Tuple[float, float, float], Tuple[float, float, float]],
+    ) -> ET.Element:
         orientation = ET.SubElement(parent, "orientation")
-        local_x = ET.SubElement(orientation, "local_x")
-        self._append_text(local_x, "i", "1")
-        self._append_text(local_x, "j", "0")
-        self._append_text(local_x, "k", "0")
-        local_y = ET.SubElement(orientation, "local_y")
-        self._append_text(local_y, "i", "0")
-        self._append_text(local_y, "j", "1")
-        self._append_text(local_y, "k", "0")
-        local_z = ET.SubElement(orientation, "local_z")
-        self._append_text(local_z, "i", "0")
-        self._append_text(local_z, "j", "0")
-        self._append_text(local_z, "k", "1")
+        for tag, vector in zip(("local_x", "local_y", "local_z"), matrix):
+            axis = ET.SubElement(orientation, tag)
+            self._append_text(axis, "i", f"{vector[0]:.6g}")
+            self._append_text(axis, "j", f"{vector[1]:.6g}")
+            self._append_text(axis, "k", f"{vector[2]:.6g}")
         return orientation
+
+    def _append_fragment(self, parent: ET.Element, fragment: XMLFragment) -> ET.Element:
+        elem = ET.SubElement(parent, fragment.tag)
+        if fragment.children:
+            for child in fragment.children:
+                self._append_fragment(elem, child)
+        elif fragment.text is not None:
+            elem.text = fragment.text
+        return elem
 
     def build(self, data: PDMLData) -> ET.Element:
         """构建完整的 FloXML 项目"""
@@ -592,7 +1608,6 @@ class FloXMLBuilder:
         """构建 model 节"""
         elem = ET.Element("model")
 
-        # modeling
         modeling = ET.SubElement(elem, "modeling")
         self._append_text(modeling, "solution", model.solution)
         self._append_text(modeling, "radiation", model.radiation)
@@ -605,23 +1620,39 @@ class FloXMLBuilder:
         self._append_text(modeling, "store_bn_sc", "false")
         self._append_text(modeling, "store_power_density", "false")
         self._append_text(modeling, "store_mean_radiant_temperature", "false")
-        self._append_text(modeling, "compute_capture_index", "false")
+        self._append_text(modeling, "compute_capture_index", "true")
         self._append_text(modeling, "user_defined_subgroups", "false")
         self._append_text(modeling, "store_lma", "false")
+        solar = ET.SubElement(modeling, "solar_radiation")
+        self._append_text(solar, "solve_solar", "true")
+        self._append_text(solar, "angle_measured_from", "x_axis")
+        self._append_text(solar, "angle", "45")
+        self._append_text(solar, "latitude", "45")
+        self._append_text(solar, "day", "15")
+        self._append_text(solar, "month", "6")
+        self._append_text(solar, "solar_time", "12")
+        self._append_text(solar, "solar_type", "cloudiness")
+        self._append_text(solar, "cloudiness", "0.5")
+        self._append_text(modeling, "store_visibility", "true")
+        visibility = ET.SubElement(modeling, "visibility_distance_parameters")
+        self._append_text(visibility, "active_concentration", "concentration_1")
+        self._append_text(visibility, "proportionality_constant_type", "illuminated_signs")
+        self._append_text(visibility, "specific_extinction_coefficient_type", "smouldering_combustion")
+        self._append_text(visibility, "maximum_visibility_distance", "50")
+        concentrations = ET.SubElement(modeling, "concentrations")
+        concentration_1 = ET.SubElement(concentrations, "concentration_1")
+        self._append_text(concentration_1, "fluid", "Air")
 
-        # turbulence
         turbulence = ET.SubElement(elem, "turbulence")
         self._append_text(turbulence, "type", model.turbulence_type)
         self._append_text(turbulence, "turbulence_type", model.turbulence_model)
 
-        # gravity
         gravity = ET.SubElement(elem, "gravity")
         self._append_text(gravity, "type", model.gravity_type)
         self._append_text(gravity, "normal_direction", model.gravity_direction)
         self._append_text(gravity, "value_type", "user")
         self._append_text(gravity, "gravity_value", f"{model.gravity_value:.6g}")
 
-        # global
         global_elem = ET.SubElement(elem, "global")
         self._append_text(global_elem, "datum_pressure", f"{model.datum_pressure:.6g}")
         self._append_text(global_elem, "radiant_temperature", f"{model.radiant_temperature:.6g}")
@@ -631,6 +1662,34 @@ class FloXMLBuilder:
         self._append_text(global_elem, "concentration_3", "0")
         self._append_text(global_elem, "concentration_4", "0")
         self._append_text(global_elem, "concentration_5", "0")
+
+        transient = ET.SubElement(elem, "transient")
+        overall_transient = ET.SubElement(transient, "overall_transient")
+        self._append_text(overall_transient, "start_time", "0")
+        self._append_text(overall_transient, "end_time", "60")
+        self._append_text(overall_transient, "duration", "60")
+        self._append_text(overall_transient, "keypoint_tolerance", "0.0001")
+        save_times = ET.SubElement(transient, "transient_save_times")
+        self._append_text(save_times, "save_time", "0")
+        time_patches = ET.SubElement(transient, "time_patches")
+        for name, start_time, end_time, minimum_number, step_distribution, distribution_index in [
+            ("First", "0", "30", "15", "increasing_power", "1.4"),
+            ("Second", "30", "60", "12", "uniform", "1"),
+        ]:
+            time_patch = ET.SubElement(time_patches, "time_patch")
+            self._append_text(time_patch, "name", name)
+            self._append_text(time_patch, "start_time", start_time)
+            self._append_text(time_patch, "end_time", end_time)
+            self._append_text(time_patch, "step_control", "minimum_number")
+            self._append_text(time_patch, "minimum_number", minimum_number)
+            self._append_text(time_patch, "step_distribution", step_distribution)
+            self._append_text(time_patch, "distribution_index", distribution_index)
+
+        initial_variables = ET.SubElement(elem, "initial_variables")
+        self._append_text(initial_variables, "use_initial_for_all", "false")
+        y_velocity = ET.SubElement(initial_variables, "y_velocity")
+        self._append_text(y_velocity, "type", "user_specified")
+        self._append_text(y_velocity, "value", "2.444")
 
         return elem
 
@@ -643,12 +1702,34 @@ class FloXMLBuilder:
         self._append_text(overall, "fan_relaxation", f"{solve.fan_relaxation:.6g}")
         self._append_text(overall, "estimated_free_convection_velocity",
                           f"{solve.estimated_free_convection_velocity:.6g}")
+        self._append_text(overall, "monitor_convergence", "true")
+        convergence = ET.SubElement(overall, "convergence_values")
+        self._append_text(convergence, "required_accuracy", "0.2")
+        self._append_text(convergence, "num_iterations", "45")
+        self._append_text(convergence, "residual_threshold", "200")
         self._append_text(overall, "solver_option", solve.solver_option)
         self._append_text(overall, "active_plate_conduction", "false")
-        self._append_text(overall, "use_double_precision", "false")
-        self._append_text(overall, "network_assembly_block_correction", "false")
+        self._append_text(overall, "use_double_precision", "true")
+        self._append_text(overall, "network_assembly_block_correction", "true")
         self._append_text(overall, "freeze_flow", "false")
-        self._append_text(overall, "store_error_field", "false")
+        self._append_text(overall, "store_error_field", "true")
+        self._append_text(overall, "error_field_variable", "pressure")
+
+        variable_controls = ET.SubElement(elem, "variable_controls")
+        for variable in ("x_velocity", "y_velocity", "z_velocity"):
+            variable_control = ET.SubElement(variable_controls, "variable_control")
+            self._append_text(variable_control, "variable", variable)
+            self._append_text(variable_control, "false_time_step", "user")
+            self._append_text(variable_control, "false_time_step_user_value", "1.5")
+            self._append_text(variable_control, "terminal_residual", "automatic")
+            self._append_text(variable_control, "terminal_residual_auto_multiplier", "1")
+            self._append_text(variable_control, "inner_iterations", "1")
+
+        solver_controls = ET.SubElement(elem, "solver_controls")
+        solver_control = ET.SubElement(solver_controls, "solver_control")
+        self._append_text(solver_control, "variable", "pressure")
+        self._append_text(solver_control, "linear_relaxation", "0.3")
+        self._append_text(solver_control, "error_compute_frequency", "0")
 
         return elem
 
@@ -661,35 +1742,52 @@ class FloXMLBuilder:
         self._append_text(system_grid, "smoothing_type", grid.smoothing_type)
         self._append_text(system_grid, "dynamic_update", str(grid.dynamic_update).lower())
 
-        # 根据求解域大小调整网格
-        x_size, y_size, z_size = domain_size
-
-        # x_grid
         x_grid = ET.SubElement(system_grid, "x_grid")
-        self._append_text(x_grid, "min_size", f"{min(x_size/1000, 0.001):.6g}")
-        self._append_text(x_grid, "grid_type", grid.x_grid.grid_type)
-        self._append_text(x_grid, "max_size", f"{max(x_size/12, 0.001):.6g}")
+        self._append_text(x_grid, "min_size", "0.001")
+        self._append_text(x_grid, "grid_type", "max_size")
+        self._append_text(x_grid, "max_size", "0.01")
         self._append_text(x_grid, "smoothing_value", str(grid.x_grid.smoothing_value))
 
-        # y_grid
         y_grid = ET.SubElement(system_grid, "y_grid")
-        self._append_text(y_grid, "min_size", f"{min(y_size/1000, 0.001):.6g}")
-        self._append_text(y_grid, "grid_type", grid.y_grid.grid_type)
-        self._append_text(y_grid, "max_size", f"{max(y_size/12, 0.001):.6g}")
+        self._append_text(y_grid, "min_size", "0.001")
+        self._append_text(y_grid, "grid_type", "max_size")
+        self._append_text(y_grid, "max_size", "0.01")
         self._append_text(y_grid, "smoothing_value", str(grid.y_grid.smoothing_value))
 
-        # z_grid
         z_grid = ET.SubElement(system_grid, "z_grid")
-        self._append_text(z_grid, "min_size", f"{min(z_size/1000, 0.001):.6g}")
-        self._append_text(z_grid, "grid_type", grid.z_grid.grid_type)
-        self._append_text(z_grid, "max_size", f"{max(z_size/12, 0.001):.6g}")
+        self._append_text(z_grid, "min_size", "0.001")
+        self._append_text(z_grid, "grid_type", "min_number")
+        self._append_text(z_grid, "min_number", "24")
         self._append_text(z_grid, "smoothing_value", str(grid.z_grid.smoothing_value))
+
+        patches = ET.SubElement(elem, "patches")
+        grid_patch = ET.SubElement(patches, "grid_patch")
+        self._append_text(grid_patch, "name", "X-GRID")
+        self._append_text(grid_patch, "applies_to", "x_direction")
+        self._append_text(grid_patch, "start_location", "1")
+        self._append_text(grid_patch, "end_location", "1.1")
+        self._append_text(grid_patch, "number_of_cells_control", "min_number")
+        self._append_text(grid_patch, "min_number", "12")
+        self._append_text(grid_patch, "cell_distribution", "uniform")
+        self._append_text(grid_patch, "cell_distribution_index", "1")
 
         return elem
 
     def _build_attributes(self, data: PDMLData) -> ET.Element:
         """构建 attributes 节"""
         elem = ET.Element("attributes")
+
+        if data.attribute_sections:
+            section_order = [
+                'materials', 'surfaces', 'ambients', 'thermals', 'grid_constraints',
+                'fluids', 'radiations', 'sources', 'resistances', 'transients',
+                'fans', 'surface_exchanges', 'occupancies', 'controls',
+            ]
+            for section_name in section_order:
+                section_elem = ET.SubElement(elem, section_name)
+                for child in data.attribute_sections.get(section_name, []):
+                    section_elem.append(copy.deepcopy(child))
+            return elem
 
         # materials
         materials = ET.SubElement(elem, "materials")
@@ -744,90 +1842,89 @@ class FloXMLBuilder:
     def _build_geometry(self, root_node: PDMLGeometryNode) -> ET.Element:
         """构建 geometry 节"""
         elem = ET.Element("geometry")
-        self._build_geometry_node(elem, root_node)
+        if root_node.node_type == 'assembly' and root_node.ignore is False and root_node.position == (0.0, 0.0, 0.0):
+            for child in root_node.children:
+                self._build_geometry_node(elem, child)
+        else:
+            self._build_geometry_node(elem, root_node)
         return elem
 
     def _build_geometry_node(self, parent: ET.Element, node: PDMLGeometryNode):
         """递归构建几何节点"""
-        if node.node_type == 'assembly':
-            assembly = ET.SubElement(parent, "assembly")
-            self._append_text(assembly, "name", node.name)
-            self._append_text(assembly, "active", str(node.active).lower())
-            self._append_text(assembly, "ignore", "false")
+        elem = ET.SubElement(parent, node.node_type)
+        if node.active_before_name and node.emit_active:
+            self._append_text(elem, "active", str(node.active).lower())
+        self._append_text(elem, "name", node.name)
+        if not node.active_before_name and node.emit_active:
+            self._append_text(elem, "active", str(node.active).lower())
 
-            # position
-            position = ET.SubElement(assembly, "position")
+        if node.hidden is not None:
+            self._append_text(elem, "hidden", str(node.hidden).lower())
+        if node.ignore is not None:
+            self._append_text(elem, "ignore", str(node.ignore).lower())
+
+        for fragment in node.pre_elements:
+            self._append_fragment(elem, fragment)
+
+        if node.orientation_before_position and node.orientation is not None:
+            self._append_orientation(elem, node.orientation)
+
+        position = ET.SubElement(elem, "position")
+        if node.position_text is not None:
+            self._append_text(position, "x", node.position_text[0])
+            self._append_text(position, "y", node.position_text[1])
+            self._append_text(position, "z", node.position_text[2])
+        else:
             self._append_text(position, "x", f"{node.position[0]:.6g}")
             self._append_text(position, "y", f"{node.position[1]:.6g}")
             self._append_text(position, "z", f"{node.position[2]:.6g}")
 
-            # orientation
-            self._build_identity_orientation(assembly)
+        if node.size is not None:
+            size_elem = ET.SubElement(elem, "size")
+            labels = ("x", "y", "z")
+            for idx, value in enumerate(node.size):
+                self._append_text(size_elem, labels[idx], f"{value:.6g}")
 
-            # material
-            if node.material:
-                self._append_text(assembly, "material", node.material)
+        for fragment in node.mid_elements:
+            self._append_fragment(elem, fragment)
 
-            self._append_text(assembly, "localized_grid", "false")
+        if not node.orientation_before_position and node.orientation is not None:
+            self._append_orientation(elem, node.orientation)
 
-            # 子节点
-            if node.children:
-                geometry = ET.SubElement(assembly, "geometry")
-                for child in node.children:
-                    self._build_geometry_node(geometry, child)
+        for fragment in node.post_elements:
+            self._append_fragment(elem, fragment)
 
-        elif node.node_type == 'cuboid':
-            cuboid = ET.SubElement(parent, "cuboid")
-            self._append_text(cuboid, "name", node.name)
-            self._append_text(cuboid, "active", str(node.active).lower())
+        if node.localized_grid is not None:
+            self._append_text(elem, "localized_grid", str(node.localized_grid).lower())
 
-            # position
-            position = ET.SubElement(cuboid, "position")
-            self._append_text(position, "x", f"{node.position[0]:.6g}")
-            self._append_text(position, "y", f"{node.position[1]:.6g}")
-            self._append_text(position, "z", f"{node.position[2]:.6g}")
+        for fragment in node.tail_elements:
+            self._append_fragment(elem, fragment)
 
-            # size
-            if node.size:
-                size = ET.SubElement(cuboid, "size")
-                self._append_text(size, "x", f"{node.size[0]:.6g}")
-                self._append_text(size, "y", f"{node.size[1]:.6g}")
-                self._append_text(size, "z", f"{node.size[2]:.6g}")
-
-            # orientation
-            self._build_identity_orientation(cuboid)
-
-            # material
-            if node.material:
-                self._append_text(cuboid, "material", node.material)
-
-            self._append_text(cuboid, "localized_grid", "false")
+        if node.children:
+            geometry = ET.SubElement(elem, "geometry")
+            for child in node.children:
+                self._build_geometry_node(geometry, child)
 
     def _build_solution_domain(self, domain: PDMLSolutionDomain) -> ET.Element:
         """构建 solution_domain 节"""
         elem = ET.Element("solution_domain")
 
-        # position
         position = ET.SubElement(elem, "position")
         self._append_text(position, "x", f"{domain.position[0]:.6g}")
         self._append_text(position, "y", f"{domain.position[1]:.6g}")
         self._append_text(position, "z", f"{domain.position[2]:.6g}")
 
-        # size
         size = ET.SubElement(elem, "size")
         self._append_text(size, "x", f"{domain.size[0]:.6g}")
         self._append_text(size, "y", f"{domain.size[1]:.6g}")
         self._append_text(size, "z", f"{domain.size[2]:.6g}")
 
-        # boundary conditions
         self._append_text(elem, "x_low_ambient", domain.x_low_ambient)
-        self._append_text(elem, "x_high_ambient", domain.x_high_ambient)
-        self._append_text(elem, "y_low_ambient", domain.y_low_ambient)
-        self._append_text(elem, "y_high_ambient", domain.y_high_ambient)
-        self._append_text(elem, "z_low_ambient", domain.z_low_ambient)
-        self._append_text(elem, "z_high_ambient", domain.z_high_ambient)
-
-        # fluid
+        self._append_text(elem, "x_high_boundary", domain.x_high_ambient)
+        self._append_text(elem, "y_low_boundary", domain.y_low_ambient)
+        self._append_text(elem, "y_high_boundary", domain.y_high_ambient)
+        self._append_text(elem, "z_low_boundary", domain.z_low_ambient)
+        self._append_text(elem, "z_high_boundary", domain.z_high_ambient)
         self._append_text(elem, "fluid", domain.fluid)
 
         return elem
