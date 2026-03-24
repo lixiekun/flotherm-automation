@@ -24,7 +24,7 @@
 2. 在 PDML 里定位字符串、double、几何记录、section 位置。
 3. 用转换器生成 XML。
 4. 对生成结果和原始 FloXML 做递归逐节点 diff。
-5. 把“已证实”的结构沉淀进转换器；把“还不通用”的部分明确标记为 sample-calibrated profile。
+5. 把“已证实”的结构沉淀进转换器；把“还不通用”的部分明确标记为特征驱动的布局族。
 
 ## 当前实际用到的文件
 
@@ -35,11 +35,11 @@
 
 作用：
 - 当前唯一的正式转换入口
-- 同时承载了二进制读取、样例 profile 判定、几何体构建、FloXML 生成
+- 同时承载了二进制读取、特征判定、几何体构建、FloXML 生成
 
-目前已支持的样例 profile：
-- `all_objects_fullmodel`
-- `heatsink_windtunnel`
+目前已支持的布局族：
+- `feature_rich_layout`
+- `compact_forced_flow_layout`
 
 ### 2. construct 扫描器
 
@@ -187,8 +187,8 @@ PDML 本身不一定直接给出一棵现成的几何树，所以当前主转换
 去还原层级。
 
 例如：
-- `all_objects_fullmodel` 里有一套自己的 assembly 挂接规则
-- `heatsink_windtunnel` 里则单独用顺序型挂接：
+- `feature_rich_layout` 里有一套 richer project 的 assembly 挂接规则
+- `compact_forced_flow_layout` 里则单独用顺序型挂接：
   - `Heat Sink Geometry`
   - `Base`
   - `Fin 1`
@@ -199,7 +199,7 @@ PDML 本身不一定直接给出一棵现成的几何树，所以当前主转换
 - `_attach_assembly_children`
 - `_attach_heatsink_children`
 
-## 方法 5：profile 分流
+## 方法 5：布局族分流
 
 这是目前最重要的工程化经验。
 
@@ -215,17 +215,17 @@ PDML 本身不一定直接给出一棵现成的几何树，所以当前主转换
 
 所以当前做法不是强行做“一套模板兼容全部”，而是：
 
-1. 先检测 profile
-2. 再走该 profile 对应的输出结构
+1. 先根据 PDML 特征检测布局族
+2. 再走该布局族对应的输出结构
 
-当前 profile 检测入口在主转换器里：
+当前布局族检测入口在主转换器里：
 - `PDMLBinaryReader._detect_profile`
 
-当前 profile：
-- `all_objects_fullmodel`
-- `heatsink_windtunnel`
+当前布局族：
+- `feature_rich_layout`
+- `compact_forced_flow_layout`
 
-这不是最终通用解，但比“把 A 样例的结构硬套到 B 样例上”稳定得多。
+这不是最终通用解，但比“把 A 样例的结构硬套到 B 样例上”更稳，也比“按文件名特判”更接近可扩展的通用方案。
 
 ## 方法 6：严格 XML diff 验证
 
@@ -258,8 +258,8 @@ PDML 本身不一定直接给出一棵现成的几何树，所以当前主转换
    - 新的 geometry type
    - 数值偏移是否不同
 4. 判断这次差异是：
-   - 现有 profile 小修即可
-   - 还是应该新增一个 profile
+   - 现有布局族小修即可
+   - 还是应该新增一个布局族
 5. 修改主转换器。
 6. 对原样例做递归 XML diff。
 7. 再回归已有样例，确保旧样例没坏。
@@ -298,7 +298,7 @@ python pdml_construct_schema.py Heatsink.pdml --mode geometry --limit 80
 
 ### 1. 仍有 sample-calibrated 逻辑
 
-虽然现在已经做了 profile 化，但很多规则仍然是：
+虽然现在已经做了特征驱动布局分流，但很多规则仍然是：
 - 基于现有样例校准
 - 不是对任意 PDML 都已证明通用
 
@@ -324,13 +324,13 @@ python pdml_construct_schema.py Heatsink.pdml --mode geometry --limit 80
 ### 短期
 
 - 把 XML 递归比对脚本固定成正式工具
-- 给 profile 检测加更明确的注释和日志
+- 给布局族检测加更明确的注释和日志
 - 把 `sample-calibrated` helper 继续集中，避免散落
 
 ### 中期
 
 - 再引入 1 到 2 个风格差异明显的 PDML/XML 样例
-- 看是否真的需要更多 profile，还是可以抽出更通用的 section parser
+- 看是否真的需要更多布局族，还是可以抽出更通用的 section parser
 
 ### 长期
 

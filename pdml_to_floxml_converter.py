@@ -167,7 +167,7 @@ class PDMLSolutionDomain:
 class PDMLData:
     """完整的 PDML 数据"""
     name: str = "Project"
-    profile: str = "all_objects_fullmodel"
+    profile: str = "feature_rich_layout"
     version: str = ""
     product: str = ""
     model: PDMLModelSettings = field(default_factory=PDMLModelSettings)
@@ -188,6 +188,9 @@ class PDMLData:
 
 class PDMLBinaryReader:
     """PDML 二进制格式读取器"""
+
+    FEATURE_RICH_LAYOUT = "feature_rich_layout"
+    COMPACT_FORCED_FLOW_LAYOUT = "compact_forced_flow_layout"
 
     ATTRIBUTE_SECTION_ORDER = [
         'materials', 'surfaces', 'ambients', 'thermals', 'grid_constraints',
@@ -286,7 +289,7 @@ class PDMLBinaryReader:
         with open(filepath, 'rb') as f:
             self.data = f.read()
 
-        self.profile = "all_objects_fullmodel"
+        self.profile = self.FEATURE_RICH_LAYOUT
         self.strings: Dict[int, str] = {}
         self.tagged_strings: List[Dict[str, Any]] = []
         self.fields: List[Dict] = []
@@ -373,16 +376,33 @@ class PDMLBinaryReader:
         return Path(self.filepath).stem
 
     def _detect_profile(self, project_name: str) -> str:
-        """Choose a sample-calibrated profile based on project traits.
+        """Infer a layout family from PDML features instead of file-specific names.
 
-        This is intentionally explicit: the converter currently contains
-        sample-specific calibrations, so we surface the selection instead of
-        letting unrelated examples silently inherit the wrong template.
+        The converter is not yet a complete PDML spec implementation, so we still
+        need calibrated layout families. The important difference is that we now
+        select them from content traits, not from a specific sample file name.
         """
-        lowered = project_name.lower()
-        if lowered == 'heatsink' and self._contains_text('Heat Sink Geometry'):
-            return 'heatsink_windtunnel'
-        return 'all_objects_fullmodel'
+        rich_markers = (
+            self._contains_text('Functions-Example')
+            or self._find_string_offset('Grid Constraint 1') is not None
+            or self._find_string_offset('Sub-Divided1') is not None
+            or self._contains_text('VolumeHT')
+            or self._contains_text('People')
+            or self._contains_text('Control:0')
+            or self._contains_text('X-GRID')
+        )
+
+        compact_forced_flow_markers = (
+            self._find_string_offset('Heat Sink Geometry') is not None
+            and self._find_string_offset('Ambient') is not None
+            and self._find_string_offset('Fixed Flow') is not None
+            and self._find_string_offset('1 Watts') is not None
+            and not rich_markers
+        )
+
+        if compact_forced_flow_markers:
+            return self.COMPACT_FORCED_FLOW_LAYOUT
+        return self.FEATURE_RICH_LAYOUT
 
     def _locate_sections(self):
         """定位各 section 的位置"""
@@ -550,6 +570,18 @@ class PDMLBinaryReader:
                 return name
         return fallback
 
+    def _ambient_name(self) -> str:
+        return self._first_available_name(['Outside World', 'Ambient'], 'Ambient') or 'Ambient'
+
+    def _primary_source_attribute_name(self) -> str:
+        return self._first_available_name(['Temp And X-Vel', '1 Watts'], 'Source') or 'Source'
+
+    def _primary_material_name(self) -> str:
+        return self._first_available_name(['Heatsink Material', 'Aluminum'], 'Aluminum') or 'Aluminum'
+
+    def _primary_surface_name(self) -> str:
+        return self._first_available_name(['Heatsink Surface', 'Paint'], 'Paint') or 'Paint'
+
     def _make_material_element(self, name: str, conductivity: float, density: float, specific_heat: float) -> ET.Element:
         elem = ET.Element("isotropic_material_att")
         ET.SubElement(elem, "name").text = name
@@ -598,7 +630,7 @@ class PDMLBinaryReader:
         model.turbulence_type = "turbulent"
         model.turbulence_model = "auto_algebraic"
         model.gravity_type = "normal"
-        if self.profile == 'heatsink_windtunnel':
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             model.radiation = "off"
             model.transient = False
             model.gravity_direction = "neg_y"
@@ -613,9 +645,9 @@ class PDMLBinaryReader:
 
     def _apply_sample_solve_defaults(self, solve: PDMLSolveSettings):
         """Apply sample-calibrated solver defaults before scanning nearby values."""
-        solve.outer_iterations = 200 if self.profile == 'heatsink_windtunnel' else 1500
+        solve.outer_iterations = 200 if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT else 1500
         solve.fan_relaxation = 0.9
-        solve.estimated_free_convection_velocity = 0.2 if self.profile == 'heatsink_windtunnel' else 0.21
+        solve.estimated_free_convection_velocity = 0.2 if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT else 0.21
         solve.solver_option = "multi_grid"
 
     def _apply_sample_grid_defaults(self, grid: PDMLGridSettings):
@@ -623,7 +655,7 @@ class PDMLBinaryReader:
         grid.smoothing = True
         grid.smoothing_type = "v3"
         grid.dynamic_update = True
-        if self.profile == 'heatsink_windtunnel':
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             grid.x_grid.min_size = 0.0001
             grid.x_grid.grid_type = "max_size"
             grid.x_grid.max_size = 0.001
@@ -652,7 +684,7 @@ class PDMLBinaryReader:
 
     def _apply_sample_solution_domain_defaults(self, domain: PDMLSolutionDomain):
         """Apply sample-calibrated solution-domain defaults."""
-        if self.profile == 'heatsink_windtunnel':
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             domain.position = (0.0, -0.005, 0.0)
             domain.size = (0.04, 0.02, 0.04)
             domain.x_low_ambient = "symmetry"
@@ -684,12 +716,14 @@ class PDMLBinaryReader:
         data.attribute_sections[section].append(element)
 
     def _append_material_attributes(self, data: PDMLData):
-        if self.profile == 'heatsink_windtunnel':
-            if self._find_string_offset('Heatsink Material') is None:
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
+            material_name = self._first_available_name(['Heatsink Material'])
+            if material_name is None:
                 return
-            data.materials.append(PDMLMaterial(name='Heatsink Material', conductivity=205.0, density=1.0, specific_heat=1.0))
-            material = self._make_material_element('Heatsink Material', 205.0, 1.0, 1.0)
-            ET.SubElement(material, "surface").text = "Heatsink Surface"
+            surface_name = self._primary_surface_name()
+            data.materials.append(PDMLMaterial(name=material_name, conductivity=205.0, density=1.0, specific_heat=1.0))
+            material = self._make_material_element(material_name, 205.0, 1.0, 1.0)
+            ET.SubElement(material, "surface").text = surface_name
             self._append_attribute(data, 'materials', material)
             return
         material_specs = [
@@ -713,11 +747,12 @@ class PDMLBinaryReader:
             )
 
     def _append_surface_attributes(self, data: PDMLData):
-        if self.profile == 'heatsink_windtunnel':
-            if self._find_string_offset('Heatsink Surface') is None:
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
+            surface_name = self._first_available_name(['Heatsink Surface'])
+            if surface_name is None:
                 return
             surface = ET.Element("surface_att")
-            ET.SubElement(surface, "name").text = "Heatsink Surface"
+            ET.SubElement(surface, "name").text = surface_name
             ET.SubElement(surface, "emissivity").text = "0.9"
             ET.SubElement(surface, "roughness").text = "0"
             ET.SubElement(surface, "rsurf_fluid").text = "0"
@@ -754,11 +789,12 @@ class PDMLBinaryReader:
         self._append_attribute(data, 'surfaces', surface)
 
     def _append_ambient_attributes(self, data: PDMLData):
-        if self.profile == 'heatsink_windtunnel':
-            if self._find_string_offset('Ambient') is None:
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
+            ambient_name = self._ambient_name()
+            if self._find_string_offset(ambient_name) is None:
                 return
             ambient = ET.Element("ambient_att")
-            ET.SubElement(ambient, "name").text = "Ambient"
+            ET.SubElement(ambient, "name").text = ambient_name
             ET.SubElement(ambient, "pressure").text = "0"
             ET.SubElement(ambient, "temperature").text = "318.15"
             ET.SubElement(ambient, "radiant_temperature").text = "318.15"
@@ -772,7 +808,7 @@ class PDMLBinaryReader:
             for idx in range(1, 6):
                 ET.SubElement(ambient, f"concentration_{idx}").text = "0"
             self._append_attribute(data, 'ambients', ambient)
-            data.ambients = [PDMLAmbient(name="Ambient", temperature=318.15, heat_transfer_coeff=0.0)]
+            data.ambients = [PDMLAmbient(name=ambient_name, temperature=318.15, heat_transfer_coeff=0.0)]
             return
         if self._find_string_offset('Outside World') is None:
             return
@@ -794,7 +830,7 @@ class PDMLBinaryReader:
         data.ambients = [PDMLAmbient(name="Outside World", temperature=293.0, heat_transfer_coeff=12.0)]
 
     def _append_thermal_attributes(self, data: PDMLData):
-        if self.profile == 'heatsink_windtunnel':
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             return
         if self._find_string_offset('Heat') is None:
             return
@@ -852,7 +888,7 @@ class PDMLBinaryReader:
         return transient
 
     def _append_grid_constraint_attributes(self, data: PDMLData):
-        if self.profile == 'heatsink_windtunnel':
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             return
         if self._find_string_offset('Grid Constraint 1') is None:
             return
@@ -870,7 +906,7 @@ class PDMLBinaryReader:
         self._append_attribute(data, 'grid_constraints', constraint)
 
     def _append_fluid_attributes(self, data: PDMLData):
-        if self.profile == 'heatsink_windtunnel':
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             if self._find_string_offset('Air') is None:
                 return
             fluid = ET.Element("fluid_att")
@@ -919,7 +955,7 @@ class PDMLBinaryReader:
         )]
 
     def _append_radiation_attributes(self, data: PDMLData):
-        if self.profile == 'heatsink_windtunnel':
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             return
         if self._find_string_offset('Sub-Divided1') is None:
             return
@@ -931,11 +967,12 @@ class PDMLBinaryReader:
         self._append_attribute(data, 'radiations', radiation)
 
     def _append_source_attributes(self, data: PDMLData):
-        if self.profile == 'heatsink_windtunnel':
-            if self._find_string_offset('1 Watts') is None:
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
+            source_name = self._first_available_name(['1 Watts'])
+            if source_name is None:
                 return
             source = ET.Element("source_att")
-            ET.SubElement(source, "name").text = "1 Watts"
+            ET.SubElement(source, "name").text = source_name
             options = ET.SubElement(source, "source_options")
             option = ET.SubElement(options, "option")
             ET.SubElement(option, "applies_to").text = "temperature"
@@ -944,7 +981,7 @@ class PDMLBinaryReader:
             ET.SubElement(option, "power").text = "1"
             ET.SubElement(option, "linear_coefficient").text = "0"
             self._append_attribute(data, 'sources', source)
-            data.sources = [PDMLSource(name="1 Watts", power=1.0)]
+            data.sources = [PDMLSource(name=source_name, power=1.0)]
             return
         if self._find_string_offset('Temp And X-Vel') is None:
             return
@@ -971,7 +1008,7 @@ class PDMLBinaryReader:
         data.sources = [PDMLSource(name="Temp And X-Vel", power=23.3)]
 
     def _append_resistance_attributes(self, data: PDMLData):
-        if self.profile == 'heatsink_windtunnel':
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             return
         if self._find_string_offset('Flow Resistance') is None:
             return
@@ -994,7 +1031,7 @@ class PDMLBinaryReader:
         self._append_attribute(data, 'resistances', resistance)
 
     def _append_fan_attributes(self, data: PDMLData):
-        if self.profile == 'heatsink_windtunnel':
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             return
         if not any(record['node_type'] == 'fan' for record in self._find_geometry_records()):
             return
@@ -1012,7 +1049,7 @@ class PDMLBinaryReader:
         self._append_attribute(data, 'fans', fan_attr)
 
     def _append_surface_exchange_attributes(self, data: PDMLData):
-        if self.profile == 'heatsink_windtunnel':
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             return
         for name in ('VolumeHT', 'Surface'):
             if not self._contains_text(name):
@@ -1044,7 +1081,7 @@ class PDMLBinaryReader:
         return surface_exchange
 
     def _append_occupancy_attributes(self, data: PDMLData):
-        if self.profile == 'heatsink_windtunnel':
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             return
         if not self._contains_text('People'):
             return
@@ -1056,7 +1093,7 @@ class PDMLBinaryReader:
         self._append_attribute(data, 'occupancies', occupancy)
 
     def _append_control_attributes(self, data: PDMLData):
-        if self.profile == 'heatsink_windtunnel':
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             return
         has_controller = self._find_string_offset('Control:0') is not None
         has_controller = has_controller or any(record['node_type'] == 'controller' for record in self._find_geometry_records())
@@ -1282,10 +1319,10 @@ class PDMLBinaryReader:
             return self._finalize_geometry_node(node)
 
         if node_type == 'source':
-            if self.profile == 'heatsink_windtunnel':
+            if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
                 node.position = (0.0175, -0.005, 0.0175)
                 node.orientation = self._identity_orientation()
-                node.source = "1 Watts"
+                node.source = self._primary_source_attribute_name()
             else:
                 node.position = (0.0, 1.0, -0.3212323)
                 node.position_text = ("0", "1", "-0.3212323")
@@ -1303,7 +1340,7 @@ class PDMLBinaryReader:
                         ],
                     )
                 )
-                node.source = "Temp And X-Vel"
+                node.source = self._primary_source_attribute_name()
                 node.post_elements.append(self._fragment("attachment_side", "high_side"))
             return self._finalize_geometry_node(node)
 
@@ -1334,7 +1371,7 @@ class PDMLBinaryReader:
             node.size = None
             node.orientation = None
             node.localized_grid = None
-            if self.profile == 'heatsink_windtunnel' and name == 'Source Temperature':
+            if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT and name == 'Source Temperature':
                 node.position = (0.02, -0.00475, 0.02)
             elif name == 'MP-01':
                 node.post_elements.append(self._fragment("notes", "THERMOCOUPLE A44"))
@@ -1370,11 +1407,11 @@ class PDMLBinaryReader:
             ])
             node.tail_elements.append(self._fragment("notes", "CAP"))
         elif node.node_type == 'assembly':
-            if self.profile == 'heatsink_windtunnel':
+            if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
                 node.position = (0.0, 0.0, 0.0)
-                node.material = "Heatsink Material" if node.name == 'Heat Sink Geometry' else None
+                node.material = self._primary_material_name() if node.name == 'Heat Sink Geometry' else None
             else:
-                node.material = "Aluminum"
+                node.material = self._primary_material_name()
             node.ignore = False
             node.size = None
         elif node.node_type == 'enclosure':
@@ -1396,17 +1433,17 @@ class PDMLBinaryReader:
             node.material = None
         elif node.node_type == 'fixed_flow':
             node.size = (node.size[0], node.size[1]) if node.size else (1.1, 2.2)
-            if self.profile == 'heatsink_windtunnel':
+            if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
                 node.mid_elements.append(self._fragment("free_area_ratio", "1"))
                 node.post_elements.extend([
                     self._fragment("flow", children=[
-                        self._fragment("flow_type", "volume_flow_rate"),
+                    self._fragment("flow_type", "volume_flow_rate"),
                         self._fragment("volume_flow_rate", "0.001"),
                     ]),
                     self._fragment("flow_direction", "inflow"),
                     self._fragment("flow_angle", "normal"),
                     self._fragment("transparent_to_radiation", "false"),
-                    self._fragment("inflow_ambient", "Ambient"),
+                    self._fragment("inflow_ambient", self._ambient_name()),
                 ])
             else:
                 node.mid_elements.append(self._fragment("free_area_ratio", "0.99"))
@@ -1418,7 +1455,7 @@ class PDMLBinaryReader:
                     self._fragment("flow_direction", "inflow"),
                     self._fragment("flow_angle", "normal"),
                     self._fragment("transparent_to_radiation", "false"),
-                    self._fragment("inflow_ambient", "Outside World"),
+                    self._fragment("inflow_ambient", self._ambient_name()),
                     self._fragment("x_grid_constraint", "Grid Constraint 1"),
                     self._fragment("y_grid_constraint", "Grid Constraint 1"),
                     self._fragment("z_grid_constraint", "Grid Constraint 1"),
@@ -1769,7 +1806,7 @@ class PDMLBinaryReader:
         return [node for node in nodes if node not in nested]
 
     def _attach_assembly_children(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
-        if self.profile == 'heatsink_windtunnel':
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             return self._attach_heatsink_children(nodes)
         assemblies = [node for node in nodes if node.node_type == 'assembly']
         top_level: List[PDMLGeometryNode] = []
@@ -2107,7 +2144,7 @@ class FloXMLBuilder:
     def _build_model(self, model: PDMLModelSettings, profile: str) -> ET.Element:
         """构建 model 节"""
         elem = ET.Element("model")
-        if profile == 'heatsink_windtunnel':
+        if profile == PDMLBinaryReader.COMPACT_FORCED_FLOW_LAYOUT:
             modeling = ET.SubElement(elem, "modeling")
             self._append_text(modeling, "solution", model.solution)
             self._append_text(modeling, "radiation", model.radiation)
@@ -2149,7 +2186,7 @@ class FloXMLBuilder:
         self._append_text(global_elem, "concentration_4", "0")
         self._append_text(global_elem, "concentration_5", "0")
 
-        if profile != 'heatsink_windtunnel':
+        if profile != PDMLBinaryReader.COMPACT_FORCED_FLOW_LAYOUT:
             self._build_transient_model_section(elem)
             self._build_initial_variables_section(elem)
 
@@ -2158,7 +2195,7 @@ class FloXMLBuilder:
     def _build_solve(self, solve: PDMLSolveSettings, profile: str) -> ET.Element:
         """构建 solve 节"""
         elem = ET.Element("solve")
-        if profile == 'heatsink_windtunnel':
+        if profile == PDMLBinaryReader.COMPACT_FORCED_FLOW_LAYOUT:
             overall = ET.SubElement(elem, "overall_control")
             self._append_text(overall, "outer_iterations", str(solve.outer_iterations))
             self._append_text(overall, "fan_relaxation", f"{solve.fan_relaxation:.6g}")
@@ -2190,7 +2227,7 @@ class FloXMLBuilder:
         self._append_text(system_grid, "smoothing_type", grid.smoothing_type)
         self._append_text(system_grid, "dynamic_update", str(grid.dynamic_update).lower())
 
-        if profile == 'heatsink_windtunnel':
+        if profile == PDMLBinaryReader.COMPACT_FORCED_FLOW_LAYOUT:
             self._build_grid_axis(system_grid, "x_grid", [("min_size", "0.0001"), ("grid_type", "max_size"), ("max_size", "0.001")], grid.x_grid.smoothing_value)
             self._build_grid_axis(system_grid, "y_grid", [("min_size", "0.0001"), ("grid_type", "max_size"), ("max_size", "0.0011")], grid.y_grid.smoothing_value)
             self._build_grid_axis(system_grid, "z_grid", [("min_size", "0.0005"), ("grid_type", "max_size"), ("max_size", "0.001")], grid.z_grid.smoothing_value)
@@ -2207,7 +2244,7 @@ class FloXMLBuilder:
         elem = ET.Element("attributes")
 
         if data.attribute_sections:
-            section_order = [name for name in self.ATTRIBUTE_SECTION_ORDER if data.attribute_sections.get(name)] if data.profile == 'heatsink_windtunnel' else self.ATTRIBUTE_SECTION_ORDER
+            section_order = [name for name in self.ATTRIBUTE_SECTION_ORDER if data.attribute_sections.get(name)] if data.profile == PDMLBinaryReader.COMPACT_FORCED_FLOW_LAYOUT else self.ATTRIBUTE_SECTION_ORDER
             for section_name in section_order:
                 section_elem = ET.SubElement(elem, section_name)
                 for child in data.attribute_sections.get(section_name, []):
@@ -2324,7 +2361,7 @@ class FloXMLBuilder:
         elem = ET.Element("solution_domain")
         self._append_position(elem, domain.position)
         self._append_size(elem, domain.size)
-        if profile == 'heatsink_windtunnel':
+        if profile == PDMLBinaryReader.COMPACT_FORCED_FLOW_LAYOUT:
             self._append_text(elem, "z_low_ambient", domain.z_low_ambient)
             self._append_text(elem, "z_high_ambient", domain.z_high_ambient)
             self._append_text(elem, "x_low_boundary", domain.x_low_ambient)
