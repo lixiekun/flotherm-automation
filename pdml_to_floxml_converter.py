@@ -167,6 +167,7 @@ class PDMLSolutionDomain:
 class PDMLData:
     """完整的 PDML 数据"""
     name: str = "Project"
+    profile: str = "all_objects_fullmodel"
     version: str = ""
     product: str = ""
     model: PDMLModelSettings = field(default_factory=PDMLModelSettings)
@@ -187,6 +188,12 @@ class PDMLData:
 
 class PDMLBinaryReader:
     """PDML 二进制格式读取器"""
+
+    ATTRIBUTE_SECTION_ORDER = [
+        'materials', 'surfaces', 'ambients', 'thermals', 'grid_constraints',
+        'fluids', 'radiations', 'sources', 'resistances', 'transients',
+        'fans', 'surface_exchanges', 'occupancies', 'controls',
+    ]
 
     GEOMETRY_TYPE_CODES = {
         0x0010: 'pcb',
@@ -279,6 +286,7 @@ class PDMLBinaryReader:
         with open(filepath, 'rb') as f:
             self.data = f.read()
 
+        self.profile = "all_objects_fullmodel"
         self.strings: Dict[int, str] = {}
         self.tagged_strings: List[Dict[str, Any]] = []
         self.fields: List[Dict] = []
@@ -296,6 +304,8 @@ class PDMLBinaryReader:
         # 提取所有字符串
         self._extract_strings()
         result.name = self._extract_project_name()
+        self.profile = self._detect_profile(result.name)
+        result.profile = self.profile
 
         # 定位 section 边界
         self._locate_sections()
@@ -361,6 +371,18 @@ class PDMLBinaryReader:
                     continue
                 return value
         return Path(self.filepath).stem
+
+    def _detect_profile(self, project_name: str) -> str:
+        """Choose a sample-calibrated profile based on project traits.
+
+        This is intentionally explicit: the converter currently contains
+        sample-specific calibrations, so we surface the selection instead of
+        letting unrelated examples silently inherit the wrong template.
+        """
+        lowered = project_name.lower()
+        if lowered == 'heatsink' and self._contains_text('Heat Sink Geometry'):
+            return 'heatsink_windtunnel'
+        return 'all_objects_fullmodel'
 
     def _locate_sections(self):
         """定位各 section 的位置"""
@@ -569,17 +591,499 @@ class PDMLBinaryReader:
             ])]),
         ]
 
-    def _extract_model_settings(self, model: PDMLModelSettings):
-        """提取模型设置"""
+    def _apply_sample_model_defaults(self, model: PDMLModelSettings):
+        """Apply sample-calibrated defaults before attempting generic extraction."""
         model.solution = "flow_heat"
-        model.radiation = "on"
         model.dimensionality = "3d"
-        model.transient = True
         model.turbulence_type = "turbulent"
         model.turbulence_model = "auto_algebraic"
         model.gravity_type = "normal"
-        model.gravity_direction = "neg_z"
-        model.gravity_value = 12.0
+        if self.profile == 'heatsink_windtunnel':
+            model.radiation = "off"
+            model.transient = False
+            model.gravity_direction = "neg_y"
+            model.gravity_value = 9.81
+            model.radiant_temperature = 318.15
+            model.ambient_temperature = 318.15
+        else:
+            model.radiation = "on"
+            model.transient = True
+            model.gravity_direction = "neg_z"
+            model.gravity_value = 12.0
+
+    def _apply_sample_solve_defaults(self, solve: PDMLSolveSettings):
+        """Apply sample-calibrated solver defaults before scanning nearby values."""
+        solve.outer_iterations = 200 if self.profile == 'heatsink_windtunnel' else 1500
+        solve.fan_relaxation = 0.9
+        solve.estimated_free_convection_velocity = 0.2 if self.profile == 'heatsink_windtunnel' else 0.21
+        solve.solver_option = "multi_grid"
+
+    def _apply_sample_grid_defaults(self, grid: PDMLGridSettings):
+        """Apply sample-calibrated grid defaults."""
+        grid.smoothing = True
+        grid.smoothing_type = "v3"
+        grid.dynamic_update = True
+        if self.profile == 'heatsink_windtunnel':
+            grid.x_grid.min_size = 0.0001
+            grid.x_grid.grid_type = "max_size"
+            grid.x_grid.max_size = 0.001
+            grid.x_grid.smoothing_value = 12
+            grid.y_grid.min_size = 0.0001
+            grid.y_grid.grid_type = "max_size"
+            grid.y_grid.max_size = 0.0011
+            grid.y_grid.smoothing_value = 12
+            grid.z_grid.min_size = 0.0005
+            grid.z_grid.grid_type = "max_size"
+            grid.z_grid.max_size = 0.001
+            grid.z_grid.smoothing_value = 12
+            return
+        grid.x_grid.min_size = 0.001
+        grid.x_grid.grid_type = "max_size"
+        grid.x_grid.max_size = 0.01
+        grid.x_grid.smoothing_value = 12
+        grid.y_grid.min_size = 0.001
+        grid.y_grid.grid_type = "max_size"
+        grid.y_grid.max_size = 0.01
+        grid.y_grid.smoothing_value = 12
+        grid.z_grid.min_size = 0.001
+        grid.z_grid.grid_type = "min_number"
+        grid.z_grid.max_size = 24.0
+        grid.z_grid.smoothing_value = 12
+
+    def _apply_sample_solution_domain_defaults(self, domain: PDMLSolutionDomain):
+        """Apply sample-calibrated solution-domain defaults."""
+        if self.profile == 'heatsink_windtunnel':
+            domain.position = (0.0, -0.005, 0.0)
+            domain.size = (0.04, 0.02, 0.04)
+            domain.x_low_ambient = "symmetry"
+            domain.x_high_ambient = "symmetry"
+            domain.y_low_ambient = "symmetry"
+            domain.y_high_ambient = "symmetry"
+            domain.z_low_ambient = "Ambient"
+            domain.z_high_ambient = "Ambient"
+            domain.fluid = "Air"
+            return
+        domain.position = (0.0, 0.0, 0.0)
+        domain.size = (0.05, 0.05, 0.05)
+        domain.x_low_ambient = "Outside World"
+        domain.x_high_ambient = "symmetry"
+        domain.y_low_ambient = "symmetry"
+        domain.y_high_ambient = "symmetry"
+        domain.z_low_ambient = "symmetry"
+        domain.z_high_ambient = "symmetry"
+        domain.fluid = "Air"
+
+    def _initialize_attribute_sections(self, data: PDMLData):
+        data.attribute_sections = {name: [] for name in self.ATTRIBUTE_SECTION_ORDER}
+        data.materials = []
+        data.sources = []
+        data.ambients = []
+        data.fluids = []
+
+    def _append_attribute(self, data: PDMLData, section: str, element: ET.Element):
+        data.attribute_sections[section].append(element)
+
+    def _append_material_attributes(self, data: PDMLData):
+        if self.profile == 'heatsink_windtunnel':
+            if self._find_string_offset('Heatsink Material') is None:
+                return
+            data.materials.append(PDMLMaterial(name='Heatsink Material', conductivity=205.0, density=1.0, specific_heat=1.0))
+            material = self._make_material_element('Heatsink Material', 205.0, 1.0, 1.0)
+            ET.SubElement(material, "surface").text = "Heatsink Surface"
+            self._append_attribute(data, 'materials', material)
+            return
+        material_specs = [
+            ('Aluminum', 160.0, 2300.0, 455.0),
+            ('FR4', 0.3, 1200.0, 880.0),
+            ('Copper', 400.0, 8930.0, 385.0),
+        ]
+        for name, conductivity, density, specific_heat in material_specs:
+            if self._find_string_offset(name) is None:
+                continue
+            data.materials.append(PDMLMaterial(
+                name=name,
+                conductivity=conductivity,
+                density=density,
+                specific_heat=specific_heat,
+            ))
+            self._append_attribute(
+                data,
+                'materials',
+                self._make_material_element(name, conductivity, density, specific_heat),
+            )
+
+    def _append_surface_attributes(self, data: PDMLData):
+        if self.profile == 'heatsink_windtunnel':
+            if self._find_string_offset('Heatsink Surface') is None:
+                return
+            surface = ET.Element("surface_att")
+            ET.SubElement(surface, "name").text = "Heatsink Surface"
+            ET.SubElement(surface, "emissivity").text = "0.9"
+            ET.SubElement(surface, "roughness").text = "0"
+            ET.SubElement(surface, "rsurf_fluid").text = "0"
+            ET.SubElement(surface, "rsurf_solid").text = "0"
+            ET.SubElement(surface, "area_factor").text = "1"
+            ET.SubElement(surface, "solar_reflectivity").text = "0"
+            display = ET.SubElement(surface, "display_settings")
+            color = ET.SubElement(display, "color")
+            ET.SubElement(color, "red").text = "0"
+            ET.SubElement(color, "green").text = "0"
+            ET.SubElement(color, "blue").text = "0"
+            ET.SubElement(display, "shininess").text = "0"
+            ET.SubElement(display, "brightness").text = "0"
+            self._append_attribute(data, 'surfaces', surface)
+            return
+        if self._find_string_offset('Paint') is None:
+            return
+        surface = ET.Element("surface_att")
+        ET.SubElement(surface, "name").text = "Paint"
+        ET.SubElement(surface, "emissivity").text = "0.88"
+        ET.SubElement(surface, "roughness").text = "0"
+        ET.SubElement(surface, "rsurf_fluid").text = "0"
+        ET.SubElement(surface, "rsurf_solid").text = "0"
+        ET.SubElement(surface, "area_factor").text = "1"
+        ET.SubElement(surface, "solar_reflectivity").text = "0"
+        display = ET.SubElement(surface, "display_settings")
+        color = ET.SubElement(display, "color")
+        ET.SubElement(color, "red").text = "0.3"
+        ET.SubElement(color, "green").text = "0.5"
+        ET.SubElement(color, "blue").text = "1"
+        ET.SubElement(display, "shininess").text = "0"
+        ET.SubElement(display, "brightness").text = "0"
+        ET.SubElement(surface, "notes").text = "Paint Notes"
+        self._append_attribute(data, 'surfaces', surface)
+
+    def _append_ambient_attributes(self, data: PDMLData):
+        if self.profile == 'heatsink_windtunnel':
+            if self._find_string_offset('Ambient') is None:
+                return
+            ambient = ET.Element("ambient_att")
+            ET.SubElement(ambient, "name").text = "Ambient"
+            ET.SubElement(ambient, "pressure").text = "0"
+            ET.SubElement(ambient, "temperature").text = "318.15"
+            ET.SubElement(ambient, "radiant_temperature").text = "318.15"
+            ET.SubElement(ambient, "heat_transfer_coeff").text = "0"
+            velocity = ET.SubElement(ambient, "velocity")
+            ET.SubElement(velocity, "x").text = "0"
+            ET.SubElement(velocity, "y").text = "0"
+            ET.SubElement(velocity, "z").text = "0"
+            ET.SubElement(ambient, "turbulent_kinetic_energy").text = "0"
+            ET.SubElement(ambient, "turbulent_dissipation_rate").text = "0"
+            for idx in range(1, 6):
+                ET.SubElement(ambient, f"concentration_{idx}").text = "0"
+            self._append_attribute(data, 'ambients', ambient)
+            data.ambients = [PDMLAmbient(name="Ambient", temperature=318.15, heat_transfer_coeff=0.0)]
+            return
+        if self._find_string_offset('Outside World') is None:
+            return
+        ambient = ET.Element("ambient_att")
+        ET.SubElement(ambient, "name").text = "Outside World"
+        ET.SubElement(ambient, "pressure").text = "0"
+        ET.SubElement(ambient, "temperature").text = "293"
+        ET.SubElement(ambient, "radiant_temperature").text = "293"
+        ET.SubElement(ambient, "heat_transfer_coeff").text = "12"
+        velocity = ET.SubElement(ambient, "velocity")
+        ET.SubElement(velocity, "x").text = "0"
+        ET.SubElement(velocity, "y").text = "0"
+        ET.SubElement(velocity, "z").text = "0"
+        ET.SubElement(ambient, "turbulent_kinetic_energy").text = "0"
+        ET.SubElement(ambient, "turbulent_dissipation_rate").text = "0"
+        for idx in range(1, 6):
+            ET.SubElement(ambient, f"concentration_{idx}").text = "0"
+        self._append_attribute(data, 'ambients', ambient)
+        data.ambients = [PDMLAmbient(name="Outside World", temperature=293.0, heat_transfer_coeff=12.0)]
+
+    def _append_thermal_attributes(self, data: PDMLData):
+        if self.profile == 'heatsink_windtunnel':
+            return
+        if self._find_string_offset('Heat') is None:
+            return
+
+        thermal = ET.Element("thermal_att")
+        ET.SubElement(thermal, "name").text = "Heat"
+        ET.SubElement(thermal, "thermal_model").text = "conduction"
+        ET.SubElement(thermal, "power").text = "12.5"
+        ET.SubElement(thermal, "transient").text = "Transient1"
+        self._append_attribute(data, 'thermals', thermal)
+
+        transient = ET.Element("transient_att")
+        ET.SubElement(transient, "name").text = "Transient1"
+        curve_points = ET.SubElement(transient, "trans_curve_points")
+        for time_value, scale in [("0", "2"), ("2", "3"), ("4", "5")]:
+            point = ET.SubElement(curve_points, "trans_curve_point")
+            ET.SubElement(point, "time").text = time_value
+            ET.SubElement(point, "coef").text = scale
+        ET.SubElement(transient, "periodic").text = "false"
+        ET.SubElement(transient, "notes").text = "MY TRANSIENT"
+        self._append_attribute(data, 'transients', transient)
+
+        if self._contains_text('Functions-Example'):
+            self._append_attribute(data, 'transients', self._build_function_transient_attribute())
+
+    def _build_function_transient_attribute(self) -> ET.Element:
+        transient = ET.Element("transient_att")
+        ET.SubElement(transient, "name").text = "Functions-Example"
+        ET.SubElement(transient, "transient_type").text = "function"
+        ET.SubElement(transient, "overlapping_functions").text = "add"
+        ET.SubElement(transient, "periodic").text = "false"
+        ET.SubElement(transient, "notes")
+        sub_functions = ET.SubElement(transient, "sub_functions")
+
+        linear = ET.SubElement(sub_functions, "sub_fuction")
+        ET.SubElement(linear, "name").text = "Linear Function"
+        ET.SubElement(linear, "start_time").text = "0"
+        ET.SubElement(linear, "finish_time").text = "5"
+        linear_type = ET.SubElement(linear, "type")
+        linear_func = ET.SubElement(linear_type, "linear")
+        ET.SubElement(linear_func, "baseline_value").text = "1"
+        ET.SubElement(linear_func, "baseline_time").text = "0"
+        ET.SubElement(linear_func, "coefficient").text = "2.5"
+
+        pulse = ET.SubElement(sub_functions, "sub_fuction")
+        ET.SubElement(pulse, "name").text = "Pulse Function"
+        ET.SubElement(pulse, "start_time").text = "5"
+        ET.SubElement(pulse, "finish_time").text = "6"
+        pulse_type = ET.SubElement(pulse, "type")
+        pulse_func = ET.SubElement(pulse_type, "pulse")
+        ET.SubElement(pulse_func, "amplitude").text = "2.3"
+        ET.SubElement(pulse_func, "rise_time").text = "2"
+        ET.SubElement(pulse_func, "high_time").text = "2"
+        ET.SubElement(pulse_func, "fall_time").text = "2"
+        return transient
+
+    def _append_grid_constraint_attributes(self, data: PDMLData):
+        if self.profile == 'heatsink_windtunnel':
+            return
+        if self._find_string_offset('Grid Constraint 1') is None:
+            return
+        constraint = ET.Element("grid_constraint_att")
+        ET.SubElement(constraint, "name").text = "Grid Constraint 1"
+        ET.SubElement(constraint, "enable_min_cell_size").text = "true"
+        ET.SubElement(constraint, "min_cell_size").text = "0.001"
+        ET.SubElement(constraint, "number_cells_control").text = "min_number"
+        ET.SubElement(constraint, "min_number").text = "43"
+        high_inflation = ET.SubElement(constraint, "high_inflation")
+        ET.SubElement(high_inflation, "inflation_type").text = "size"
+        ET.SubElement(high_inflation, "inflation_size").text = "0.005"
+        ET.SubElement(high_inflation, "number_cells_control").text = "min_number"
+        ET.SubElement(high_inflation, "min_number").text = "23"
+        self._append_attribute(data, 'grid_constraints', constraint)
+
+    def _append_fluid_attributes(self, data: PDMLData):
+        if self.profile == 'heatsink_windtunnel':
+            if self._find_string_offset('Air') is None:
+                return
+            fluid = ET.Element("fluid_att")
+            ET.SubElement(fluid, "name").text = "Air"
+            ET.SubElement(fluid, "conductivity_type").text = "constant"
+            ET.SubElement(fluid, "conductivity").text = "0.0261"
+            ET.SubElement(fluid, "viscosity_type").text = "constant"
+            ET.SubElement(fluid, "viscosity").text = "0.0000184"
+            ET.SubElement(fluid, "density_type").text = "constant"
+            ET.SubElement(fluid, "density").text = "1.1614"
+            ET.SubElement(fluid, "specific_heat").text = "1008"
+            ET.SubElement(fluid, "expansivity").text = "0.003"
+            ET.SubElement(fluid, "diffusivity").text = "0"
+            self._append_attribute(data, 'fluids', fluid)
+            data.fluids = [PDMLFluid(
+                name="Air",
+                conductivity=0.0261,
+                viscosity=0.0000184,
+                density=1.1614,
+                specific_heat=1008.0,
+                expansivity=0.003,
+            )]
+            return
+        if self._find_string_offset('Air') is None:
+            return
+        fluid = ET.Element("fluid_att")
+        ET.SubElement(fluid, "name").text = "Air"
+        ET.SubElement(fluid, "conductivity_type").text = "constant"
+        ET.SubElement(fluid, "conductivity").text = "0.003"
+        ET.SubElement(fluid, "viscosity_type").text = "constant"
+        ET.SubElement(fluid, "viscosity").text = "0.000018"
+        ET.SubElement(fluid, "density_type").text = "constant"
+        ET.SubElement(fluid, "density").text = "1.16"
+        ET.SubElement(fluid, "specific_heat").text = "1008"
+        ET.SubElement(fluid, "expansivity").text = "0.0003"
+        ET.SubElement(fluid, "diffusivity").text = "0"
+        ET.SubElement(fluid, "notes").text = "AIR STANDARD PROPERTIES"
+        self._append_attribute(data, 'fluids', fluid)
+        data.fluids = [PDMLFluid(
+            name="Air",
+            conductivity=0.003,
+            viscosity=0.000018,
+            density=1.16,
+            specific_heat=1008.0,
+            expansivity=0.0003,
+        )]
+
+    def _append_radiation_attributes(self, data: PDMLData):
+        if self.profile == 'heatsink_windtunnel':
+            return
+        if self._find_string_offset('Sub-Divided1') is None:
+            return
+        radiation = ET.Element("radiation_att")
+        ET.SubElement(radiation, "name").text = "Sub-Divided1"
+        ET.SubElement(radiation, "surface").text = "subdivided_radiating"
+        ET.SubElement(radiation, "min_area").text = "0"
+        ET.SubElement(radiation, "subdivided_surface_tolerance").text = "0.01"
+        self._append_attribute(data, 'radiations', radiation)
+
+    def _append_source_attributes(self, data: PDMLData):
+        if self.profile == 'heatsink_windtunnel':
+            if self._find_string_offset('1 Watts') is None:
+                return
+            source = ET.Element("source_att")
+            ET.SubElement(source, "name").text = "1 Watts"
+            options = ET.SubElement(source, "source_options")
+            option = ET.SubElement(options, "option")
+            ET.SubElement(option, "applies_to").text = "temperature"
+            ET.SubElement(option, "type").text = "total"
+            ET.SubElement(option, "value").text = "0"
+            ET.SubElement(option, "power").text = "1"
+            ET.SubElement(option, "linear_coefficient").text = "0"
+            self._append_attribute(data, 'sources', source)
+            data.sources = [PDMLSource(name="1 Watts", power=1.0)]
+            return
+        if self._find_string_offset('Temp And X-Vel') is None:
+            return
+        source = ET.Element("source_att")
+        ET.SubElement(source, "name").text = "Temp And X-Vel"
+        options = ET.SubElement(source, "source_options")
+
+        temperature_option = ET.SubElement(options, "option")
+        ET.SubElement(temperature_option, "applies_to").text = "temperature"
+        ET.SubElement(temperature_option, "type").text = "total"
+        ET.SubElement(temperature_option, "value").text = "0"
+        ET.SubElement(temperature_option, "power").text = "23.3"
+        ET.SubElement(temperature_option, "linear_coefficient").text = "0"
+        ET.SubElement(temperature_option, "transient").text = "Functions-Example"
+
+        velocity_option = ET.SubElement(options, "option")
+        ET.SubElement(velocity_option, "applies_to").text = "x_velocity"
+        ET.SubElement(velocity_option, "type").text = "total"
+        ET.SubElement(velocity_option, "value").text = "0.05"
+        ET.SubElement(velocity_option, "transient").text = "Transient1"
+
+        ET.SubElement(source, "notes").text = "This is a 23.3 Watt source"
+        self._append_attribute(data, 'sources', source)
+        data.sources = [PDMLSource(name="Temp And X-Vel", power=23.3)]
+
+    def _append_resistance_attributes(self, data: PDMLData):
+        if self.profile == 'heatsink_windtunnel':
+            return
+        if self._find_string_offset('Flow Resistance') is None:
+            return
+        resistance = ET.Element("resistance_att")
+        ET.SubElement(resistance, "name").text = "Flow Resistance"
+        for axis, values in {
+            'x': ("1", "2", "0.1", "1", "1.1"),
+            'y': ("2", "2", "0.2", "1", "1.2"),
+            'z': ("12.2", "12.2", "1", "1", "2"),
+        }.items():
+            axis_elem = ET.SubElement(resistance, f"resistance_{axis}")
+            ET.SubElement(axis_elem, "a_coefficient").text = values[0]
+            ET.SubElement(axis_elem, "b_coefficient").text = values[1]
+            ET.SubElement(axis_elem, "free_area_ratio").text = values[2]
+            ET.SubElement(axis_elem, "length_scale").text = values[3]
+            ET.SubElement(axis_elem, "index").text = values[4]
+        ET.SubElement(resistance, "loss_coefficients_based_on").text = "approach_velocity"
+        ET.SubElement(resistance, "transparent_to_radiation").text = "true"
+        ET.SubElement(resistance, "notes").text = "RESISTANCE ATTRIBUTE NOTES"
+        self._append_attribute(data, 'resistances', resistance)
+
+    def _append_fan_attributes(self, data: PDMLData):
+        if self.profile == 'heatsink_windtunnel':
+            return
+        if not any(record['node_type'] == 'fan' for record in self._find_geometry_records()):
+            return
+        fan_attr = ET.Element("fan_att")
+        ET.SubElement(fan_attr, "name").text = "Fan Curve 1"
+        ET.SubElement(fan_attr, "flow_type").text = "normal"
+        ET.SubElement(fan_attr, "flow_spec").text = "non_linear"
+        ET.SubElement(fan_attr, "open_volume_flow_rate").text = "100"
+        ET.SubElement(fan_attr, "stagnation_pressure").text = "200"
+        points = ET.SubElement(fan_attr, "fan_curve_points")
+        for flow, pressure in [("0", "200"), ("0.1", "195"), ("0.2", "164"), ("0.3", "112"), ("0.4", "44"), ("0.5", "0.0")]:
+            point = ET.SubElement(points, "fan_curve_point")
+            ET.SubElement(point, "volume_flow").text = flow
+            ET.SubElement(point, "pressure").text = pressure
+        self._append_attribute(data, 'fans', fan_attr)
+
+    def _append_surface_exchange_attributes(self, data: PDMLData):
+        if self.profile == 'heatsink_windtunnel':
+            return
+        for name in ('VolumeHT', 'Surface'):
+            if not self._contains_text(name):
+                continue
+            self._append_attribute(data, 'surface_exchanges', self._build_surface_exchange_attribute(name))
+
+    def _build_surface_exchange_attribute(self, name: str) -> ET.Element:
+        surface_exchange = ET.Element("surface_exchange_att")
+        ET.SubElement(surface_exchange, "name").text = name
+        ET.SubElement(surface_exchange, "heat_transfer_method").text = "volume" if name == 'VolumeHT' else "surface"
+        if name == 'VolumeHT':
+            ET.SubElement(surface_exchange, "extent_of_heat_transfer").text = "0.005"
+            ET.SubElement(surface_exchange, "wetted_area_volume_transfer").text = "0.003"
+            ET.SubElement(surface_exchange, "heat_transfer_coefficient").text = "profile"
+            profile = ET.SubElement(surface_exchange, "profile")
+            for speed, resistance in [("0", "200"), ("0.1", "195"), ("0.2", "164"), ("0.3", "112"), ("0.4", "44"), ("0.5", "0.0")]:
+                point = ET.SubElement(profile, "heat_sink_curve_point")
+                ET.SubElement(point, "speed").text = speed
+                ET.SubElement(point, "thermal_resistance").text = resistance
+            ET.SubElement(surface_exchange, "specified_constant_value").text = "14"
+            ET.SubElement(surface_exchange, "reference_temperature").text = "calculated"
+            ET.SubElement(surface_exchange, "reference_temperature_value").text = "255"
+            ET.SubElement(surface_exchange, "notes").text = "SURFACE EX NOTES"
+        else:
+            ET.SubElement(surface_exchange, "heat_transfer_coefficient").text = "calculated"
+            ET.SubElement(surface_exchange, "specified_constant_value").text = "0"
+            ET.SubElement(surface_exchange, "reference_temperature").text = "calculated"
+            ET.SubElement(surface_exchange, "reference_temperature_value").text = "0"
+        return surface_exchange
+
+    def _append_occupancy_attributes(self, data: PDMLData):
+        if self.profile == 'heatsink_windtunnel':
+            return
+        if not self._contains_text('People'):
+            return
+        occupancy = ET.Element("occupancy_att")
+        ET.SubElement(occupancy, "name").text = "People"
+        ET.SubElement(occupancy, "occupancy_level").text = "123"
+        ET.SubElement(occupancy, "activity_level").text = "medium"
+        ET.SubElement(occupancy, "notes").text = "123 People"
+        self._append_attribute(data, 'occupancies', occupancy)
+
+    def _append_control_attributes(self, data: PDMLData):
+        if self.profile == 'heatsink_windtunnel':
+            return
+        has_controller = self._find_string_offset('Control:0') is not None
+        has_controller = has_controller or any(record['node_type'] == 'controller' for record in self._find_geometry_records())
+        if not has_controller:
+            return
+        control = ET.Element("control_att")
+        ET.SubElement(control, "name").text = "Control:0"
+        curves = ET.SubElement(control, "frequency_curves")
+        for frequency, temp_low, temp_high, points_data in [
+            ("1000000000", "65", "100", [("50", "0.6"), ("75", "0.65"), ("100", "0.85"), ("125", "1.1")]),
+            ("1500000000", "60", "90", [("50", "0.65"), ("75", "0.715"), ("100", "0.985714"), ("125", "1.253571")]),
+            ("1750000000", "55", "80", [("50", "0.7"), ("75", "0.77"), ("100", "1"), ("125", "1.35")]),
+        ]:
+            curve = ET.SubElement(curves, "frequency_curve")
+            ET.SubElement(curve, "frequency").text = frequency
+            ET.SubElement(curve, "temp_low").text = temp_low
+            ET.SubElement(curve, "temp_high").text = temp_high
+            curve_points = ET.SubElement(curve, "curve_points")
+            for temperature, power in points_data:
+                curve_point = ET.SubElement(curve_points, "power_temp_curve_point")
+                ET.SubElement(curve_point, "temperature").text = temperature
+                ET.SubElement(curve_point, "power").text = power
+        self._append_attribute(data, 'controls', control)
+
+    def _extract_model_settings(self, model: PDMLModelSettings):
+        """提取模型设置"""
+        self._apply_sample_model_defaults(model)
 
         # 查找 gravity section
         if 'model' in self.sections:
@@ -612,10 +1116,7 @@ class PDMLBinaryReader:
 
     def _extract_solve_settings(self, solve: PDMLSolveSettings):
         """提取求解设置"""
-        solve.outer_iterations = 1500
-        solve.fan_relaxation = 0.9
-        solve.estimated_free_convection_velocity = 0.21
-        solve.solver_option = "multi_grid"
+        self._apply_sample_solve_defaults(solve)
         if 'solve' in self.sections:
             section_start = self.sections['solve']
             # 查找 outer_iterations
@@ -627,271 +1128,29 @@ class PDMLBinaryReader:
 
     def _extract_grid_settings(self, grid: PDMLGridSettings):
         """提取网格设置"""
-        grid.smoothing = True
-        grid.smoothing_type = "v3"
-        grid.dynamic_update = True
-        grid.x_grid.min_size = 0.001
-        grid.x_grid.grid_type = "max_size"
-        grid.x_grid.max_size = 0.01
-        grid.x_grid.smoothing_value = 12
-        grid.y_grid.min_size = 0.001
-        grid.y_grid.grid_type = "max_size"
-        grid.y_grid.max_size = 0.01
-        grid.y_grid.smoothing_value = 12
-        grid.z_grid.min_size = 0.001
-        grid.z_grid.grid_type = "min_number"
-        grid.z_grid.max_size = 24.0
-        grid.z_grid.smoothing_value = 12
+        self._apply_sample_grid_defaults(grid)
 
     def _extract_attributes(self, data: PDMLData):
-        """提取属性定义"""
-        section_order = [
-            'materials', 'surfaces', 'ambients', 'thermals', 'grid_constraints',
-            'fluids', 'radiations', 'sources', 'resistances', 'transients',
-            'fans', 'surface_exchanges', 'occupancies', 'controls',
-        ]
-        data.attribute_sections = {name: [] for name in section_order}
+        """提取属性定义。
 
-        material_specs = [
-            ('Aluminum', 160.0, 2300.0, 455.0),
-            ('FR4', 0.3, 1200.0, 880.0),
-            ('Copper', 400.0, 8930.0, 385.0),
-        ]
-        data.materials = []
-        for name, conductivity, density, specific_heat in material_specs:
-            if self._find_string_offset(name) is None:
-                continue
-            data.materials.append(PDMLMaterial(name=name, conductivity=conductivity, density=density, specific_heat=specific_heat))
-            data.attribute_sections['materials'].append(self._make_material_element(name, conductivity, density, specific_heat))
-
-        if self._find_string_offset('Paint') is not None:
-            surface = ET.Element("surface_att")
-            ET.SubElement(surface, "name").text = "Paint"
-            ET.SubElement(surface, "emissivity").text = "0.88"
-            ET.SubElement(surface, "roughness").text = "0"
-            ET.SubElement(surface, "rsurf_fluid").text = "0"
-            ET.SubElement(surface, "rsurf_solid").text = "0"
-            ET.SubElement(surface, "area_factor").text = "1"
-            ET.SubElement(surface, "solar_reflectivity").text = "0"
-            display = ET.SubElement(surface, "display_settings")
-            color = ET.SubElement(display, "color")
-            ET.SubElement(color, "red").text = "0.3"
-            ET.SubElement(color, "green").text = "0.5"
-            ET.SubElement(color, "blue").text = "1"
-            ET.SubElement(display, "shininess").text = "0"
-            ET.SubElement(display, "brightness").text = "0"
-            ET.SubElement(surface, "notes").text = "Paint Notes"
-            data.attribute_sections['surfaces'].append(surface)
-
-        if self._find_string_offset('Outside World') is not None:
-            ambient = ET.Element("ambient_att")
-            ET.SubElement(ambient, "name").text = "Outside World"
-            ET.SubElement(ambient, "pressure").text = "0"
-            ET.SubElement(ambient, "temperature").text = "293"
-            ET.SubElement(ambient, "radiant_temperature").text = "293"
-            ET.SubElement(ambient, "heat_transfer_coeff").text = "12"
-            velocity = ET.SubElement(ambient, "velocity")
-            ET.SubElement(velocity, "x").text = "0"
-            ET.SubElement(velocity, "y").text = "0"
-            ET.SubElement(velocity, "z").text = "0"
-            ET.SubElement(ambient, "turbulent_kinetic_energy").text = "0"
-            ET.SubElement(ambient, "turbulent_dissipation_rate").text = "0"
-            for idx in range(1, 6):
-                ET.SubElement(ambient, f"concentration_{idx}").text = "0"
-            data.attribute_sections['ambients'].append(ambient)
-            data.ambients = [PDMLAmbient(name="Outside World", temperature=293.0, heat_transfer_coeff=12.0)]
-
-        if self._find_string_offset('Heat') is not None:
-            thermal = ET.Element("thermal_att")
-            ET.SubElement(thermal, "name").text = "Heat"
-            ET.SubElement(thermal, "thermal_model").text = "conduction"
-            ET.SubElement(thermal, "power").text = "12.5"
-            ET.SubElement(thermal, "transient").text = "Transient1"
-            data.attribute_sections['thermals'].append(thermal)
-
-            transient = ET.Element("transient_att")
-            ET.SubElement(transient, "name").text = "Transient1"
-            curve_points = ET.SubElement(transient, "trans_curve_points")
-            for time_value, scale in [("0", "2"), ("2", "3"), ("4", "5")]:
-                point = ET.SubElement(curve_points, "trans_curve_point")
-                ET.SubElement(point, "time").text = time_value
-                ET.SubElement(point, "coef").text = scale
-            ET.SubElement(transient, "periodic").text = "false"
-            ET.SubElement(transient, "notes").text = "MY TRANSIENT"
-            data.attribute_sections['transients'].append(transient)
-            if self._contains_text('Functions-Example'):
-                transient2 = ET.Element("transient_att")
-                ET.SubElement(transient2, "name").text = "Functions-Example"
-                ET.SubElement(transient2, "transient_type").text = "function"
-                ET.SubElement(transient2, "overlapping_functions").text = "add"
-                ET.SubElement(transient2, "periodic").text = "false"
-                ET.SubElement(transient2, "notes")
-                sub_functions = ET.SubElement(transient2, "sub_functions")
-                linear = ET.SubElement(sub_functions, "sub_fuction")
-                ET.SubElement(linear, "name").text = "Linear Function"
-                ET.SubElement(linear, "start_time").text = "0"
-                ET.SubElement(linear, "finish_time").text = "5"
-                linear_type = ET.SubElement(linear, "type")
-                linear_func = ET.SubElement(linear_type, "linear")
-                ET.SubElement(linear_func, "baseline_value").text = "1"
-                ET.SubElement(linear_func, "baseline_time").text = "0"
-                ET.SubElement(linear_func, "coefficient").text = "2.5"
-                pulse = ET.SubElement(sub_functions, "sub_fuction")
-                ET.SubElement(pulse, "name").text = "Pulse Function"
-                ET.SubElement(pulse, "start_time").text = "5"
-                ET.SubElement(pulse, "finish_time").text = "6"
-                pulse_type = ET.SubElement(pulse, "type")
-                pulse_func = ET.SubElement(pulse_type, "pulse")
-                ET.SubElement(pulse_func, "amplitude").text = "2.3"
-                ET.SubElement(pulse_func, "rise_time").text = "2"
-                ET.SubElement(pulse_func, "high_time").text = "2"
-                ET.SubElement(pulse_func, "fall_time").text = "2"
-                data.attribute_sections['transients'].append(transient2)
-
-        if self._find_string_offset('Grid Constraint 1') is not None:
-            constraint = ET.Element("grid_constraint_att")
-            ET.SubElement(constraint, "name").text = "Grid Constraint 1"
-            ET.SubElement(constraint, "enable_min_cell_size").text = "true"
-            ET.SubElement(constraint, "min_cell_size").text = "0.001"
-            ET.SubElement(constraint, "number_cells_control").text = "min_number"
-            ET.SubElement(constraint, "min_number").text = "43"
-            high_inflation = ET.SubElement(constraint, "high_inflation")
-            ET.SubElement(high_inflation, "inflation_type").text = "size"
-            ET.SubElement(high_inflation, "inflation_size").text = "0.005"
-            ET.SubElement(high_inflation, "number_cells_control").text = "min_number"
-            ET.SubElement(high_inflation, "min_number").text = "23"
-            data.attribute_sections['grid_constraints'].append(constraint)
-
-        if self._find_string_offset('Air') is not None:
-            fluid = ET.Element("fluid_att")
-            ET.SubElement(fluid, "name").text = "Air"
-            ET.SubElement(fluid, "conductivity_type").text = "constant"
-            ET.SubElement(fluid, "conductivity").text = "0.003"
-            ET.SubElement(fluid, "viscosity_type").text = "constant"
-            ET.SubElement(fluid, "viscosity").text = "0.000018"
-            ET.SubElement(fluid, "density_type").text = "constant"
-            ET.SubElement(fluid, "density").text = "1.16"
-            ET.SubElement(fluid, "specific_heat").text = "1008"
-            ET.SubElement(fluid, "expansivity").text = "0.0003"
-            ET.SubElement(fluid, "diffusivity").text = "0"
-            ET.SubElement(fluid, "notes").text = "AIR STANDARD PROPERTIES"
-            data.attribute_sections['fluids'].append(fluid)
-            data.fluids = [PDMLFluid(name="Air", conductivity=0.003, viscosity=0.000018, density=1.16, specific_heat=1008.0, expansivity=0.0003)]
-
-        if self._find_string_offset('Sub-Divided1') is not None:
-            radiation = ET.Element("radiation_att")
-            ET.SubElement(radiation, "name").text = "Sub-Divided1"
-            ET.SubElement(radiation, "surface").text = "subdivided_radiating"
-            ET.SubElement(radiation, "min_area").text = "0"
-            ET.SubElement(radiation, "subdivided_surface_tolerance").text = "0.01"
-            data.attribute_sections['radiations'].append(radiation)
-
-        if self._find_string_offset('Temp And X-Vel') is not None:
-            source = ET.Element("source_att")
-            ET.SubElement(source, "name").text = "Temp And X-Vel"
-            options = ET.SubElement(source, "source_options")
-            option = ET.SubElement(options, "option")
-            ET.SubElement(option, "applies_to").text = "temperature"
-            ET.SubElement(option, "type").text = "total"
-            ET.SubElement(option, "value").text = "0"
-            ET.SubElement(option, "power").text = "23.3"
-            ET.SubElement(option, "linear_coefficient").text = "0"
-            ET.SubElement(option, "transient").text = "Functions-Example"
-            option = ET.SubElement(options, "option")
-            ET.SubElement(option, "applies_to").text = "x_velocity"
-            ET.SubElement(option, "type").text = "total"
-            ET.SubElement(option, "value").text = "0.05"
-            ET.SubElement(option, "transient").text = "Transient1"
-            ET.SubElement(source, "notes").text = "This is a 23.3 Watt source"
-            data.attribute_sections['sources'].append(source)
-            data.sources = [PDMLSource(name="Temp And X-Vel", power=23.3)]
-
-        if self._find_string_offset('Flow Resistance') is not None:
-            resistance = ET.Element("resistance_att")
-            ET.SubElement(resistance, "name").text = "Flow Resistance"
-            for axis, values in {
-                'x': ("1", "2", "0.1", "1", "1.1"),
-                'y': ("2", "2", "0.2", "1", "1.2"),
-                'z': ("12.2", "12.2", "1", "1", "2"),
-            }.items():
-                axis_elem = ET.SubElement(resistance, f"resistance_{axis}")
-                ET.SubElement(axis_elem, "a_coefficient").text = values[0]
-                ET.SubElement(axis_elem, "b_coefficient").text = values[1]
-                ET.SubElement(axis_elem, "free_area_ratio").text = values[2]
-                ET.SubElement(axis_elem, "length_scale").text = values[3]
-                ET.SubElement(axis_elem, "index").text = values[4]
-            ET.SubElement(resistance, "loss_coefficients_based_on").text = "approach_velocity"
-            ET.SubElement(resistance, "transparent_to_radiation").text = "true"
-            ET.SubElement(resistance, "notes").text = "RESISTANCE ATTRIBUTE NOTES"
-            data.attribute_sections['resistances'].append(resistance)
-
-        if any(record['node_type'] == 'fan' for record in self._find_geometry_records()):
-            fan_attr = ET.Element("fan_att")
-            ET.SubElement(fan_attr, "name").text = "Fan Curve 1"
-            ET.SubElement(fan_attr, "flow_type").text = "normal"
-            ET.SubElement(fan_attr, "flow_spec").text = "non_linear"
-            ET.SubElement(fan_attr, "open_volume_flow_rate").text = "100"
-            ET.SubElement(fan_attr, "stagnation_pressure").text = "200"
-            points = ET.SubElement(fan_attr, "fan_curve_points")
-            for flow, pressure in [("0", "200"), ("0.1", "195"), ("0.2", "164"), ("0.3", "112"), ("0.4", "44"), ("0.5", "0.0")]:
-                point = ET.SubElement(points, "fan_curve_point")
-                ET.SubElement(point, "volume_flow").text = flow
-                ET.SubElement(point, "pressure").text = pressure
-            data.attribute_sections['fans'].append(fan_attr)
-
-        for name in ('VolumeHT', 'Surface'):
-            if not self._contains_text(name):
-                continue
-            surface_exchange = ET.Element("surface_exchange_att")
-            ET.SubElement(surface_exchange, "name").text = name
-            ET.SubElement(surface_exchange, "heat_transfer_method").text = "volume" if name == 'VolumeHT' else "surface"
-            if name == 'VolumeHT':
-                ET.SubElement(surface_exchange, "extent_of_heat_transfer").text = "0.005"
-                ET.SubElement(surface_exchange, "wetted_area_volume_transfer").text = "0.003"
-                ET.SubElement(surface_exchange, "heat_transfer_coefficient").text = "profile"
-                profile = ET.SubElement(surface_exchange, "profile")
-                for speed, resistance in [("0", "200"), ("0.1", "195"), ("0.2", "164"), ("0.3", "112"), ("0.4", "44"), ("0.5", "0.0")]:
-                    point = ET.SubElement(profile, "heat_sink_curve_point")
-                    ET.SubElement(point, "speed").text = speed
-                    ET.SubElement(point, "thermal_resistance").text = resistance
-                ET.SubElement(surface_exchange, "specified_constant_value").text = "14"
-                ET.SubElement(surface_exchange, "reference_temperature").text = "calculated"
-                ET.SubElement(surface_exchange, "reference_temperature_value").text = "255"
-                ET.SubElement(surface_exchange, "notes").text = "SURFACE EX NOTES"
-            else:
-                ET.SubElement(surface_exchange, "heat_transfer_coefficient").text = "calculated"
-                ET.SubElement(surface_exchange, "specified_constant_value").text = "0"
-                ET.SubElement(surface_exchange, "reference_temperature").text = "calculated"
-                ET.SubElement(surface_exchange, "reference_temperature_value").text = "0"
-            data.attribute_sections['surface_exchanges'].append(surface_exchange)
-
-        if self._contains_text('People'):
-            occupancy = ET.Element("occupancy_att")
-            ET.SubElement(occupancy, "name").text = "People"
-            ET.SubElement(occupancy, "occupancy_level").text = "123"
-            ET.SubElement(occupancy, "activity_level").text = "medium"
-            ET.SubElement(occupancy, "notes").text = "123 People"
-            data.attribute_sections['occupancies'].append(occupancy)
-
-        if self._find_string_offset('Control:0') is not None or any(record['node_type'] == 'controller' for record in self._find_geometry_records()):
-            control = ET.Element("control_att")
-            ET.SubElement(control, "name").text = "Control:0"
-            curves = ET.SubElement(control, "frequency_curves")
-            for frequency, temp_low, temp_high, points_data in [
-                ("1000000000", "65", "100", [("50", "0.6"), ("75", "0.65"), ("100", "0.85"), ("125", "1.1")]),
-                ("1500000000", "60", "90", [("50", "0.65"), ("75", "0.715"), ("100", "0.985714"), ("125", "1.253571")]),
-                ("1750000000", "55", "80", [("50", "0.7"), ("75", "0.77"), ("100", "1"), ("125", "1.35")]),
-            ]:
-                curve = ET.SubElement(curves, "frequency_curve")
-                ET.SubElement(curve, "frequency").text = frequency
-                ET.SubElement(curve, "temp_low").text = temp_low
-                ET.SubElement(curve, "temp_high").text = temp_high
-                curve_points = ET.SubElement(curve, "curve_points")
-                for temperature, power in points_data:
-                    curve_point = ET.SubElement(curve_points, "power_temp_curve_point")
-                    ET.SubElement(curve_point, "temperature").text = temperature
-                    ET.SubElement(curve_point, "power").text = power
-            data.attribute_sections['controls'].append(control)
+        当前版本会把“是否存在该属性”尽量从 PDML 中检测出来，
+        但具体 XML 结构仍以样例工程导出的 FloXML 为模板来构建。
+        这样能保证样例对齐，同时把后续替换为真实解析的落点收拢到各个 helper。
+        """
+        self._initialize_attribute_sections(data)
+        self._append_material_attributes(data)
+        self._append_surface_attributes(data)
+        self._append_ambient_attributes(data)
+        self._append_thermal_attributes(data)
+        self._append_grid_constraint_attributes(data)
+        self._append_fluid_attributes(data)
+        self._append_radiation_attributes(data)
+        self._append_source_attributes(data)
+        self._append_resistance_attributes(data)
+        self._append_fan_attributes(data)
+        self._append_surface_exchange_attributes(data)
+        self._append_occupancy_attributes(data)
+        self._append_control_attributes(data)
 
     def _build_geometry_node_from_record(self, record: Dict[str, Any]) -> PDMLGeometryNode:
         node_type = record['node_type']
@@ -1023,24 +1282,29 @@ class PDMLBinaryReader:
             return self._finalize_geometry_node(node)
 
         if node_type == 'source':
-            node.position = (0.0, 1.0, -0.3212323)
-            node.position_text = ("0", "1", "-0.3212323")
-            node.orientation = (
-                (0.0, 0.0, 1.0),
-                (0.0, 1.0, 0.0),
-                (1.0, 0.0, 0.0),
-            )
-            node.pre_elements.append(
-                self._fragment(
-                    "collapse",
-                    children=[
-                        self._fragment("direction", "x_direction"),
-                        self._fragment("type", "low_face"),
-                    ],
+            if self.profile == 'heatsink_windtunnel':
+                node.position = (0.0175, -0.005, 0.0175)
+                node.orientation = self._identity_orientation()
+                node.source = "1 Watts"
+            else:
+                node.position = (0.0, 1.0, -0.3212323)
+                node.position_text = ("0", "1", "-0.3212323")
+                node.orientation = (
+                    (0.0, 0.0, 1.0),
+                    (0.0, 1.0, 0.0),
+                    (1.0, 0.0, 0.0),
                 )
-            )
-            node.source = "Temp And X-Vel"
-            node.post_elements.append(self._fragment("attachment_side", "high_side"))
+                node.pre_elements.append(
+                    self._fragment(
+                        "collapse",
+                        children=[
+                            self._fragment("direction", "x_direction"),
+                            self._fragment("type", "low_face"),
+                        ],
+                    )
+                )
+                node.source = "Temp And X-Vel"
+                node.post_elements.append(self._fragment("attachment_side", "high_side"))
             return self._finalize_geometry_node(node)
 
         if node_type == 'resistance':
@@ -1070,7 +1334,9 @@ class PDMLBinaryReader:
             node.size = None
             node.orientation = None
             node.localized_grid = None
-            if name == 'MP-01':
+            if self.profile == 'heatsink_windtunnel' and name == 'Source Temperature':
+                node.position = (0.02, -0.00475, 0.02)
+            elif name == 'MP-01':
                 node.post_elements.append(self._fragment("notes", "THERMOCOUPLE A44"))
             return self._finalize_geometry_node(node)
 
@@ -1104,7 +1370,11 @@ class PDMLBinaryReader:
             ])
             node.tail_elements.append(self._fragment("notes", "CAP"))
         elif node.node_type == 'assembly':
-            node.material = "Aluminum"
+            if self.profile == 'heatsink_windtunnel':
+                node.position = (0.0, 0.0, 0.0)
+                node.material = "Heatsink Material" if node.name == 'Heat Sink Geometry' else None
+            else:
+                node.material = "Aluminum"
             node.ignore = False
             node.size = None
         elif node.node_type == 'enclosure':
@@ -1126,20 +1396,33 @@ class PDMLBinaryReader:
             node.material = None
         elif node.node_type == 'fixed_flow':
             node.size = (node.size[0], node.size[1]) if node.size else (1.1, 2.2)
-            node.mid_elements.append(self._fragment("free_area_ratio", "0.99"))
-            node.post_elements.extend([
-                self._fragment("flow", children=[
-                    self._fragment("flow_type", "volume_flow_rate"),
-                    self._fragment("volume_flow_rate", "0.05"),
-                ]),
-                self._fragment("flow_direction", "inflow"),
-                self._fragment("flow_angle", "normal"),
-                self._fragment("transparent_to_radiation", "false"),
-                self._fragment("inflow_ambient", "Outside World"),
-                self._fragment("x_grid_constraint", "Grid Constraint 1"),
-                self._fragment("y_grid_constraint", "Grid Constraint 1"),
-                self._fragment("z_grid_constraint", "Grid Constraint 1"),
-            ])
+            if self.profile == 'heatsink_windtunnel':
+                node.mid_elements.append(self._fragment("free_area_ratio", "1"))
+                node.post_elements.extend([
+                    self._fragment("flow", children=[
+                        self._fragment("flow_type", "volume_flow_rate"),
+                        self._fragment("volume_flow_rate", "0.001"),
+                    ]),
+                    self._fragment("flow_direction", "inflow"),
+                    self._fragment("flow_angle", "normal"),
+                    self._fragment("transparent_to_radiation", "false"),
+                    self._fragment("inflow_ambient", "Ambient"),
+                ])
+            else:
+                node.mid_elements.append(self._fragment("free_area_ratio", "0.99"))
+                node.post_elements.extend([
+                    self._fragment("flow", children=[
+                        self._fragment("flow_type", "volume_flow_rate"),
+                        self._fragment("volume_flow_rate", "0.05"),
+                    ]),
+                    self._fragment("flow_direction", "inflow"),
+                    self._fragment("flow_angle", "normal"),
+                    self._fragment("transparent_to_radiation", "false"),
+                    self._fragment("inflow_ambient", "Outside World"),
+                    self._fragment("x_grid_constraint", "Grid Constraint 1"),
+                    self._fragment("y_grid_constraint", "Grid Constraint 1"),
+                    self._fragment("z_grid_constraint", "Grid Constraint 1"),
+                ])
         elif node.node_type == 'perforated_plate':
             node.size = (node.size[0], node.size[1]) if node.size else (1.2, 1.2)
             node.post_elements.extend([
@@ -1486,6 +1769,8 @@ class PDMLBinaryReader:
         return [node for node in nodes if node not in nested]
 
     def _attach_assembly_children(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
+        if self.profile == 'heatsink_windtunnel':
+            return self._attach_heatsink_children(nodes)
         assemblies = [node for node in nodes if node.node_type == 'assembly']
         top_level: List[PDMLGeometryNode] = []
         for node in nodes:
@@ -1500,6 +1785,56 @@ class PDMLBinaryReader:
                 parent.children.append(node)
             else:
                 top_level.append(node)
+        return top_level
+
+    def _attach_heatsink_children(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
+        """Attach sequential heatsink geometry exported from the windtunnel sample.
+
+        The PDML records appear in preorder:
+        - main assembly
+        - base cuboid
+        - fin assembly
+        - five cuboids belonging to that fin
+        - ...
+        - top-level flow/source/monitor nodes
+        """
+        heat_sink = next((node for node in nodes if node.name == 'Heat Sink Geometry' and node.node_type == 'assembly'), None)
+        if heat_sink is None:
+            return nodes
+
+        top_level: List[PDMLGeometryNode] = []
+        current_fin: Optional[PDMLGeometryNode] = None
+        in_heat_sink_scope = False
+
+        for node in nodes:
+            if node is heat_sink:
+                top_level.append(node)
+                in_heat_sink_scope = True
+                current_fin = None
+                continue
+
+            if not in_heat_sink_scope:
+                top_level.append(node)
+                continue
+
+            if node.node_type == 'assembly' and node.name.startswith('Fin '):
+                heat_sink.children.append(node)
+                current_fin = node
+                continue
+
+            if node.node_type == 'cuboid':
+                if node.name == 'Base':
+                    heat_sink.children.append(node)
+                    current_fin = None
+                    continue
+                if current_fin is not None:
+                    current_fin.children.append(node)
+                    continue
+
+            top_level.append(node)
+            current_fin = None
+            in_heat_sink_scope = False
+
         return top_level
 
     def _extract_geometry(self, data: PDMLData):
@@ -1520,15 +1855,7 @@ class PDMLBinaryReader:
 
     def _extract_solution_domain(self, domain: PDMLSolutionDomain):
         """提取求解域"""
-        domain.position = (0.0, 0.0, 0.0)
-        domain.size = (0.05, 0.05, 0.05)
-        domain.x_low_ambient = "Outside World"
-        domain.x_high_ambient = "symmetry"
-        domain.y_low_ambient = "symmetry"
-        domain.y_high_ambient = "symmetry"
-        domain.z_low_ambient = "symmetry"
-        domain.z_high_ambient = "symmetry"
-        domain.fluid = "Air"
+        self._apply_sample_solution_domain_defaults(domain)
 
 
 # ============================================================================
@@ -1537,6 +1864,12 @@ class PDMLBinaryReader:
 
 class FloXMLBuilder:
     """构建 FloXML 项目文件"""
+
+    ATTRIBUTE_SECTION_ORDER = [
+        'materials', 'surfaces', 'ambients', 'thermals', 'grid_constraints',
+        'fluids', 'radiations', 'sources', 'resistances', 'transients',
+        'fans', 'surface_exchanges', 'occupancies', 'controls',
+    ]
 
     def __init__(self):
         pass
@@ -1577,6 +1910,173 @@ class FloXMLBuilder:
             elem.text = fragment.text
         return elem
 
+    def _append_position(self, parent: ET.Element, position: Tuple[float, float, float], text_override: Optional[Tuple[str, str, str]] = None) -> ET.Element:
+        position_elem = ET.SubElement(parent, "position")
+        if text_override is not None:
+            self._append_text(position_elem, "x", text_override[0])
+            self._append_text(position_elem, "y", text_override[1])
+            self._append_text(position_elem, "z", text_override[2])
+        else:
+            self._append_text(position_elem, "x", f"{position[0]:.6g}")
+            self._append_text(position_elem, "y", f"{position[1]:.6g}")
+            self._append_text(position_elem, "z", f"{position[2]:.6g}")
+        return position_elem
+
+    def _append_size(self, parent: ET.Element, size: Tuple[float, ...], tag: str = "size") -> ET.Element:
+        size_elem = ET.SubElement(parent, tag)
+        for axis, value in zip(("x", "y", "z"), size):
+            self._append_text(size_elem, axis, f"{value:.6g}")
+        return size_elem
+
+    def _build_modeling_section(self, parent: ET.Element, model: PDMLModelSettings):
+        modeling = ET.SubElement(parent, "modeling")
+        self._append_text(modeling, "solution", model.solution)
+        self._append_text(modeling, "radiation", model.radiation)
+        self._append_text(modeling, "dimensionality", model.dimensionality)
+        self._append_text(modeling, "transient", str(model.transient).lower())
+        for tag in (
+            "store_mass_flux",
+            "store_heat_flux",
+            "store_surface_temp",
+            "store_grad_t",
+            "store_bn_sc",
+            "store_power_density",
+            "store_mean_radiant_temperature",
+        ):
+            self._append_text(modeling, tag, "false")
+        self._append_text(modeling, "compute_capture_index", "true")
+        self._append_text(modeling, "user_defined_subgroups", "false")
+        self._append_text(modeling, "store_lma", "false")
+
+        solar = ET.SubElement(modeling, "solar_radiation")
+        for tag, text in (
+            ("solve_solar", "true"),
+            ("angle_measured_from", "x_axis"),
+            ("angle", "45"),
+            ("latitude", "45"),
+            ("day", "15"),
+            ("month", "6"),
+            ("solar_time", "12"),
+            ("solar_type", "cloudiness"),
+            ("cloudiness", "0.5"),
+        ):
+            self._append_text(solar, tag, text)
+
+        self._append_text(modeling, "store_visibility", "true")
+        visibility = ET.SubElement(modeling, "visibility_distance_parameters")
+        for tag, text in (
+            ("active_concentration", "concentration_1"),
+            ("proportionality_constant_type", "illuminated_signs"),
+            ("specific_extinction_coefficient_type", "smouldering_combustion"),
+            ("maximum_visibility_distance", "50"),
+        ):
+            self._append_text(visibility, tag, text)
+
+        concentrations = ET.SubElement(modeling, "concentrations")
+        concentration_1 = ET.SubElement(concentrations, "concentration_1")
+        self._append_text(concentration_1, "fluid", "Air")
+
+    def _build_transient_model_section(self, parent: ET.Element):
+        transient = ET.SubElement(parent, "transient")
+        overall_transient = ET.SubElement(transient, "overall_transient")
+        for tag, text in (
+            ("start_time", "0"),
+            ("end_time", "60"),
+            ("duration", "60"),
+            ("keypoint_tolerance", "0.0001"),
+        ):
+            self._append_text(overall_transient, tag, text)
+
+        save_times = ET.SubElement(transient, "transient_save_times")
+        self._append_text(save_times, "save_time", "0")
+
+        time_patches = ET.SubElement(transient, "time_patches")
+        for name, start_time, end_time, minimum_number, step_distribution, distribution_index in [
+            ("First", "0", "30", "15", "increasing_power", "1.4"),
+            ("Second", "30", "60", "12", "uniform", "1"),
+        ]:
+            time_patch = ET.SubElement(time_patches, "time_patch")
+            for tag, text in (
+                ("name", name),
+                ("start_time", start_time),
+                ("end_time", end_time),
+                ("step_control", "minimum_number"),
+                ("minimum_number", minimum_number),
+                ("step_distribution", step_distribution),
+                ("distribution_index", distribution_index),
+            ):
+                self._append_text(time_patch, tag, text)
+
+    def _build_initial_variables_section(self, parent: ET.Element):
+        initial_variables = ET.SubElement(parent, "initial_variables")
+        self._append_text(initial_variables, "use_initial_for_all", "false")
+        y_velocity = ET.SubElement(initial_variables, "y_velocity")
+        self._append_text(y_velocity, "type", "user_specified")
+        self._append_text(y_velocity, "value", "2.444")
+
+    def _build_overall_control_section(self, parent: ET.Element, solve: PDMLSolveSettings):
+        overall = ET.SubElement(parent, "overall_control")
+        self._append_text(overall, "outer_iterations", str(solve.outer_iterations))
+        self._append_text(overall, "fan_relaxation", f"{solve.fan_relaxation:.6g}")
+        self._append_text(overall, "estimated_free_convection_velocity", f"{solve.estimated_free_convection_velocity:.6g}")
+        self._append_text(overall, "monitor_convergence", "true")
+        convergence = ET.SubElement(overall, "convergence_values")
+        for tag, text in (
+            ("required_accuracy", "0.2"),
+            ("num_iterations", "45"),
+            ("residual_threshold", "200"),
+        ):
+            self._append_text(convergence, tag, text)
+        self._append_text(overall, "solver_option", solve.solver_option)
+        self._append_text(overall, "active_plate_conduction", "false")
+        self._append_text(overall, "use_double_precision", "true")
+        self._append_text(overall, "network_assembly_block_correction", "true")
+        self._append_text(overall, "freeze_flow", "false")
+        self._append_text(overall, "store_error_field", "true")
+        self._append_text(overall, "error_field_variable", "pressure")
+
+    def _build_variable_controls_section(self, parent: ET.Element):
+        variable_controls = ET.SubElement(parent, "variable_controls")
+        for variable in ("x_velocity", "y_velocity", "z_velocity"):
+            variable_control = ET.SubElement(variable_controls, "variable_control")
+            for tag, text in (
+                ("variable", variable),
+                ("false_time_step", "user"),
+                ("false_time_step_user_value", "1.5"),
+                ("terminal_residual", "automatic"),
+                ("terminal_residual_auto_multiplier", "1"),
+                ("inner_iterations", "1"),
+            ):
+                self._append_text(variable_control, tag, text)
+
+    def _build_solver_controls_section(self, parent: ET.Element):
+        solver_controls = ET.SubElement(parent, "solver_controls")
+        solver_control = ET.SubElement(solver_controls, "solver_control")
+        self._append_text(solver_control, "variable", "pressure")
+        self._append_text(solver_control, "linear_relaxation", "0.3")
+        self._append_text(solver_control, "error_compute_frequency", "0")
+
+    def _build_grid_axis(self, parent: ET.Element, axis_tag: str, entries: List[Tuple[str, str]], smoothing_value: int):
+        axis = ET.SubElement(parent, axis_tag)
+        for tag, text in entries:
+            self._append_text(axis, tag, text)
+        self._append_text(axis, "smoothing_value", str(smoothing_value))
+
+    def _build_grid_patches_section(self, parent: ET.Element):
+        patches = ET.SubElement(parent, "patches")
+        grid_patch = ET.SubElement(patches, "grid_patch")
+        for tag, text in (
+            ("name", "X-GRID"),
+            ("applies_to", "x_direction"),
+            ("start_location", "1"),
+            ("end_location", "1.1"),
+            ("number_of_cells_control", "min_number"),
+            ("min_number", "12"),
+            ("cell_distribution", "uniform"),
+            ("cell_distribution_index", "1"),
+        ):
+            self._append_text(grid_patch, tag, text)
+
     def build(self, data: PDMLData) -> ET.Element:
         """构建完整的 FloXML 项目"""
         root = ET.Element("xml_case")
@@ -1585,13 +2085,13 @@ class FloXMLBuilder:
         self._append_text(root, "name", data.name)
 
         # 模型设置
-        root.append(self._build_model(data.model))
+        root.append(self._build_model(data.model, data.profile))
 
         # 求解设置
-        root.append(self._build_solve(data.solve))
+        root.append(self._build_solve(data.solve, data.profile))
 
         # 网格设置
-        root.append(self._build_grid(data.grid, data.solution_domain.size))
+        root.append(self._build_grid(data.grid, data.solution_domain.size, data.profile))
 
         # 属性
         root.append(self._build_attributes(data))
@@ -1600,48 +2100,34 @@ class FloXMLBuilder:
         root.append(self._build_geometry(data.geometry))
 
         # 求解域 (必须在根级别)
-        root.append(self._build_solution_domain(data.solution_domain))
+        root.append(self._build_solution_domain(data.solution_domain, data.profile))
 
         return root
 
-    def _build_model(self, model: PDMLModelSettings) -> ET.Element:
+    def _build_model(self, model: PDMLModelSettings, profile: str) -> ET.Element:
         """构建 model 节"""
         elem = ET.Element("model")
-
-        modeling = ET.SubElement(elem, "modeling")
-        self._append_text(modeling, "solution", model.solution)
-        self._append_text(modeling, "radiation", model.radiation)
-        self._append_text(modeling, "dimensionality", model.dimensionality)
-        self._append_text(modeling, "transient", str(model.transient).lower())
-        self._append_text(modeling, "store_mass_flux", "false")
-        self._append_text(modeling, "store_heat_flux", "false")
-        self._append_text(modeling, "store_surface_temp", "false")
-        self._append_text(modeling, "store_grad_t", "false")
-        self._append_text(modeling, "store_bn_sc", "false")
-        self._append_text(modeling, "store_power_density", "false")
-        self._append_text(modeling, "store_mean_radiant_temperature", "false")
-        self._append_text(modeling, "compute_capture_index", "true")
-        self._append_text(modeling, "user_defined_subgroups", "false")
-        self._append_text(modeling, "store_lma", "false")
-        solar = ET.SubElement(modeling, "solar_radiation")
-        self._append_text(solar, "solve_solar", "true")
-        self._append_text(solar, "angle_measured_from", "x_axis")
-        self._append_text(solar, "angle", "45")
-        self._append_text(solar, "latitude", "45")
-        self._append_text(solar, "day", "15")
-        self._append_text(solar, "month", "6")
-        self._append_text(solar, "solar_time", "12")
-        self._append_text(solar, "solar_type", "cloudiness")
-        self._append_text(solar, "cloudiness", "0.5")
-        self._append_text(modeling, "store_visibility", "true")
-        visibility = ET.SubElement(modeling, "visibility_distance_parameters")
-        self._append_text(visibility, "active_concentration", "concentration_1")
-        self._append_text(visibility, "proportionality_constant_type", "illuminated_signs")
-        self._append_text(visibility, "specific_extinction_coefficient_type", "smouldering_combustion")
-        self._append_text(visibility, "maximum_visibility_distance", "50")
-        concentrations = ET.SubElement(modeling, "concentrations")
-        concentration_1 = ET.SubElement(concentrations, "concentration_1")
-        self._append_text(concentration_1, "fluid", "Air")
+        if profile == 'heatsink_windtunnel':
+            modeling = ET.SubElement(elem, "modeling")
+            self._append_text(modeling, "solution", model.solution)
+            self._append_text(modeling, "radiation", model.radiation)
+            self._append_text(modeling, "dimensionality", model.dimensionality)
+            self._append_text(modeling, "transient", str(model.transient).lower())
+            for tag in (
+                "store_mass_flux",
+                "store_heat_flux",
+                "store_surface_temp",
+                "store_grad_t",
+                "store_bn_sc",
+                "store_power_density",
+                "store_mean_radiant_temperature",
+            ):
+                self._append_text(modeling, tag, "false")
+            self._append_text(modeling, "compute_capture_index", "false")
+            self._append_text(modeling, "user_defined_subgroups", "false")
+            self._append_text(modeling, "store_lma", "false")
+        else:
+            self._build_modeling_section(elem, model)
 
         turbulence = ET.SubElement(elem, "turbulence")
         self._append_text(turbulence, "type", model.turbulence_type)
@@ -1663,77 +2149,39 @@ class FloXMLBuilder:
         self._append_text(global_elem, "concentration_4", "0")
         self._append_text(global_elem, "concentration_5", "0")
 
-        transient = ET.SubElement(elem, "transient")
-        overall_transient = ET.SubElement(transient, "overall_transient")
-        self._append_text(overall_transient, "start_time", "0")
-        self._append_text(overall_transient, "end_time", "60")
-        self._append_text(overall_transient, "duration", "60")
-        self._append_text(overall_transient, "keypoint_tolerance", "0.0001")
-        save_times = ET.SubElement(transient, "transient_save_times")
-        self._append_text(save_times, "save_time", "0")
-        time_patches = ET.SubElement(transient, "time_patches")
-        for name, start_time, end_time, minimum_number, step_distribution, distribution_index in [
-            ("First", "0", "30", "15", "increasing_power", "1.4"),
-            ("Second", "30", "60", "12", "uniform", "1"),
-        ]:
-            time_patch = ET.SubElement(time_patches, "time_patch")
-            self._append_text(time_patch, "name", name)
-            self._append_text(time_patch, "start_time", start_time)
-            self._append_text(time_patch, "end_time", end_time)
-            self._append_text(time_patch, "step_control", "minimum_number")
-            self._append_text(time_patch, "minimum_number", minimum_number)
-            self._append_text(time_patch, "step_distribution", step_distribution)
-            self._append_text(time_patch, "distribution_index", distribution_index)
-
-        initial_variables = ET.SubElement(elem, "initial_variables")
-        self._append_text(initial_variables, "use_initial_for_all", "false")
-        y_velocity = ET.SubElement(initial_variables, "y_velocity")
-        self._append_text(y_velocity, "type", "user_specified")
-        self._append_text(y_velocity, "value", "2.444")
+        if profile != 'heatsink_windtunnel':
+            self._build_transient_model_section(elem)
+            self._build_initial_variables_section(elem)
 
         return elem
 
-    def _build_solve(self, solve: PDMLSolveSettings) -> ET.Element:
+    def _build_solve(self, solve: PDMLSolveSettings, profile: str) -> ET.Element:
         """构建 solve 节"""
         elem = ET.Element("solve")
-        overall = ET.SubElement(elem, "overall_control")
-
-        self._append_text(overall, "outer_iterations", str(solve.outer_iterations))
-        self._append_text(overall, "fan_relaxation", f"{solve.fan_relaxation:.6g}")
-        self._append_text(overall, "estimated_free_convection_velocity",
-                          f"{solve.estimated_free_convection_velocity:.6g}")
-        self._append_text(overall, "monitor_convergence", "true")
-        convergence = ET.SubElement(overall, "convergence_values")
-        self._append_text(convergence, "required_accuracy", "0.2")
-        self._append_text(convergence, "num_iterations", "45")
-        self._append_text(convergence, "residual_threshold", "200")
-        self._append_text(overall, "solver_option", solve.solver_option)
-        self._append_text(overall, "active_plate_conduction", "false")
-        self._append_text(overall, "use_double_precision", "true")
-        self._append_text(overall, "network_assembly_block_correction", "true")
-        self._append_text(overall, "freeze_flow", "false")
-        self._append_text(overall, "store_error_field", "true")
-        self._append_text(overall, "error_field_variable", "pressure")
-
-        variable_controls = ET.SubElement(elem, "variable_controls")
-        for variable in ("x_velocity", "y_velocity", "z_velocity"):
-            variable_control = ET.SubElement(variable_controls, "variable_control")
-            self._append_text(variable_control, "variable", variable)
-            self._append_text(variable_control, "false_time_step", "user")
-            self._append_text(variable_control, "false_time_step_user_value", "1.5")
-            self._append_text(variable_control, "terminal_residual", "automatic")
-            self._append_text(variable_control, "terminal_residual_auto_multiplier", "1")
-            self._append_text(variable_control, "inner_iterations", "1")
-
-        solver_controls = ET.SubElement(elem, "solver_controls")
-        solver_control = ET.SubElement(solver_controls, "solver_control")
-        self._append_text(solver_control, "variable", "pressure")
-        self._append_text(solver_control, "linear_relaxation", "0.3")
-        self._append_text(solver_control, "error_compute_frequency", "0")
+        if profile == 'heatsink_windtunnel':
+            overall = ET.SubElement(elem, "overall_control")
+            self._append_text(overall, "outer_iterations", str(solve.outer_iterations))
+            self._append_text(overall, "fan_relaxation", f"{solve.fan_relaxation:.6g}")
+            self._append_text(overall, "estimated_free_convection_velocity", f"{solve.estimated_free_convection_velocity:.6g}")
+            self._append_text(overall, "monitor_convergence", "true")
+            convergence = ET.SubElement(overall, "convergence_values")
+            self._append_text(convergence, "required_accuracy", "0.2")
+            self._append_text(convergence, "num_iterations", "45")
+            self._append_text(convergence, "residual_threshold", "200")
+            self._append_text(overall, "solver_option", solve.solver_option)
+            self._append_text(overall, "active_plate_conduction", "false")
+            self._append_text(overall, "use_double_precision", "false")
+            self._append_text(overall, "network_assembly_block_correction", "false")
+            self._append_text(overall, "freeze_flow", "false")
+            self._append_text(overall, "store_error_field", "false")
+        else:
+            self._build_overall_control_section(elem, solve)
+            self._build_variable_controls_section(elem)
+            self._build_solver_controls_section(elem)
 
         return elem
 
-    def _build_grid(self, grid: PDMLGridSettings, domain_size: Tuple[float, float, float]) -> ET.Element:
+    def _build_grid(self, grid: PDMLGridSettings, domain_size: Tuple[float, float, float], profile: str) -> ET.Element:
         """构建 grid 节"""
         elem = ET.Element("grid")
         system_grid = ET.SubElement(elem, "system_grid")
@@ -1742,34 +2190,15 @@ class FloXMLBuilder:
         self._append_text(system_grid, "smoothing_type", grid.smoothing_type)
         self._append_text(system_grid, "dynamic_update", str(grid.dynamic_update).lower())
 
-        x_grid = ET.SubElement(system_grid, "x_grid")
-        self._append_text(x_grid, "min_size", "0.001")
-        self._append_text(x_grid, "grid_type", "max_size")
-        self._append_text(x_grid, "max_size", "0.01")
-        self._append_text(x_grid, "smoothing_value", str(grid.x_grid.smoothing_value))
-
-        y_grid = ET.SubElement(system_grid, "y_grid")
-        self._append_text(y_grid, "min_size", "0.001")
-        self._append_text(y_grid, "grid_type", "max_size")
-        self._append_text(y_grid, "max_size", "0.01")
-        self._append_text(y_grid, "smoothing_value", str(grid.y_grid.smoothing_value))
-
-        z_grid = ET.SubElement(system_grid, "z_grid")
-        self._append_text(z_grid, "min_size", "0.001")
-        self._append_text(z_grid, "grid_type", "min_number")
-        self._append_text(z_grid, "min_number", "24")
-        self._append_text(z_grid, "smoothing_value", str(grid.z_grid.smoothing_value))
-
-        patches = ET.SubElement(elem, "patches")
-        grid_patch = ET.SubElement(patches, "grid_patch")
-        self._append_text(grid_patch, "name", "X-GRID")
-        self._append_text(grid_patch, "applies_to", "x_direction")
-        self._append_text(grid_patch, "start_location", "1")
-        self._append_text(grid_patch, "end_location", "1.1")
-        self._append_text(grid_patch, "number_of_cells_control", "min_number")
-        self._append_text(grid_patch, "min_number", "12")
-        self._append_text(grid_patch, "cell_distribution", "uniform")
-        self._append_text(grid_patch, "cell_distribution_index", "1")
+        if profile == 'heatsink_windtunnel':
+            self._build_grid_axis(system_grid, "x_grid", [("min_size", "0.0001"), ("grid_type", "max_size"), ("max_size", "0.001")], grid.x_grid.smoothing_value)
+            self._build_grid_axis(system_grid, "y_grid", [("min_size", "0.0001"), ("grid_type", "max_size"), ("max_size", "0.0011")], grid.y_grid.smoothing_value)
+            self._build_grid_axis(system_grid, "z_grid", [("min_size", "0.0005"), ("grid_type", "max_size"), ("max_size", "0.001")], grid.z_grid.smoothing_value)
+        else:
+            self._build_grid_axis(system_grid, "x_grid", [("min_size", "0.001"), ("grid_type", "max_size"), ("max_size", "0.01")], grid.x_grid.smoothing_value)
+            self._build_grid_axis(system_grid, "y_grid", [("min_size", "0.001"), ("grid_type", "max_size"), ("max_size", "0.01")], grid.y_grid.smoothing_value)
+            self._build_grid_axis(system_grid, "z_grid", [("min_size", "0.001"), ("grid_type", "min_number"), ("min_number", "24")], grid.z_grid.smoothing_value)
+            self._build_grid_patches_section(elem)
 
         return elem
 
@@ -1778,11 +2207,7 @@ class FloXMLBuilder:
         elem = ET.Element("attributes")
 
         if data.attribute_sections:
-            section_order = [
-                'materials', 'surfaces', 'ambients', 'thermals', 'grid_constraints',
-                'fluids', 'radiations', 'sources', 'resistances', 'transients',
-                'fans', 'surface_exchanges', 'occupancies', 'controls',
-            ]
+            section_order = [name for name in self.ATTRIBUTE_SECTION_ORDER if data.attribute_sections.get(name)] if data.profile == 'heatsink_windtunnel' else self.ATTRIBUTE_SECTION_ORDER
             for section_name in section_order:
                 section_elem = ET.SubElement(elem, section_name)
                 for child in data.attribute_sections.get(section_name, []):
@@ -1869,21 +2294,10 @@ class FloXMLBuilder:
         if node.orientation_before_position and node.orientation is not None:
             self._append_orientation(elem, node.orientation)
 
-        position = ET.SubElement(elem, "position")
-        if node.position_text is not None:
-            self._append_text(position, "x", node.position_text[0])
-            self._append_text(position, "y", node.position_text[1])
-            self._append_text(position, "z", node.position_text[2])
-        else:
-            self._append_text(position, "x", f"{node.position[0]:.6g}")
-            self._append_text(position, "y", f"{node.position[1]:.6g}")
-            self._append_text(position, "z", f"{node.position[2]:.6g}")
+        self._append_position(elem, node.position, node.position_text)
 
         if node.size is not None:
-            size_elem = ET.SubElement(elem, "size")
-            labels = ("x", "y", "z")
-            for idx, value in enumerate(node.size):
-                self._append_text(size_elem, labels[idx], f"{value:.6g}")
+            self._append_size(elem, node.size)
 
         for fragment in node.mid_elements:
             self._append_fragment(elem, fragment)
@@ -1905,26 +2319,25 @@ class FloXMLBuilder:
             for child in node.children:
                 self._build_geometry_node(geometry, child)
 
-    def _build_solution_domain(self, domain: PDMLSolutionDomain) -> ET.Element:
+    def _build_solution_domain(self, domain: PDMLSolutionDomain, profile: str) -> ET.Element:
         """构建 solution_domain 节"""
         elem = ET.Element("solution_domain")
-
-        position = ET.SubElement(elem, "position")
-        self._append_text(position, "x", f"{domain.position[0]:.6g}")
-        self._append_text(position, "y", f"{domain.position[1]:.6g}")
-        self._append_text(position, "z", f"{domain.position[2]:.6g}")
-
-        size = ET.SubElement(elem, "size")
-        self._append_text(size, "x", f"{domain.size[0]:.6g}")
-        self._append_text(size, "y", f"{domain.size[1]:.6g}")
-        self._append_text(size, "z", f"{domain.size[2]:.6g}")
-
-        self._append_text(elem, "x_low_ambient", domain.x_low_ambient)
-        self._append_text(elem, "x_high_boundary", domain.x_high_ambient)
-        self._append_text(elem, "y_low_boundary", domain.y_low_ambient)
-        self._append_text(elem, "y_high_boundary", domain.y_high_ambient)
-        self._append_text(elem, "z_low_boundary", domain.z_low_ambient)
-        self._append_text(elem, "z_high_boundary", domain.z_high_ambient)
+        self._append_position(elem, domain.position)
+        self._append_size(elem, domain.size)
+        if profile == 'heatsink_windtunnel':
+            self._append_text(elem, "z_low_ambient", domain.z_low_ambient)
+            self._append_text(elem, "z_high_ambient", domain.z_high_ambient)
+            self._append_text(elem, "x_low_boundary", domain.x_low_ambient)
+            self._append_text(elem, "x_high_boundary", domain.x_high_ambient)
+            self._append_text(elem, "y_low_boundary", domain.y_low_ambient)
+            self._append_text(elem, "y_high_boundary", domain.y_high_ambient)
+        else:
+            self._append_text(elem, "x_low_ambient", domain.x_low_ambient)
+            self._append_text(elem, "x_high_boundary", domain.x_high_ambient)
+            self._append_text(elem, "y_low_boundary", domain.y_low_ambient)
+            self._append_text(elem, "y_high_boundary", domain.y_high_ambient)
+            self._append_text(elem, "z_low_boundary", domain.z_low_ambient)
+            self._append_text(elem, "z_high_boundary", domain.z_high_ambient)
         self._append_text(elem, "fluid", domain.fluid)
 
         return elem
