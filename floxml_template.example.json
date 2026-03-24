@@ -1,0 +1,147 @@
+{
+  "model": {
+    "modeling": {
+      "solution": "flow_heat",
+      "radiation": "off",
+      "dimensionality": "3d",
+      "transient": false,
+      "store_mass_flux": false,
+      "store_heat_flux": false,
+      "store_surface_temp": false,
+      "store_grad_t": false,
+      "store_bn_sc": false,
+      "store_power_density": false,
+      "store_mean_radiant_temperature": false,
+      "compute_capture_index": false,
+      "user_defined_subgroups": false,
+      "store_lma": false
+    },
+    "turbulence": {
+      "type": "turbulent",
+      "turbulence_type": "auto_algebraic"
+    },
+    "gravity": {
+      "type": "normal",
+      "normal_direction": "neg_y",
+      "value_type": "user",
+      "gravity_value": 9.81
+    },
+    "global": {
+      "datum_pressure": 101325,
+      "radiant_temperature": 300,
+      "ambient_temperature": 300,
+      "concentration_1": 0,
+      "concentration_2": 0,
+      "concentration_3": 0,
+      "concentration_4": 0,
+      "concentration_5": 0
+    }
+  },
+  "solve": {
+    "overall_control": {
+      "outer_iterations": 500,
+      "fan_relaxation": 1.0,
+      "estimated_free_convection_velocity": 0.2,
+      "solver_option": "multi_grid",
+      "active_plate_conduction": false,
+      "use_double_precision": false,
+      "network_assembly_block_correction": false,
+      "freeze_flow": false,
+      "store_error_field": false
+    }
+  },
+  "grid": {
+    "system_grid": {
+      "smoothing": true,
+      "smoothing_type": "v3",
+      "dynamic_update": true,
+      "smoothing_value": 12,
+      "x_grid": {
+        "min_size": 0.001,
+        "grid_type": "max_size",
+        "max_size": 0.01
+      },
+      "y_grid": {
+        "min_size": 0.001,
+        "grid_type": "max_size",
+        "max_size": 0.01
+      },
+      "z_grid": {
+        "min_size": 0.001,
+        "grid_type": "min_number",
+        "min_number": 24
+      }
+    }
+  },
+  "attributes": {
+    "materials": [
+      {
+        "name": "Default",
+        "type": "isotropic",
+        "conductivity": 1.0,
+        "density": 1.0,
+        "specific_heat": 1.0
+      }
+    ],
+    "fluids": [
+      {
+        "name": "Air",
+        "conductivity_type": "constant",
+        "conductivity": 0.0261,
+        "viscosity_type": "constant",
+        "viscosity": 0.0000184,
+        "density_type": "constant",
+        "density": 1.16,
+        "specific_heat": 1008,
+        "expansivity": 0.003,
+        "diffusivity": 0
+      }
+    ],
+    "ambients": [
+      {
+        "name": "Ambient",
+        "pressure": 0,
+        "temperature": 300,
+        "radiant_temperature": 300,
+        "heat_transfer_coeff": 0,
+        "velocity": {"x": 0, "y": 0, "z": 0},
+        "turbulent_kinetic_energy": 0,
+        "turbulent_dissipation_rate": 0,
+        "concentration_1": 0,
+        "concentration_2": 0,
+        "concentration_3": 0,
+        "concentration_4": 0,
+        "concentration_5": 0
+      }
+    ],
+    "sources": [
+      {
+        "name": "DefaultSource",
+        "options": [
+          {
+            "applies_to": "temperature",
+            "type": "total",
+            "value": 0,
+            "power": 0,
+            "linear_coefficient": 0
+          }
+        ]
+      }
+    ]
+  },
+  "solution_domain": {
+    "padding_ratio": 0.1,
+    "minimum_padding": 0.01,
+    "x_low": {"type": "ambient", "ref": "Ambient"},
+    "x_high": {"type": "ambient", "ref": "Ambient"},
+    "y_low": {"type": "ambient", "ref": "Ambient"},
+    "y_high": {"type": "ambient", "ref": "Ambient"},
+    "z_low": {"type": "ambient", "ref": "Ambient"},
+    "z_high": {"type": "ambient", "ref": "Ambient"},
+    "fluid": "Air"
+  },
+  "default_references": {
+    "material": "Default",
+    "source_naming": "{name}_Source"
+  }
+}

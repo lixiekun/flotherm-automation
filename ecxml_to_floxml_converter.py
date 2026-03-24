@@ -126,6 +126,26 @@ class ConversionConfig:
     outer_iterations: int = 500
     default_material: str = "Default"
     grid_config_file: Optional[str] = None  # Excel 网格配置文件路径
+    template_file: Optional[str] = None  # FloXML 模板文件路径
+
+    @classmethod
+    def from_template(cls, filepath: str) -> 'ConversionConfig':
+        """从模板文件加载配置"""
+        from floxml_template import load_template
+
+        template = load_template(filepath)
+        # 从模板中提取简单配置
+        return cls(
+            padding_ratio=template.solution_domain.padding_ratio,
+            minimum_padding=template.solution_domain.minimum_padding,
+            ambient_temp=template.attributes.ambients[0].temperature if template.attributes.ambients else 300.0,
+            ambient_name=template.attributes.ambients[0].name if template.attributes.ambients else "Ambient",
+            fluid_name=template.attributes.fluids[0].name if template.attributes.fluids else "Air",
+            outer_iterations=template.solve.overall_control.outer_iterations,
+            default_material=template.default_references.material,
+            grid_config_file=None,
+            template_file=filepath
+        )
 
 
 # ============================================================================
@@ -394,6 +414,13 @@ class FloXMLBuilder:
     def __init__(self, config: ConversionConfig):
         self.config = config
         self._grid_config = None
+        self._template: Optional[FloXMLTemplate] = None
+
+        # 加载模板（优先）
+        if config.template_file:
+            from floxml_template import load_template
+            self._template = load_template(config.template_file)
+            print(f"[INFO] 已加载模板: {config.template_file}")
 
         # 加载网格配置
         if config.grid_config_file:
@@ -436,6 +463,17 @@ class FloXMLBuilder:
 
     def build_project(self, ecxml_data: ECXMLData) -> ET.Element:
         """构建完整的 FloXML 项目"""
+        # 使用模板（如果可用）
+        if self._template:
+            builder = FloXMLTemplateBuilder(self._template)
+            return builder.build_project(
+                ecxml_data.name,
+                self._collect_all_cuboids(ecxml_data),
+                ecxml_data.materials,
+                ecxml_data.sources
+            )
+
+        # 使用默认构建方法
         root = ET.Element("xml_case")
 
         # 项目名称
@@ -1068,6 +1106,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--grid-config", type=str,
                         help="Excel 网格配置文件路径")
 
+    # 模板配置
+    parser.add_argument("--template", type=str,
+                        help="FloXML 模板 JSON 文件路径")
+
     # 其他选项
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="详细输出")
@@ -1080,13 +1122,18 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     # 构建配置
-    config = ConversionConfig(
-        padding_ratio=args.padding_ratio,
-        minimum_padding=args.minimum_padding,
-        ambient_temp=args.ambient_temp,
-        outer_iterations=args.outer_iterations,
-        grid_config_file=args.grid_config,
-    )
+    if args.template:
+        config = ConversionConfig.from_template(args.template)
+        if args.verbose:
+            print(f"[INFO] 使用模板: {args.template}")
+    else:
+        config = ConversionConfig(
+            padding_ratio=args.padding_ratio,
+            minimum_padding=args.minimum_padding,
+            ambient_temp=args.ambient_temp,
+            outer_iterations=args.outer_iterations,
+            grid_config_file=args.grid_config,
+        )
 
     converter = ECXMLToFloXMLConverter(config)
 
