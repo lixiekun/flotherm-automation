@@ -418,15 +418,16 @@ class PDMLBinaryReader:
             position=(0.0, 0.0, 0.0)
         )
 
-        # 几何关键词（扩展版）
+        # 几何关键词
         geometry_keywords = [
             'coldplate', 'plate', 'block', 'cuboid', 'assembly',
             'heatsink', 'fan', 'pcb', 'enclosure', 'chassis',
             'source', 'ambient', 'aluminum', 'copper', 'steel',
-            'plastic', 'ceramic', 'fr4', 'die', 'package'
+            'plastic', 'ceramic', 'fr4', 'die', 'package', 'prism',
+            'resistance', 'region', 'monitor', 'cylinder', 'diffuser'
         ]
 
-        # 尝试从字符串中提取几何体信息
+        # 查找几何项
         geometry_items = []
 
         for pos, s in self.strings.items():
@@ -446,22 +447,50 @@ class PDMLBinaryReader:
                 geometry_items.append((pos, s))
 
         # 为找到的几何项创建 cuboids
-        for pos, name in geometry_items[:20]:  # 限制数量
-            # 尝试在附近查找位置和尺寸（扩大搜索范围）
-            doubles = self._find_double_near(pos, 200)
-            # 过滤合理的坐标和尺寸值
-            coords = [v for p, v in doubles if -10 < v < 10][:6]
+        # 编码模式（基于对比分析）:
+        # 名称字符串后 +250-280 字节: size (x, y, z)
+        # 名称字符串后 +380-410 字节: position (x, y, z)
+        for str_pos, name in geometry_items[:20]:  # 限制数量
+            # 提取字符串后 500 字节内的所有 double
+            doubles = []
+            for p in range(str_pos + 200, str_pos + 500):
+                if p < len(self.data) - 9 and self.data[p] == 0x06:
+                    try:
+                        val = struct.unpack('>d', self.data[p+1:p+9])[0]
+                        if -1e10 < val < 1e10:
+                            doubles.append((p - str_pos, val))
+                    except:
+                        pass
 
-            # 即使没有足够的坐标也创建几何体
+            # 按相对位置排序
+            doubles.sort(key=lambda x: x[0])
+
+            # 提取尺寸 (约 +250 到 +370) - 允许更大的尺寸
+            size_values = [v for rel, v in doubles
+                          if 200 <= rel <= 370 and 0.0001 < abs(v) < 10000]
+
+            # 提取位置 (约 +370 到 +450) - 允许更大的坐标
+            pos_values = [v for rel, v in doubles
+                         if 370 <= rel <= 450 and -10000 < v < 10000]
+
+            # 使用默认值
+            position = (0.0, 0.0, 0.0)
+            size = (0.01, 0.01, 0.01)
+
+            # 如果找到了足够的值
+            if len(pos_values) >= 3:
+                position = (pos_values[0], pos_values[1], pos_values[2])
+            if len(size_values) >= 3:
+                # 过滤正值作为尺寸
+                positive_sizes = [v for v in size_values if v > 0]
+                if len(positive_sizes) >= 3:
+                    size = (positive_sizes[0], positive_sizes[1], positive_sizes[2])
+
             cuboid = PDMLGeometryNode(
                 node_type='cuboid',
                 name=name,
-                position=(coords[0] if len(coords) > 0 else 0.0,
-                          coords[1] if len(coords) > 1 else 0.0,
-                          coords[2] if len(coords) > 2 else 0.0),
-                size=(coords[3] if len(coords) > 3 else 0.01,
-                      coords[4] if len(coords) > 4 else 0.01,
-                      coords[5] if len(coords) > 5 else 0.01)
+                position=position,
+                size=size
             )
             root.children.append(cuboid)
 
