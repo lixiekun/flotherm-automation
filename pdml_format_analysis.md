@@ -40,24 +40,34 @@
 ### 3. 层级编码规则
 
 PDML 使用 level 字段表示节点层级关系:
-- **Level 2**: 可以是顶层节点或子节点（取决于上下文）
-- **Level 3**: 通常是子节点
+- **Level 2**: 第一层节点（顶层或嵌套取决于上下文）
+- **Level 3**: 当前 Level 2 装配体的子节点
 
-#### 层级检测启发式规则
+#### 层级检测算法
 
-通过命名模式区分顶层装配体和子装配体:
+```
+current_parent = None
 
-**顶层容器特征**:
-- 名称包含: `Layers`, `Attach`, `Assembly`, `Power` 等
+for node in nodes:
+    if node 是 Level 3 装配体:
+        → 作为 current_parent 的子节点
+        → node 成为新的 current_parent
 
-**子装配体特征**:
-- 名称以 `Layer `, `U`, `R`, `C`, `P`, `GR-`, `MP-` 开头
-- 名称包含 `[` 和 `]`（如 `U3 [SO20W]`）
+    elif node 是 Level 2 装配体:
+        if current_parent 为空:
+            → 顶层节点
+        elif 名称匹配容器模式 (Layers, Attach, Board, Parts 等):
+            → 新建顶层分组
+        else:
+            → 作为 current_parent 的子装配体
+        → node 成为新的 current_parent
 
-#### 附加逻辑
-- Level 3 装配体 → 作为当前父节点的子节点
-- Level 2 装配体 → 根据命名判断是顶层还是子节点
-- 非装配体节点 → 附加到最近的装配体
+    else (非装配体节点):
+        → 作为 current_parent 的子节点
+```
+
+#### 容器名称模式
+用于识别顶层分组: `Layers`, `Attach`, `Assembly`, `Power`, `Electrical`, `Vias`, `Board`, `Parts`, `Components`, `Domain`, `Solution`, `Model`
 
 ### 4. 属性编码与值位置模式
 - 属性名后的值出现在 `+0x10` 位置（在 modeldata section）

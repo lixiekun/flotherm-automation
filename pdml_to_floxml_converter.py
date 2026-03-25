@@ -1865,40 +1865,33 @@ class PDMLBinaryReader:
     def _attach_by_level(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
         """Attach children based on level information extracted from PDML.
 
-        PDML level encoding (refined understanding):
-        - Level 2 assembly: Top-level assembly OR child assembly (depends on context)
-        - Level 3 assembly: First child of the preceding level-2 assembly
-        - Level 3 non-assembly: Child of the most recent assembly
-        - Level 2 non-assembly: Child of the most recent assembly
+        PDML level encoding:
+        - Level 2: First-level items (can be top-level or nested depending on context)
+        - Level 3: Children of the most recent Level 2 assembly
 
-        Key insight: In PDML, level=2 assemblies can be either top-level or children.
-        We use naming heuristics to distinguish:
-        - Top-level containers: Layers, TopAttach, BottomAttach, Electrical Vias, etc.
-        - Child assemblies: Layer 1-8, U1-12, R1-9, C1-10, etc.
+        Key rules:
+        1. First Level 2 assembly becomes top-level and current parent
+        2. Level 3 nodes are always children of current parent
+        3. Level 2 non-assembly nodes are children of current parent
+        4. Level 2 assembly nodes:
+           - If name looks like a "container" (Layers, Attach, etc.) → new top-level
+           - Otherwise → child of current parent, becomes new current parent
         """
         top_level: List[PDMLGeometryNode] = []
         current_parent: Optional[PDMLGeometryNode] = None
 
-        # Heuristics for top-level vs child assemblies
-        TOP_LEVEL_PATTERNS = ['Layers', 'Attach', 'Assembly', 'Power']
-        CHILD_PATTERNS = ['Layer ', 'U', 'R', 'C', 'P', 'GR-', 'MP-']
+        # Names that indicate top-level containers (not child assemblies)
+        CONTAINER_PATTERNS = [
+            'Layers', 'Layer', 'Attach', 'Assembly', 'Power',
+            'Electrical', 'Vias', 'Board', 'Parts', 'Components',
+            'Domain', 'Solution', 'Model'
+        ]
 
-        def is_top_level_assembly(name: str) -> bool:
-            """Determine if an assembly name suggests it's a top-level container."""
-            # Exact matches for known top-level containers
-            for pattern in TOP_LEVEL_PATTERNS:
-                if pattern in name and not any(cp in name for cp in CHILD_PATTERNS[:4]):
+        def is_container_assembly(name: str) -> bool:
+            """Check if name suggests a top-level container."""
+            for pattern in CONTAINER_PATTERNS:
+                if pattern.lower() in name.lower():
                     return True
-            return False
-
-        def is_child_assembly(name: str) -> bool:
-            """Determine if an assembly name suggests it's a child of another assembly."""
-            for pattern in CHILD_PATTERNS:
-                if name.startswith(pattern) or f'{pattern}-' in name:
-                    return True
-            # Also check for component-like names (e.g., "U3 [SO20W]")
-            if '[' in name and ']' in name:
-                return True
             return False
 
         for node in nodes:
@@ -1909,23 +1902,30 @@ class PDMLBinaryReader:
                 level = 10
 
             if node.node_type == 'assembly':
-                # Assembly node
                 name = node.name
 
                 if level == 3:
-                    # Level 3 assembly is always a child
+                    # Level 3 assembly is always a child of current parent
                     if current_parent is not None:
                         current_parent.children.append(node)
+                        # This assembly becomes the new parent for its children
+                        current_parent = node
                     else:
                         top_level.append(node)
+                        current_parent = node
+
                 elif level == 2:
-                    # Level 2 assembly - check if it's top-level or child
-                    if is_child_assembly(name) and current_parent is not None:
-                        # This looks like a child assembly
-                        current_parent.children.append(node)
-                    else:
-                        # This is a top-level assembly
+                    if current_parent is None:
+                        # First assembly - becomes top-level
                         top_level.append(node)
+                        current_parent = node
+                    elif is_container_assembly(name):
+                        # Container-like name suggests new top-level group
+                        top_level.append(node)
+                        current_parent = node
+                    else:
+                        # Non-container Level 2 assembly becomes child of current parent
+                        current_parent.children.append(node)
                         current_parent = node
                 else:
                     # Higher levels - attach to current parent
@@ -1933,9 +1933,9 @@ class PDMLBinaryReader:
                         current_parent.children.append(node)
                     else:
                         top_level.append(node)
+
             else:
                 # Non-assembly node (cuboid, region, monitor, etc.)
-                # These are always children of the most recent assembly
                 if current_parent is not None:
                     current_parent.children.append(node)
                 else:
