@@ -75,6 +75,7 @@
 - [analyze_geometry_types.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\analyze_geometry_types.py)
 - [analyze_pdml_format.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\analyze_pdml_format.py)
 - [pdml_floxml_compare.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_floxml_compare.py)
+- [compare_geometry_hierarchy.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\compare_geometry_hierarchy.py)
 
 这些脚本的定位是：
 - 用来验证单个猜想
@@ -237,7 +238,39 @@ PDML 本身不一定直接给出一棵现成的几何树，所以当前主转换
 - `_attach_assembly_children`
 - `_attach_heatsink_children`
 
-## 方法 5：布局族分流
+## 方法 5：用 ECXML/FloXML 树做层级真值校验
+
+对于多层级 assembly，单看截图或单看 PDML record 顺序都容易误判。
+
+现在仓库里新增了：
+- [compare_geometry_hierarchy.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\compare_geometry_hierarchy.py)
+
+它的用途是：
+- 读取参考 `ecxml` 或 `floxml`
+- 读取当前转换结果
+- 只比较 `geometry` 树
+- 自动归一化 ECXML / FloXML 标签差异
+  - `solid3dBlock -> cuboid`
+  - `sourceBlock -> source`
+  - `monitorPoint -> monitor_point`
+- 按“完整层级路径 + 重复计数”输出差异
+
+推荐命令：
+
+```powershell
+python compare_geometry_hierarchy.py test_level.ecxml test_level_converted.xml
+```
+
+当前这个脚本特别适合：
+- 检查 `assembly -> assembly -> assembly` 的嵌套是否多挂/少挂
+- 检查某个节点是顶层兄弟还是某个 assembly 的孩子
+- 避免被同名节点误导
+
+例如 `test_level` 这个样例里，它能直接报告：
+- 多出来的 `Heat Sink Geometry -> Fin 10 -> Network Assembly`
+- 多出来的顶层 `Fixed Flow`
+
+## 方法 6：布局族分流
 
 这是目前最重要的工程化经验。
 
