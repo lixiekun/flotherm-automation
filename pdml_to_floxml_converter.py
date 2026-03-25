@@ -1865,22 +1865,20 @@ class PDMLBinaryReader:
     def _attach_by_level(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
         """Attach children based on level information extracted from PDML.
 
-        PDML level encoding:
-        - Level 2: First-level items (can be top-level or nested depending on context)
-        - Level 3: Children of the most recent Level 2 assembly
+        PDML level encoding (refined understanding):
+        - Level 3: First item in a new child group (starts nesting)
+        - Level 2: Subsequent sibling item (same parent as previous L3)
 
-        Key rules:
-        1. First Level 2 assembly becomes top-level and current parent
-        2. Level 3 nodes are always children of current parent
-        3. Level 2 non-assembly nodes are children of current parent
-        4. Level 2 assembly nodes:
-           - If name looks like a "container" (Layers, Attach, etc.) → new top-level
-           - Otherwise → child of current parent, becomes new current parent
+        Key insight: L2 assembly should be a SIBLING of the previous assembly,
+        not a child. Only L3 starts a new nesting level.
+
+        Algorithm uses a stack to track the parent hierarchy at each depth.
         """
         top_level: List[PDMLGeometryNode] = []
-        current_parent: Optional[PDMLGeometryNode] = None
+        parent_stack: List[PDMLGeometryNode] = []  # Stack of parent assemblies
+        last_assembly: Optional[PDMLGeometryNode] = None  # Track last assembly for sibling resolution
 
-        # Names that indicate top-level containers (not child assemblies)
+        # Names that indicate top-level containers
         CONTAINER_PATTERNS = [
             'Layers', 'Layer', 'Attach', 'Assembly', 'Power',
             'Electrical', 'Vias', 'Board', 'Parts', 'Components',
@@ -1888,11 +1886,13 @@ class PDMLBinaryReader:
         ]
 
         def is_container_assembly(name: str) -> bool:
-            """Check if name suggests a top-level container."""
             for pattern in CONTAINER_PATTERNS:
                 if pattern.lower() in name.lower():
                     return True
             return False
+
+        def get_current_parent() -> Optional[PDMLGeometryNode]:
+            return parent_stack[-1] if parent_stack else None
 
         for node in nodes:
             level = getattr(node, 'level', 2) if hasattr(node, 'level') else 2
@@ -1901,32 +1901,44 @@ class PDMLBinaryReader:
             if level > 10:
                 level = 10
 
+            current_parent = get_current_parent()
+
             if node.node_type == 'assembly':
                 name = node.name
 
                 if level == 3:
-                    # Level 3 assembly is always a child of current parent
+                    # L3 assembly: starts a new child group under current parent
                     if current_parent is not None:
                         current_parent.children.append(node)
-                        # This assembly becomes the new parent for its children
-                        current_parent = node
                     else:
                         top_level.append(node)
-                        current_parent = node
+                    # Push this assembly onto the stack - it's now the parent for nested items
+                    parent_stack.append(node)
+                    last_assembly = node
 
                 elif level == 2:
-                    if current_parent is None:
-                        # First assembly - becomes top-level
+                    # L2 assembly: sibling of the last assembly at the same depth
+                    if is_container_assembly(name) and not parent_stack:
+                        # Container at root level - start new top-level group
                         top_level.append(node)
-                        current_parent = node
-                    elif is_container_assembly(name):
-                        # Container-like name suggests new top-level group
-                        top_level.append(node)
-                        current_parent = node
+                        parent_stack = [node]
+                        last_assembly = node
+                    elif last_assembly is not None and parent_stack:
+                        # Find the parent of the last assembly (pop one level)
+                        if len(parent_stack) > 1:
+                            parent_stack.pop()  # Pop the last assembly
+                        sibling_parent = get_current_parent()
+                        if sibling_parent is not None:
+                            sibling_parent.children.append(node)
+                        else:
+                            top_level.append(node)
+                        parent_stack.append(node)
+                        last_assembly = node
                     else:
-                        # Non-container Level 2 assembly becomes child of current parent
-                        current_parent.children.append(node)
-                        current_parent = node
+                        # First assembly or no context - becomes top-level
+                        top_level.append(node)
+                        parent_stack = [node]
+                        last_assembly = node
                 else:
                     # Higher levels - attach to current parent
                     if current_parent is not None:
@@ -1936,6 +1948,11 @@ class PDMLBinaryReader:
 
             else:
                 # Non-assembly node (cuboid, region, monitor, etc.)
+                if level == 3:
+                    # L3 non-assembly: starts a new child group
+                    # Push a marker that this is a non-assembly group
+                    pass
+                # All non-assembly nodes become children of current parent
                 if current_parent is not None:
                     current_parent.children.append(node)
                 else:
