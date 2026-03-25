@@ -12,7 +12,7 @@ def analyze_hierarchy(pdml_file):
     print(f"总记录数: {len(records)}")
 
     # 先看看有哪些类型
-    types = set(rec.get('type', '?') for rec in records)
+    types = set(rec.get('node_type', '?') for rec in records)
     print(f"类型列表: {types}")
 
     print("\n序号 | Level | 类型 | 名称")
@@ -20,9 +20,8 @@ def analyze_hierarchy(pdml_file):
 
     assembly_count = 0
     for i, rec in enumerate(records):
-        node_type = rec.get('type', '?')
-        # 检查 assembly 类型
-        if node_type == 'assembly' or 'assembly' in str(node_type).lower():
+        node_type = rec.get('node_type', '?')
+        if node_type == 'assembly':
             assembly_count += 1
             level = rec.get('level', '?')
             name = rec.get('name', '?')[:50]
@@ -32,7 +31,7 @@ def analyze_hierarchy(pdml_file):
         print("\n未找到 assembly 类型，显示前 20 条记录:")
         for i, rec in enumerate(records[:20]):
             level = rec.get('level', '?')
-            node_type = rec.get('type', '?')
+            node_type = rec.get('node_type', '?')
             name = rec.get('name', '?')[:40]
             print(f"{i:3d}  | L{level}   | {node_type} | {name}")
 
