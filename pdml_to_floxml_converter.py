@@ -204,6 +204,20 @@ class PDMLBinaryReader:
         0x0250: 'cuboid',
         0x0260: 'cutout',
         0x0270: 'monitor_point',
+        0x02E0: 'assembly',
+        0x02F0: 'cuboid',  # Alternate cuboid type code
+        0x0290: 'region',
+        0x02C0: 'source',
+        0x02D0: 'heatsink',
+        0x02B0: 'fan',
+        0x0330: 'fixed_flow',
+        0x0340: 'recirc_device',
+        0x0280: 'prism',
+        0x0731: 'tet',
+        0x0732: 'inverted_tet',
+        0x0380: 'sloping_block',
+        0x0310: 'enclosure',
+        0x0390: 'cooler',
         0x0280: 'prism',
         0x0290: 'region',
         0x02A0: 'resistance',
@@ -1851,23 +1865,41 @@ class PDMLBinaryReader:
     def _attach_by_level(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
         """Attach children based on level information extracted from PDML.
 
-        PDML level encoding:
-        - Level 2: Top-level node OR sibling of a previous level=3 node
-        - Level 3: First child of the preceding level=2 assembly
+        PDML level encoding (refined understanding):
+        - Level 2 assembly: Top-level assembly OR child assembly (depends on context)
+        - Level 3 assembly: First child of the preceding level-2 assembly
+        - Level 3 non-assembly: Child of the most recent assembly
+        - Level 2 non-assembly: Child of the most recent assembly
 
-        When level=3 appears, it marks the start of a new child group under the
-        most recent level=2 assembly. Subsequent level=2 nodes are siblings of
-        that level=3 (i.e., also children of the same parent assembly).
-
-        A new top-level assembly is detected when:
-        - A level=2 assembly follows a sequence of non-assembly level=2 nodes
-        - This typically indicates a structural boundary (e.g., Layers -> Electrical Vias)
+        Key insight: In PDML, level=2 assemblies can be either top-level or children.
+        We use naming heuristics to distinguish:
+        - Top-level containers: Layers, TopAttach, BottomAttach, Electrical Vias, etc.
+        - Child assemblies: Layer 1-8, U1-12, R1-9, C1-10, etc.
         """
         top_level: List[PDMLGeometryNode] = []
-        parent_stack: List[PDMLGeometryNode] = []  # Stack of parent assemblies
-        in_child_group = False  # True after we see a level=3
-        last_node_was_assembly = False
-        pending_assemblies: List[PDMLGeometryNode] = []  # Assemblies waiting to be attached
+        current_parent: Optional[PDMLGeometryNode] = None
+
+        # Heuristics for top-level vs child assemblies
+        TOP_LEVEL_PATTERNS = ['Layers', 'Attach', 'Assembly', 'Power']
+        CHILD_PATTERNS = ['Layer ', 'U', 'R', 'C', 'P', 'GR-', 'MP-']
+
+        def is_top_level_assembly(name: str) -> bool:
+            """Determine if an assembly name suggests it's a top-level container."""
+            # Exact matches for known top-level containers
+            for pattern in TOP_LEVEL_PATTERNS:
+                if pattern in name and not any(cp in name for cp in CHILD_PATTERNS[:4]):
+                    return True
+            return False
+
+        def is_child_assembly(name: str) -> bool:
+            """Determine if an assembly name suggests it's a child of another assembly."""
+            for pattern in CHILD_PATTERNS:
+                if name.startswith(pattern) or f'{pattern}-' in name:
+                    return True
+            # Also check for component-like names (e.g., "U3 [SO20W]")
+            if '[' in name and ']' in name:
+                return True
+            return False
 
         for node in nodes:
             level = getattr(node, 'level', 2) if hasattr(node, 'level') else 2
@@ -1876,68 +1908,38 @@ class PDMLBinaryReader:
             if level > 10:
                 level = 10
 
-            if level == 3:
-                # First child of the most recent level-2 assembly on the stack
-                # Attach any pending assemblies first
-                for pending in pending_assemblies:
-                    if parent_stack:
-                        parent_stack[-1].children.append(pending)
-                    else:
-                        top_level.append(pending)
-                pending_assemblies = []
+            if node.node_type == 'assembly':
+                # Assembly node
+                name = node.name
 
-                if parent_stack:
-                    parent_stack[-1].children.append(node)
-                    in_child_group = True
-                    # If this is an assembly, push it onto the stack
-                    if node.node_type == 'assembly':
-                        parent_stack.append(node)
+                if level == 3:
+                    # Level 3 assembly is always a child
+                    if current_parent is not None:
+                        current_parent.children.append(node)
+                    else:
+                        top_level.append(node)
+                elif level == 2:
+                    # Level 2 assembly - check if it's top-level or child
+                    if is_child_assembly(name) and current_parent is not None:
+                        # This looks like a child assembly
+                        current_parent.children.append(node)
+                    else:
+                        # This is a top-level assembly
+                        top_level.append(node)
+                        current_parent = node
+                else:
+                    # Higher levels - attach to current parent
+                    if current_parent is not None:
+                        current_parent.children.append(node)
+                    else:
+                        top_level.append(node)
+            else:
+                # Non-assembly node (cuboid, region, monitor, etc.)
+                # These are always children of the most recent assembly
+                if current_parent is not None:
+                    current_parent.children.append(node)
                 else:
                     top_level.append(node)
-                last_node_was_assembly = (node.node_type == 'assembly')
-
-            elif level == 2:
-                if in_child_group:
-                    if node.node_type == 'assembly':
-                        # Check if this should be a new top-level assembly
-                        # If previous nodes were non-assembly cuboids, this assembly
-                        # is likely a new top-level group
-                        if not last_node_was_assembly and parent_stack:
-                            # This is a new top-level assembly
-                            # End the current child group
-                            in_child_group = False
-                            top_level.append(node)
-                            parent_stack = [node]
-                        else:
-                            # This assembly is a sibling in the current child group
-                            if parent_stack:
-                                parent_stack[-1].children.append(node)
-                                # Update stack for potential children
-                                if len(parent_stack) > 1:
-                                    parent_stack[-1] = node
-                                else:
-                                    parent_stack.append(node)
-                            else:
-                                top_level.append(node)
-                                parent_stack = [node]
-                    else:
-                        # Non-assembly level=2 in child group - it's a sibling
-                        if parent_stack:
-                            parent_stack[-1].children.append(node)
-                        else:
-                            top_level.append(node)
-                else:
-                    # Not in a child group - this is a top-level node
-                    top_level.append(node)
-                    if node.node_type == 'assembly':
-                        parent_stack = [node]  # Reset stack with this as the new parent
-                    in_child_group = False
-
-                last_node_was_assembly = (node.node_type == 'assembly')
-
-        # Attach any remaining pending assemblies
-        for pending in pending_assemblies:
-            top_level.append(pending)
 
         return top_level
 
