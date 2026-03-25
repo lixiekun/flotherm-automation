@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xml_log_file version="1.0">
+    <!--Unpublished work. Copyright 2025 Siemens-->
+    <expand_geometry>
+        <geometry_name>
+            <geometry name="System"/>
+        </geometry_name>
+    </expand_geometry>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="System">
+                <geometry name="System Grid" position_in_parent="0"/>
+            </geometry>
+        </selected_geometry_name>
+    </select_geometry>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="Root Assembly"/>
+        </selected_geometry_name>
+    </select_geometry>
+    <select_geometry>
+        <deselected_geometry_name>
+            <geometry name="System">
+                <geometry name="System Grid" position_in_parent="0"/>
+            </geometry>
+        </deselected_geometry_name>
+    </select_geometry>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="System">
+                <geometry name="System Grid" position_in_parent="0"/>
+            </geometry>
+        </selected_geometry_name>
+        <deselected_geometry_name>
+            <geometry name="Root Assembly"/>
+        </deselected_geometry_name>
+    </select_geometry>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="Root Assembly"/>
+        </selected_geometry_name>
+        <deselected_geometry_name>
+            <geometry name="System">
+                <geometry name="System Grid" position_in_parent="0"/>
+            </geometry>
+        </deselected_geometry_name>
+    </select_geometry>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="System">
+                <geometry name="System Grid" position_in_parent="0"/>
+            </geometry>
+        </selected_geometry_name>
+        <deselected_geometry_name>
+            <geometry name="Root Assembly"/>
+        </deselected_geometry_name>
+    </select_geometry>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="Root Assembly"/>
+        </selected_geometry_name>
+        <deselected_geometry_name>
+            <geometry name="System">
+                <geometry name="System Grid" position_in_parent="0"/>
+            </geometry>
+        </deselected_geometry_name>
+    </select_geometry>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="System">
+                <geometry name="System Grid" position_in_parent="0"/>
+            </geometry>
+        </selected_geometry_name>
+        <deselected_geometry_name>
+            <geometry name="Root Assembly"/>
+        </deselected_geometry_name>
+    </select_geometry>
+    <question answer="yes" text="projectExists%1Overwrite?"/>
+    <project_import filename="D:/Program Files/Siemens/SimcenterFlotherm/2504/examples/FloXML/FloXML Files/Project FloXML Examples/All-Objects-Attributes-Settings-FullModel.xml" import_type="FloXML"/>
+    <project_export export_type="PDML" filename="D:/Program Files/Siemens/SimcenterFlotherm/2504/flotherm-automation/all.pdml"/>
+    <question answer="yes" text="projectExists%1Overwrite?"/>
+    <project_import filename="D:/Program Files/Siemens/SimcenterFlotherm/2504/flotherm-automation/all.pdml" import_type="PDML"/>
+    <question answer="yes" text="projectExists%1Overwrite?"/>
+    <project_import filename="D:/Program Files/Siemens/SimcenterFlotherm/2504/examples/FloXML/FloXML Files/Project FloXML Examples/Heatsink-Windtunnel-FullModel.xml" import_type="FloXML"/>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="Heat Source" position_in_parent="2"/>
+            </geometry>
+        </selected_geometry_name>
+    </select_geometry>
+    <expand_geometry>
+        <geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="Heat Sink Geometry" position_in_parent="0"/>
+            </geometry>
+        </geometry_name>
+    </expand_geometry>
+    <select_geometry>
+        <selected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="Heat Sink Geometry" position_in_parent="0">
+                    <geometry name="Fin 1" position_in_parent="1"/>
+                </geometry>
+            </geometry>
+        </selected_geometry_name>
+        <selected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="Heat Sink Geometry" position_in_parent="0">
+                    <geometry name="Fin 2" position_in_parent="2"/>
+                </geometry>
+            </geometry>
+        </selected_geometry_name>
+        <selected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="Heat Sink Geometry" position_in_parent="0">
+                    <geometry name="Fin 3" position_in_parent="3"/>
+                </geometry>
+            </geometry>
+        </selected_geometry_name>
+        <selected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="Heat Sink Geometry" position_in_parent="0">
+                    <geometry name="Fin 4" position_in_parent="4"/>
+                </geometry>
+            </geometry>
+        </selected_geometry_name>
+        <deselected_geometry_name>
+            <geometry name="Root Assembly">
+                <geometry name="Heat Source" position_in_parent="2"/>
+            </geometry>
+        </deselected_geometry_name>
+    </select_geometry>
+    <project_export export_type="PDML" filename="D:/Program Files/Siemens/SimcenterFlotherm/2504/flotherm-automation/Heatsink.pdml"/>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xml_log_file version="1.0">
+    <!-- FloSCRIPT 自动化脚本 -->
+    <!-- 生成时间: 2026-03-23 23:58:10 -->
+    <!-- 由 floscript_generator.py 生成 -->
+    <!-- 加载项目: YOUR_MODEL.pack -->
+    <project_load file="YOUR_MODEL.pack"/>
+    <!-- 查找对象: U1_CPU -->
+    <find filter="false" match="all" select_mode="all">
+        <enum_query_constraint criteria_type="common" is_positive="true">
+            <value property_name="name" value="U1_CPU"/>
+        </enum_query_constraint>
+    </find>
+    <modify_geometry new_value="15.0" property_name="power"/>
+    <clear_select_geometry/>
+    <!-- 设置 temperature 迭代次数: 500 -->
+    <modify_solver_control new_value="temperature" property_name="variable"/>
+    <modify_solver_control new_value="500" property_name="innerIterations"/>
+    <!-- 执行求解 -->
+    <solve_all/>
+    <!-- 另存为: OUTPUT.pack -->
+    <project_save_as file="OUTPUT.pack"/>
+</xml_log_file>

@@ -460,6 +460,7 @@ class PDMLBinaryReader:
         return self.data.find(target.encode('utf-8')) >= 0
 
     def _find_geometry_records(self) -> List[Dict[str, Any]]:
+        import struct
         by_name: Dict[str, Dict[str, Any]] = {}
         for record in self.tagged_strings:
             type_code = record['type_code']
@@ -468,11 +469,24 @@ class PDMLBinaryReader:
                 continue
             if name in self.INTERNAL_GEOMETRY_NAMES or name.startswith('Wall ('):
                 continue
+
+            # Extract hierarchy level from bytes before the record
+            # The level is stored at offset-4 as a 4-byte big-endian integer
+            # Level encoding: 0x00000002 = level 2 (top), 0x00000003 = level 3 (child), etc.
+            offset = record['offset']
+            level = 2  # default level (top level in geometry)
+            if offset >= 4:
+                level_bytes = struct.unpack('>I', self.data[offset-4:offset])[0]
+                # Level encoding: 0x00000002 = level 2, 0x00000003 = level 3
+                if 2 <= level_bytes <= 20:
+                    level = level_bytes
+
             candidate = {
-                'offset': record['offset'],
+                'offset': offset,
                 'type_code': type_code,
                 'node_type': self.GEOMETRY_TYPE_CODES[type_code],
                 'name': name,
+                'level': level,
             }
             existing = by_name.get(name)
             if existing is None or candidate['offset'] > existing['offset']:
@@ -1193,6 +1207,7 @@ class PDMLBinaryReader:
         node_type = record['node_type']
         base_offset = record['offset']
         name = record['name']
+        level = record.get('level', 1)  # Get level info for hierarchy
         node = PDMLGeometryNode(
             node_type=node_type,
             name=name,
@@ -1201,6 +1216,7 @@ class PDMLBinaryReader:
             orientation=self._identity_orientation(),
             localized_grid=False,
         )
+        node.level = level  # Store level for hierarchy attachment
 
         if node_type == 'fan':
             raw_size = node.size
@@ -1808,6 +1824,14 @@ class PDMLBinaryReader:
     def _attach_assembly_children(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
         if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             return self._attach_heatsink_children(nodes)
+
+        # Check if any node has level info (level > 0)
+        has_level_info = any(getattr(node, 'level', 0) > 0 for node in nodes if hasattr(node, 'level'))
+
+        if has_level_info:
+            return self._attach_by_level(nodes)
+
+        # Fallback to name-based parent detection
         assemblies = [node for node in nodes if node.node_type == 'assembly']
         top_level: List[PDMLGeometryNode] = []
         for node in nodes:
@@ -1822,6 +1846,99 @@ class PDMLBinaryReader:
                 parent.children.append(node)
             else:
                 top_level.append(node)
+        return top_level
+
+    def _attach_by_level(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
+        """Attach children based on level information extracted from PDML.
+
+        PDML level encoding:
+        - Level 2: Top-level node OR sibling of a previous level=3 node
+        - Level 3: First child of the preceding level=2 assembly
+
+        When level=3 appears, it marks the start of a new child group under the
+        most recent level=2 assembly. Subsequent level=2 nodes are siblings of
+        that level=3 (i.e., also children of the same parent assembly).
+
+        A new top-level assembly is detected when:
+        - A level=2 assembly follows a sequence of non-assembly level=2 nodes
+        - This typically indicates a structural boundary (e.g., Layers -> Electrical Vias)
+        """
+        top_level: List[PDMLGeometryNode] = []
+        parent_stack: List[PDMLGeometryNode] = []  # Stack of parent assemblies
+        in_child_group = False  # True after we see a level=3
+        last_node_was_assembly = False
+        pending_assemblies: List[PDMLGeometryNode] = []  # Assemblies waiting to be attached
+
+        for node in nodes:
+            level = getattr(node, 'level', 2) if hasattr(node, 'level') else 2
+            if level < 2:
+                level = 2
+            if level > 10:
+                level = 10
+
+            if level == 3:
+                # First child of the most recent level-2 assembly on the stack
+                # Attach any pending assemblies first
+                for pending in pending_assemblies:
+                    if parent_stack:
+                        parent_stack[-1].children.append(pending)
+                    else:
+                        top_level.append(pending)
+                pending_assemblies = []
+
+                if parent_stack:
+                    parent_stack[-1].children.append(node)
+                    in_child_group = True
+                    # If this is an assembly, push it onto the stack
+                    if node.node_type == 'assembly':
+                        parent_stack.append(node)
+                else:
+                    top_level.append(node)
+                last_node_was_assembly = (node.node_type == 'assembly')
+
+            elif level == 2:
+                if in_child_group:
+                    if node.node_type == 'assembly':
+                        # Check if this should be a new top-level assembly
+                        # If previous nodes were non-assembly cuboids, this assembly
+                        # is likely a new top-level group
+                        if not last_node_was_assembly and parent_stack:
+                            # This is a new top-level assembly
+                            # End the current child group
+                            in_child_group = False
+                            top_level.append(node)
+                            parent_stack = [node]
+                        else:
+                            # This assembly is a sibling in the current child group
+                            if parent_stack:
+                                parent_stack[-1].children.append(node)
+                                # Update stack for potential children
+                                if len(parent_stack) > 1:
+                                    parent_stack[-1] = node
+                                else:
+                                    parent_stack.append(node)
+                            else:
+                                top_level.append(node)
+                                parent_stack = [node]
+                    else:
+                        # Non-assembly level=2 in child group - it's a sibling
+                        if parent_stack:
+                            parent_stack[-1].children.append(node)
+                        else:
+                            top_level.append(node)
+                else:
+                    # Not in a child group - this is a top-level node
+                    top_level.append(node)
+                    if node.node_type == 'assembly':
+                        parent_stack = [node]  # Reset stack with this as the new parent
+                    in_child_group = False
+
+                last_node_was_assembly = (node.node_type == 'assembly')
+
+        # Attach any remaining pending assemblies
+        for pending in pending_assemblies:
+            top_level.append(pending)
+
         return top_level
 
     def _attach_heatsink_children(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
