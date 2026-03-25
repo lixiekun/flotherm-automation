@@ -78,11 +78,20 @@ for node in nodes:
 #### 容器名称模式
 用于识别顶层分组: `Layers`, `Attach`, `Assembly`, `Power`, `Electrical`, `Vias`, `Board`, `Parts`, `Components`, `Domain`, `Solution`, `Model`
 
-### 4. 属性编码与值位置模式
+### 4. 同名节点处理
+
+PDML 中可能存在多个同名节点（如多个 "Block" cuboid 在不同装配体中）。
+
+**注意事项**：
+- 不能用名称作为唯一标识符
+- 应使用 offset 位置区分不同节点
+- 使用 `list` 存储记录，`set` 跟踪已处理的 offset
+
+### 5. 属性编码与值位置模式
 - 属性名后的值出现在 `+0x10` 位置（在 modeldata section）
 - 使用类型码 `0x01d0` 区分属性定义和几何体
 
-### 5. 数值解析
+### 6. 数值解析
 - 使用大端序 double 的相对偏移提取 size/position
 - 名称位置相对固定（约 `+0x0d-0x00f`）
 - position 值在 `+0x00f-0x01a` 附近
