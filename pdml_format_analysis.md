@@ -40,30 +40,39 @@
 ### 3. 层级编码规则
 
 PDML 使用 level 字段表示节点层级关系:
-- **Level 2**: 第一层节点（顶层或嵌套取决于上下文）
-- **Level 3**: 当前 Level 2 装配体的子节点
+- **Level 3**: 新子组的**第一个**元素（开始嵌套）
+- **Level 2**: 同组的**后续兄弟**元素
 
-#### 层级检测算法
-
+#### 示例
 ```
-current_parent = None
+Heat Sink Geometry (L3) ← Heat Sink 的新子组
+  Base (L3)             ← Heat Sink Geometry 的新子组
+  Fin 1 (L2)            ← Base 的兄弟（同属 Heat Sink Geometry）
+    Low A - 1 (L3)      ← Fin 1 的新子组
+    Low B - 1 (L2)      ← Low A - 1 的兄弟
+  Fin 2 (L2)            ← Fin 1 的兄弟（同属 Heat Sink Geometry）
+```
+
+#### 层级检测算法（栈实现）
+
+```python
+parent_stack = []  # 跟踪父级层级
+last_assembly = None
 
 for node in nodes:
-    if node 是 Level 3 装配体:
-        → 作为 current_parent 的子节点
-        → node 成为新的 current_parent
-
-    elif node 是 Level 2 装配体:
-        if current_parent 为空:
-            → 顶层节点
-        elif 名称匹配容器模式 (Layers, Attach, Board, Parts 等):
-            → 新建顶层分组
-        else:
-            → 作为 current_parent 的子装配体
-        → node 成为新的 current_parent
-
-    else (非装配体节点):
-        → 作为 current_parent 的子节点
+    if node 是装配体:
+        if level == 3:
+            # L3 装配体: 作为当前父级的子节点，压入栈
+            parent_stack[-1].children.append(node)
+            parent_stack.append(node)
+        elif level == 2:
+            # L2 装配体: 是上一个装配体的兄弟，回退一级
+            parent_stack.pop()  # 弹出上一个装配体
+            parent_stack[-1].children.append(node)  # 添加到共同的父级
+            parent_stack.append(node)
+    else:
+        # 非装配体节点: 作为当前父级的子节点
+        parent_stack[-1].children.append(node)
 ```
 
 #### 容器名称模式
