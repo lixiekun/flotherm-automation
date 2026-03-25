@@ -2030,36 +2030,23 @@ class PDMLBinaryReader:
         if not nodes:
             return []
 
-        root = nodes[0]
-        if root.node_type != 'network_assembly':
-            return self._attach_by_level(nodes)
-
-        top_level = [root]
+        top_level: List[PDMLGeometryNode] = []
         assembly_stack: List[PDMLGeometryNode] = []
 
-        for node in nodes[1:]:
+        for node in nodes:
             level = max(2, min(node.level, 10))
 
             if node.node_type == 'assembly':
                 if level >= 3 and assembly_stack:
                     assembly_stack[-1].children.append(node)
                 else:
-                    root.children.append(node)
+                    assembly_stack = []
+                    top_level.append(node)
                 assembly_stack.append(node)
                 continue
 
-            if node.node_type == 'network_assembly':
-                if level >= 3 and assembly_stack:
-                    assembly_stack[-1].children.append(node)
-                else:
-                    root.children.append(node)
-                assembly_stack = []
-                continue
-
-            if level >= 3 and assembly_stack:
-                assembly_stack[-1].children.append(node)
-            else:
-                root.children.append(node)
+            assembly_stack = []
+            top_level.append(node)
 
         return top_level
 
