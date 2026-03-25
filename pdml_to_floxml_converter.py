@@ -129,6 +129,7 @@ class PDMLGeometryNode:
     """PDML 几何节点"""
     node_type: str
     name: str
+    level: int = 1
     position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     position_text: Optional[Tuple[str, str, str]] = None
     size: Optional[Tuple[float, ...]] = None
@@ -1232,12 +1233,12 @@ class PDMLBinaryReader:
         node = PDMLGeometryNode(
             node_type=node_type,
             name=name,
+            level=level,
             position=self._extract_standard_position(base_offset),
             size=self._extract_standard_size(base_offset, 3),
             orientation=self._identity_orientation(),
             localized_grid=False,
         )
-        node.level = level  # Store level for hierarchy attachment
 
         if node_type == 'fan':
             raw_size = node.size
@@ -1822,14 +1823,13 @@ class PDMLBinaryReader:
         return [node for node in nodes if node not in nested]
 
     def _attach_assembly_children(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
-        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
-            return self._attach_heatsink_children(nodes)
-
         # Check if any node has level info (level > 0)
-        has_level_info = any(getattr(node, 'level', 0) > 0 for node in nodes if hasattr(node, 'level'))
+        has_level_info = any(node.level > 0 for node in nodes)
 
-        if has_level_info:
-            return self._attach_by_level(nodes)
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
+            if has_level_info:
+                return self._attach_compact_layout_children(nodes)
+            return self._attach_heatsink_children(nodes)
 
         # Fallback to name-based parent detection
         assemblies = [node for node in nodes if node.node_type == 'assembly']
@@ -1946,6 +1946,119 @@ class PDMLBinaryReader:
 
         return top_level
 
+    def _is_container_node(self, node: PDMLGeometryNode) -> bool:
+        return node.node_type in {
+            'assembly',
+            'network_assembly',
+            'heatsink',
+            'pcb',
+            'enclosure',
+            'rack',
+            'cooler',
+            'controller',
+        }
+
+    def _attach_compact_layout_children(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
+        top_level, remaining = self._consume_heatsink_scope(nodes)
+        if not remaining:
+            return top_level
+
+        body, tail = self._split_compact_tail_nodes(remaining)
+        if body:
+            top_level.extend(self._attach_compact_level_groups(body))
+        top_level.extend(tail)
+        return top_level
+
+    def _consume_heatsink_scope(
+        self,
+        nodes: List[PDMLGeometryNode],
+    ) -> Tuple[List[PDMLGeometryNode], List[PDMLGeometryNode]]:
+        heat_sink_index = next(
+            (
+                index for index, node in enumerate(nodes)
+                if node.name == 'Heat Sink Geometry' and node.node_type == 'assembly'
+            ),
+            None,
+        )
+        if heat_sink_index is None:
+            return [], nodes
+
+        heat_sink = nodes[heat_sink_index]
+        top_level = nodes[:heat_sink_index] + [heat_sink]
+        current_fin: Optional[PDMLGeometryNode] = None
+        index = heat_sink_index + 1
+
+        while index < len(nodes):
+            node = nodes[index]
+
+            if node.node_type == 'assembly' and node.name.startswith('Fin '):
+                heat_sink.children.append(node)
+                current_fin = node
+                index += 1
+                continue
+
+            if node.node_type == 'cuboid':
+                if node.name == 'Base':
+                    heat_sink.children.append(node)
+                    current_fin = None
+                    index += 1
+                    continue
+                if current_fin is not None:
+                    current_fin.children.append(node)
+                    index += 1
+                    continue
+
+            break
+
+        return top_level, nodes[index:]
+
+    def _split_compact_tail_nodes(
+        self,
+        nodes: List[PDMLGeometryNode],
+    ) -> Tuple[List[PDMLGeometryNode], List[PDMLGeometryNode]]:
+        tail_types = {'fixed_flow', 'source', 'monitor_point'}
+        split_index = len(nodes)
+        while split_index > 0 and nodes[split_index - 1].node_type in tail_types and nodes[split_index - 1].level <= 2:
+            split_index -= 1
+        return nodes[:split_index], nodes[split_index:]
+
+    def _attach_compact_level_groups(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
+        if not nodes:
+            return []
+
+        root = nodes[0]
+        if root.node_type != 'network_assembly':
+            return self._attach_by_level(nodes)
+
+        top_level = [root]
+        assembly_stack: List[PDMLGeometryNode] = []
+
+        for node in nodes[1:]:
+            level = max(2, min(node.level, 10))
+
+            if node.node_type == 'assembly':
+                if level >= 3 and assembly_stack:
+                    assembly_stack[-1].children.append(node)
+                else:
+                    root.children.append(node)
+                assembly_stack.append(node)
+                continue
+
+            if node.node_type == 'network_assembly':
+                if level >= 3 and assembly_stack:
+                    assembly_stack[-1].children.append(node)
+                else:
+                    root.children.append(node)
+                assembly_stack = []
+                continue
+
+            if level >= 3 and assembly_stack:
+                assembly_stack[-1].children.append(node)
+            else:
+                root.children.append(node)
+
+        return top_level
+
     def _attach_heatsink_children(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
         """Attach sequential heatsink geometry exported from the windtunnel sample.
 
@@ -1957,43 +2070,10 @@ class PDMLBinaryReader:
         - ...
         - top-level flow/source/monitor nodes
         """
-        heat_sink = next((node for node in nodes if node.name == 'Heat Sink Geometry' and node.node_type == 'assembly'), None)
-        if heat_sink is None:
+        top_level, remaining = self._consume_heatsink_scope(nodes)
+        if not top_level:
             return nodes
-
-        top_level: List[PDMLGeometryNode] = []
-        current_fin: Optional[PDMLGeometryNode] = None
-        in_heat_sink_scope = False
-
-        for node in nodes:
-            if node is heat_sink:
-                top_level.append(node)
-                in_heat_sink_scope = True
-                current_fin = None
-                continue
-
-            if not in_heat_sink_scope:
-                top_level.append(node)
-                continue
-
-            if node.node_type == 'assembly' and node.name.startswith('Fin '):
-                heat_sink.children.append(node)
-                current_fin = node
-                continue
-
-            if node.node_type == 'cuboid':
-                if node.name == 'Base':
-                    heat_sink.children.append(node)
-                    current_fin = None
-                    continue
-                if current_fin is not None:
-                    current_fin.children.append(node)
-                    continue
-
-            top_level.append(node)
-            current_fin = None
-            in_heat_sink_scope = False
-
+        top_level.extend(remaining)
         return top_level
 
     def _extract_geometry(self, data: PDMLData):
