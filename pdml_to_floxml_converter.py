@@ -1355,29 +1355,8 @@ class PDMLBinaryReader:
             return self._finalize_geometry_node(node)
 
         if node_type == 'source':
-            if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
-                node.position = (0.0175, -0.005, 0.0175)
-                node.orientation = self._identity_orientation()
-                node.source = self._primary_source_attribute_name()
-            else:
-                node.position = (0.0, 1.0, -0.3212323)
-                node.position_text = ("0", "1", "-0.3212323")
-                node.orientation = (
-                    (0.0, 0.0, 1.0),
-                    (0.0, 1.0, 0.0),
-                    (1.0, 0.0, 0.0),
-                )
-                node.pre_elements.append(
-                    self._fragment(
-                        "collapse",
-                        children=[
-                            self._fragment("direction", "x_direction"),
-                            self._fragment("type", "low_face"),
-                        ],
-                    )
-                )
-                node.source = self._primary_source_attribute_name()
-                node.post_elements.append(self._fragment("attachment_side", "high_side"))
+            # 使用从 PDML 提取的 position 和 size，不要覆盖
+            node.source = self._primary_source_attribute_name()
             return self._finalize_geometry_node(node)
 
         if node_type == 'resistance':
