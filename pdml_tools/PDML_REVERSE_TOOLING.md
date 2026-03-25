@@ -76,11 +76,21 @@
 - [analyze_pdml_format.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\analyze_pdml_format.py)
 - [pdml_floxml_compare.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\pdml_floxml_compare.py)
 - [compare_geometry_hierarchy.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\compare_geometry_hierarchy.py)
+- [pdml_record_dump.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\pdml_record_dump.py)
 
 这些脚本的定位是：
 - 用来验证单个猜想
 - 用来辅助定位差异
 - 不一定是长期保留的正式接口
+
+其中最适合做“新样例接入体检”的是：
+- [pdml_record_dump.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\pdml_record_dump.py)
+
+它会同时输出：
+- 一个结构化 `json`，方便 AI 或脚本继续分析
+- 一个简短 `md` 摘要，方便人类快速判断下一步
+
+特别适合在样例很少、但需要把工作交给其他模型或后续继续扩展时使用。
 
 ## 当前确认过的二进制模式
 
@@ -174,6 +184,28 @@ TopAttach                 level=2  <- 顶层 assembly
 - FloTHERM 不同版本可能使用不同的编码（如 `0x02000000` vs `0x00000002`）
 - 当前实现支持 `0x00000002` / `0x00000003` 格式
 - 对于复杂的嵌套结构（如 assembly 内嵌 assembly），可能需要额外启发式规则
+
+### 5. structured dump output (2026-03-25 新增)
+
+当前已经补了一层“面向 AI 交接”的中间输出：
+
+- 输入：`*.pdml`
+- 输出 1：`*.pdml.dump.json`
+- 输出 2：`*.pdml.dump.md`
+
+其中 `json` 会包含：
+- `meta`
+- `type_code_stats`
+- `geometry_records`
+- `string_records`
+- `anomalies`
+
+这能把“靠模型猜”的部分尽量收敛成：
+- 已结构化的 record 数据
+- 已标记的异常点
+- 已归纳的下一步线索
+
+对弱一点的模型也更友好。
 
 ## 当前真正使用的逆向方法
 
@@ -344,20 +376,27 @@ python pdml_tools/pdml_to_floxml_converter.py all.pdml -o test_v2.xml
 python pdml_tools/pdml_to_floxml_converter.py Heatsink.pdml -o heatsink_test.xml
 ```
 
-### 2. 语法检查
+### 2. 导出结构化 PDML dump
+
+```powershell
+python pdml_tools/pdml_record_dump.py test_level.pdml --summary-only
+python pdml_tools/pdml_record_dump.py all.pdml -o all.pdml.dump.json -s all.pdml.dump.md
+```
+
+### 3. 语法检查
 
 ```powershell
 python -m py_compile pdml_tools/pdml_to_floxml_converter.py
 ```
 
-### 3. 运行 construct 扫描器
+### 4. 运行 construct 扫描器
 
 ```powershell
 python pdml_tools/pdml_construct_schema.py all.pdml
 python pdml_tools/pdml_construct_schema.py Heatsink.pdml --mode geometry --limit 80
 ```
 
-### 4. 递归 XML 对比
+### 5. 递归 XML 对比
 
 当前没有单独固定成一个正式 CLI，
 但项目里已经多次使用“递归比较 XML 树”的临时 Python 脚本做验证。
