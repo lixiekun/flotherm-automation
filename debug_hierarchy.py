@@ -8,17 +8,33 @@ def analyze_hierarchy(pdml_file):
     reader._locate_sections()
     records = list(reader._find_geometry_records())
 
-    print("=== 装配体层级分析 ===")
-    print("序号 | Level | 类型 | 名称")
+    print(f"=== 装配体层级分析: {pdml_file} ===")
+    print(f"总记录数: {len(records)}")
+
+    # 先看看有哪些类型
+    types = set(rec.get('type', '?') for rec in records)
+    print(f"类型列表: {types}")
+
+    print("\n序号 | Level | 类型 | 名称")
     print("-" * 60)
 
     assembly_count = 0
     for i, rec in enumerate(records):
-        if rec.get('type') == 'assembly':
+        node_type = rec.get('type', '?')
+        # 检查 assembly 类型
+        if node_type == 'assembly' or 'assembly' in str(node_type).lower():
             assembly_count += 1
             level = rec.get('level', '?')
             name = rec.get('name', '?')[:50]
-            print(f"{assembly_count:3d}  | L{level}   | assembly | {name}")
+            print(f"{assembly_count:3d}  | L{level}   | {node_type} | {name}")
+
+    if assembly_count == 0:
+        print("\n未找到 assembly 类型，显示前 20 条记录:")
+        for i, rec in enumerate(records[:20]):
+            level = rec.get('level', '?')
+            node_type = rec.get('type', '?')
+            name = rec.get('name', '?')[:40]
+            print(f"{i:3d}  | L{level}   | {node_type} | {name}")
 
     print(f"\n总装配体数: {assembly_count}")
 
