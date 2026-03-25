@@ -248,6 +248,7 @@ class PDMLBinaryReader:
     INTERNAL_GEOMETRY_NAMES = {
         'System',
         'Root Assembly',
+        'Domain',
         'Printed Circuit Board-1',
         'Printed Circuit Board Comp-2',
         'Junction Temperature',
