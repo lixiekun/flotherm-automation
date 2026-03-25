@@ -1959,20 +1959,24 @@ class PDMLBinaryReader:
         }
 
     def _attach_compact_layout_children(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
-        top_level, remaining = self._consume_heatsink_scope(nodes)
+        top_level, remaining, compact_anchor = self._consume_heatsink_scope(nodes)
         if not remaining:
             return top_level
 
         body, tail = self._split_compact_tail_nodes(remaining)
         if body:
-            top_level.extend(self._attach_compact_level_groups(body))
+            attached_body = self._attach_compact_level_groups(body)
+            if compact_anchor is not None:
+                compact_anchor.children.extend(attached_body)
+            else:
+                top_level.extend(attached_body)
         top_level.extend(tail)
         return top_level
 
     def _consume_heatsink_scope(
         self,
         nodes: List[PDMLGeometryNode],
-    ) -> Tuple[List[PDMLGeometryNode], List[PDMLGeometryNode]]:
+    ) -> Tuple[List[PDMLGeometryNode], List[PDMLGeometryNode], Optional[PDMLGeometryNode]]:
         heat_sink_index = next(
             (
                 index for index, node in enumerate(nodes)
@@ -1981,7 +1985,7 @@ class PDMLBinaryReader:
             None,
         )
         if heat_sink_index is None:
-            return [], nodes
+            return [], nodes, None
 
         heat_sink = nodes[heat_sink_index]
         top_level = nodes[:heat_sink_index] + [heat_sink]
@@ -2010,7 +2014,7 @@ class PDMLBinaryReader:
 
             break
 
-        return top_level, nodes[index:]
+        return top_level, nodes[index:], current_fin or heat_sink
 
     def _split_compact_tail_nodes(
         self,
@@ -2070,7 +2074,7 @@ class PDMLBinaryReader:
         - ...
         - top-level flow/source/monitor nodes
         """
-        top_level, remaining = self._consume_heatsink_scope(nodes)
+        top_level, remaining, _ = self._consume_heatsink_scope(nodes)
         if not top_level:
             return nodes
         top_level.extend(remaining)
