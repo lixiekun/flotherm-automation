@@ -24,7 +24,7 @@ import json
 import sys
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Set
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
 
@@ -475,7 +475,10 @@ class PDMLBinaryReader:
 
     def _find_geometry_records(self) -> List[Dict[str, Any]]:
         import struct
-        by_name: Dict[str, Dict[str, Any]] = {}
+        # Use list instead of dict to preserve duplicate names
+        records: List[Dict[str, Any]] = []
+        seen_offsets: Set[int] = set()  # Track unique offsets to avoid true duplicates
+
         for record in self.tagged_strings:
             type_code = record['type_code']
             name = record['value']
@@ -495,17 +498,20 @@ class PDMLBinaryReader:
                 if 2 <= level_bytes <= 20:
                     level = level_bytes
 
-            candidate = {
+            # Skip if we've already seen this exact offset (true duplicate)
+            if offset in seen_offsets:
+                continue
+            seen_offsets.add(offset)
+
+            records.append({
                 'offset': offset,
                 'type_code': type_code,
                 'node_type': self.GEOMETRY_TYPE_CODES[type_code],
                 'name': name,
                 'level': level,
-            }
-            existing = by_name.get(name)
-            if existing is None or candidate['offset'] > existing['offset']:
-                by_name[name] = candidate
-        return sorted(by_name.values(), key=lambda item: item['offset'])
+            })
+
+        return sorted(records, key=lambda item: item['offset'])
 
     def _read_relative_doubles(self, base_offset: int, start_rel: int, end_rel: int) -> List[Tuple[int, float]]:
         values = []
