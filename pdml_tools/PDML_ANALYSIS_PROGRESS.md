@@ -122,9 +122,9 @@
 
 ## 代码位置
 
-- 主转换器: `pdml_to_floxml_converter.py`
-- 格式分析: `pdml_format_analysis.md` (本文档)
-- 类型分析: `analyze_geometry_types.py`
+- 主转换器: `pdml_tools/pdml_to_floxml_converter.py`
+- 格式分析: `pdml_tools/pdml_format_analysis.md` (本文档)
+- 类型分析: `pdml_tools/analyze_geometry_types.py`
 
 ## 参考资料
 

@@ -24,7 +24,7 @@
 - 测试验证字符串提取
 
 ### Step 2: 集成到主转换器
-- 更新 pdml_to_floxml_converter.py 使用修复后的逻辑
+- 更新 pdml_tools/pdml_to_floxml_converter.py 使用修复后的逻辑
 - 提取几何名称并添加到 FloXML
 
 ### Step 3: 提取几何尺寸

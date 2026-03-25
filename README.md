@@ -118,7 +118,7 @@ python batch_pack_solver.py pack1.pack pack2.pack pack3.pack -o ./macros
 | 文件 | 支持格式 | 功能 |
 |-----|---------|------|
 | `ecxml_editor.py` | **ECXML** | JEDEC JEP181 标准器件热模型解析和修改 |
-| `pdml_parser.py` | **PDML** | FloTHERM 原生 PDML 项目文件解析 |
+| `pdml_tools/pdml_parser.py` | **PDML** | FloTHERM 原生 PDML 项目文件解析 |
 | `floxml_grid_parser.py` | **FloXML** | FloXML 网格设置解析 (支持 high_inflation) |
 | `pack_editor.py` | **Pack** | Pack 压缩包解压、查看、修改功耗 |
 

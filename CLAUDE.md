@@ -105,7 +105,7 @@ python excel_floxml_generator.py materials --data materials.json -o output.xml
 | File | Purpose |
 |------|---------|
 | `ecxml_editor.py` | Parse/modify ECXML (JEDEC JEP181) - components, powers, materials |
-| `pdml_parser.py` | Parse PDML/FloXML - full model with grid, solve, geometry |
+| `pdml_tools/pdml_parser.py` | Parse PDML/FloXML - full model with grid, solve, geometry |
 | `pack_editor.py` | Extract/modify .pack archives (ZIP format) |
 | `ecxml_to_floxml_converter.py` | Convert ECXML to complete FloXML project |
 | `excel_batch_simulation.py` | Multi-config batch simulation from Excel |

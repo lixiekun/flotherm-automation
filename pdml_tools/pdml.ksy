@@ -17,7 +17,7 @@ doc: |
   - tagged doubles (06 + IEEE754 double)
 
   In practice, use this schema together with the Python scanner in
-  `pdml_construct_schema.py`:
+  `pdml_tools/pdml_construct_schema.py`:
   - Kaitai holds the canonical field layout for confirmed record types
   - Python performs marker scanning until more of the stream framing is known
 

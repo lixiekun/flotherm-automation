@@ -6,11 +6,11 @@ PDML (Project Data Markup Language) 是 FloTHERM 的原生模型格式，
 包含完整的模型定义，包括几何、网格、材料、边界条件等。
 
 使用方法:
-    python pdml_parser.py model.pdml --info           # 显示基本信息
-    python pdml_parser.py model.pdml --structure      # 显示完整结构
-    python pdml_parser.py model.pdml --grid           # 显示网格信息
-    python pdml_parser.py model.pdml --components     # 显示器件列表
-    python pdml_parser.py model.pdml --export-csv     # 导出器件到 CSV
+    python pdml_tools/pdml_parser.py model.pdml --info           # 显示基本信息
+    python pdml_tools/pdml_parser.py model.pdml --structure      # 显示完整结构
+    python pdml_tools/pdml_parser.py model.pdml --grid           # 显示网格信息
+    python pdml_tools/pdml_parser.py model.pdml --components     # 显示器件列表
+    python pdml_tools/pdml_parser.py model.pdml --export-csv     # 导出器件到 CSV
 """
 
 import xml.etree.ElementTree as ET
@@ -753,11 +753,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 示例:
-  python pdml_parser.py model.pdml --info           # 显示摘要
-  python pdml_parser.py model.pdml --structure      # 显示结构
-  python pdml_parser.py model.pdml --grid           # 显示网格
-  python pdml_parser.py model.pdml --components     # 显示器件
-  python pdml_parser.py model.pdml --export-csv     # 导出 CSV
+  python pdml_tools/pdml_parser.py model.pdml --info           # 显示摘要
+  python pdml_tools/pdml_parser.py model.pdml --structure      # 显示结构
+  python pdml_tools/pdml_parser.py model.pdml --grid           # 显示网格
+  python pdml_tools/pdml_parser.py model.pdml --components     # 显示器件
+  python pdml_tools/pdml_parser.py model.pdml --export-csv     # 导出 CSV
         '''
     )
 

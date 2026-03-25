@@ -3,7 +3,7 @@
 PDML Construct Parser
 
 使用 construct 库声明式解析 PDML 二进制格式。
-这是 pdml_to_floxml_converter.py 的重构版本，结构更清晰。
+这是 pdml_tools/pdml_to_floxml_converter.py 的重构版本，结构更清晰。
 """
 
 from construct import *

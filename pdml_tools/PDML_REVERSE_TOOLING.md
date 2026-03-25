@@ -5,7 +5,7 @@
 这份文档记录当前项目里真正用到的 PDML 逆向分析工具、工作方法和验证流程。
 
 它不是泛泛而谈的“可选工具列表”，而是为了方便后续继续修改
-[pdml_to_floxml_converter.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_to_floxml_converter.py)
+[pdml_to_floxml_converter.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\pdml_to_floxml_converter.py)
 时，快速回忆我们现在是怎么把结论做出来的。
 
 ## 当前核心思路
@@ -31,7 +31,7 @@
 ### 1. 主转换器
 
 文件：
-[pdml_to_floxml_converter.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_to_floxml_converter.py)
+[pdml_to_floxml_converter.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\pdml_to_floxml_converter.py)
 
 作用：
 - 当前唯一的正式转换入口
@@ -44,7 +44,7 @@
 ### 2. construct 扫描器
 
 文件：
-[pdml_construct_schema.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_construct_schema.py)
+[pdml_construct_schema.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\pdml_construct_schema.py)
 
 作用：
 - 用于快速扫描真实 `*.pdml`
@@ -59,7 +59,7 @@
 ### 3. Kaitai 格式草稿
 
 文件：
-[pdml.ksy](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml.ksy)
+[pdml.ksy](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\pdml.ksy)
 
 作用：
 - 记录已经比较确定的结构
@@ -72,10 +72,10 @@
 ### 4. 辅助分析脚本
 
 仓库里还有一批一次性或半一次性的分析脚本，例如：
-- [analyze_geometry_types.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\analyze_geometry_types.py)
-- [analyze_pdml_format.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\analyze_pdml_format.py)
-- [pdml_floxml_compare.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_floxml_compare.py)
-- [compare_geometry_hierarchy.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\compare_geometry_hierarchy.py)
+- [analyze_geometry_types.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\analyze_geometry_types.py)
+- [analyze_pdml_format.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\analyze_pdml_format.py)
+- [pdml_floxml_compare.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\pdml_floxml_compare.py)
+- [compare_geometry_hierarchy.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\compare_geometry_hierarchy.py)
 
 这些脚本的定位是：
 - 用来验证单个猜想
@@ -243,7 +243,7 @@ PDML 本身不一定直接给出一棵现成的几何树，所以当前主转换
 对于多层级 assembly，单看截图或单看 PDML record 顺序都容易误判。
 
 现在仓库里新增了：
-- [compare_geometry_hierarchy.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\compare_geometry_hierarchy.py)
+- [compare_geometry_hierarchy.py](D:\Program Files\Siemens\SimcenterFlotherm\2504\flotherm-automation\pdml_tools\compare_geometry_hierarchy.py)
 
 它的用途是：
 - 读取参考 `ecxml` 或 `floxml`
@@ -258,7 +258,7 @@ PDML 本身不一定直接给出一棵现成的几何树，所以当前主转换
 推荐命令：
 
 ```powershell
-python compare_geometry_hierarchy.py test_level.ecxml test_level_converted.xml
+python pdml_tools/compare_geometry_hierarchy.py test_level.ecxml test_level_converted.xml
 ```
 
 当前这个脚本特别适合：
@@ -298,7 +298,7 @@ python compare_geometry_hierarchy.py test_level.ecxml test_level_converted.xml
 
 这不是最终通用解，但比“把 A 样例的结构硬套到 B 样例上”更稳，也比“按文件名特判”更接近可扩展的通用方案。
 
-## 方法 6：严格 XML diff 验证
+## 方法 7：严格 XML diff 验证
 
 每次重要修改后，都要把生成 XML 和原始 XML 做递归逐节点比对。
 
@@ -324,7 +324,7 @@ python compare_geometry_hierarchy.py test_level.ecxml test_level_converted.xml
    - 原始 FloXML
    - 导入后导出的 PDML
 2. 跑现有转换器，先看差异落在哪些 section。
-3. 用 `pdml_construct_schema.py` 和现有分析脚本定位：
+3. 用 `pdml_tools/pdml_construct_schema.py` 和现有分析脚本定位：
    - 新的 section marker
    - 新的 geometry type
    - 数值偏移是否不同
@@ -340,21 +340,21 @@ python compare_geometry_hierarchy.py test_level.ecxml test_level_converted.xml
 ### 1. 运行转换
 
 ```powershell
-python pdml_to_floxml_converter.py all.pdml -o test_v2.xml
-python pdml_to_floxml_converter.py Heatsink.pdml -o heatsink_test.xml
+python pdml_tools/pdml_to_floxml_converter.py all.pdml -o test_v2.xml
+python pdml_tools/pdml_to_floxml_converter.py Heatsink.pdml -o heatsink_test.xml
 ```
 
 ### 2. 语法检查
 
 ```powershell
-python -m py_compile pdml_to_floxml_converter.py
+python -m py_compile pdml_tools/pdml_to_floxml_converter.py
 ```
 
 ### 3. 运行 construct 扫描器
 
 ```powershell
-python pdml_construct_schema.py all.pdml
-python pdml_construct_schema.py Heatsink.pdml --mode geometry --limit 80
+python pdml_tools/pdml_construct_schema.py all.pdml
+python pdml_tools/pdml_construct_schema.py Heatsink.pdml --mode geometry --limit 80
 ```
 
 ### 4. 递归 XML 对比

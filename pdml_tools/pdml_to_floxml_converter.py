@@ -2630,13 +2630,13 @@ def main():
         epilog="""
 示例:
   # 转换单个文件
-  python pdml_to_floxml_converter.py model.pdml -o output.xml
+  python pdml_tools/pdml_to_floxml_converter.py model.pdml -o output.xml
 
   # 批量转换
-  python pdml_to_floxml_converter.py *.pdml --output-dir ./floxml/
+  python pdml_tools/pdml_to_floxml_converter.py *.pdml --output-dir ./floxml/
 
   # 详细输出
-  python pdml_to_floxml_converter.py model.pdml -v
+  python pdml_tools/pdml_to_floxml_converter.py model.pdml -v
         """
     )
 
