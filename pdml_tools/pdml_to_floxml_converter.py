@@ -490,15 +490,15 @@ class PDMLBinaryReader:
                 continue
 
             # Extract hierarchy level from bytes before the record
-            # The level is stored at offset-6 as a single byte value (0x02 = level 2, 0x03 for level 3)
-            # followed by 0x01 (possibly a marker)
+            # The level is stored at offset-4 as a 4-byte big-endian integer
+            # Level encoding: 0x00000002 = level 2 (top), 0x00000003 = level 3 (child), etc.
             offset = record['offset']
             level = 2  # default level (top level in geometry)
-            if offset >= 6 and offset < len(self.data):
-                # Check offset-6 for level byte (0x02 = level 2, 0x03 for level 3)
-                level_byte = self.data[offset-6]
-                if 1 <= level_byte <= 10:
-                    level = level_byte
+            if offset >= 4:
+                level_bytes = struct.unpack('>I', self.data[offset-4:offset])[0]
+                # Level encoding: 0x00000002 = level 2, 0x00000003 = level 3
+                if 2 <= level_bytes <= 20:
+                    level = level_bytes
 
             # Skip if we've already seen this exact offset (true duplicate)
             if offset in seen_offsets:
@@ -1953,17 +1953,20 @@ class PDMLBinaryReader:
         body, tail = self._split_compact_tail_nodes(remaining)
         if body:
             attached_body = self._attach_compact_level_groups(body)
-            # network_assembly 应该在 Heat Sink Geometry 内部（Level 2）
-            # 而不是在顶层（Level 1）
-            network_nodes = [n for n in attached_body if n.node_type == 'network_assembly']
-            other_nodes = [n for n in attached_body if n.node_type != 'network_assembly']
+            # compact layout 中的 network_assembly 只是分组包装器，不应直接输出。
+            promoted_children: List[PDMLGeometryNode] = []
+            other_nodes: List[PDMLGeometryNode] = []
+            for node in attached_body:
+                if node.node_type == 'network_assembly':
+                    promoted_children.extend(node.children)
+                else:
+                    other_nodes.append(node)
             if compact_anchor is not None:
                 compact_anchor.children.extend(other_nodes)
-                # 第二个 Network Assembly 应该在 Heat Sink Geometry 内部
-                compact_anchor.children.extend(network_nodes)
+                compact_anchor.children.extend(promoted_children)
             else:
                 top_level.extend(other_nodes)
-                top_level.extend(network_nodes)
+                top_level.extend(promoted_children)
 
         # IMPORTANT: tail nodes (fixed_flow, source, monitor_point) must be at TOP LEVEL (Level 1)
         # They should NOT be inside any assembly
@@ -2011,17 +2014,12 @@ class PDMLBinaryReader:
                     index += 1
                     continue
 
-            # First network_assembly goes into the last Fin (Fin 10)
-            # After adding, we STOP consuming - let the network_assembly manage its own children
+            # First network_assembly in this sample acts as a wrapper marker for the
+            # trailing component group under the last Fin. Consume it, but don't emit it.
             if node.node_type == 'network_assembly' and not first_network_assembly_added:
-                if current_fin is not None:
-                    current_fin.children.append(node)
-                else:
-                    heat_sink.children.append(node)
                 first_network_assembly_added = True
                 index += 1
-                # STOP here - the network_assembly will consume its own children
-                # The second network_assembly and remaining nodes will be in remaining
+                # STOP here - the remaining nodes belong to the fin/body group that follows.
                 break
 
             break
@@ -2140,13 +2138,13 @@ class PDMLBinaryReader:
             search_end = geometry_start
             search_chunk = self.data[search_start:search_end]
 
-            # 提取所有 double 值
+            # 提取所有合理的 double 值；PDML 在这里混有位置和尺寸字段
             doubles = []
             for i in range(len(search_chunk) - 9):
                 if search_chunk[i] == 0x06:
                     try:
                         val = struct.unpack('>d', search_chunk[i+1:i+9])[0]
-                        if 0 < val < 0.5:  # 合理的求解域尺寸
+                        if -0.5 < val < 0.5:
                             doubles.append((search_start + i, val))
                     except:
                         pass
@@ -2161,11 +2159,13 @@ class PDMLBinaryReader:
             # 搜索 0.04 和 0.02
             sizes_04 = [(pos, val) for pos, val in doubles if 0.03 < val < 0.05]
             sizes_02 = [(pos, val) for pos, val in doubles if 0.01 < val < 0.03]
+            sizes = [(pos, val) for pos, val in doubles if 0 < val < 0.5]
 
             if sizes_04 and sizes_02:
                 # 按 position 排序
                 sizes_04.sort(key=lambda x: x[0])
                 sizes_02.sort(key=lambda x: x[0])
+                sizes.sort(key=lambda x: x[0])
                 # 取最接近的三个值作为 size (x, y, z)
                 domain.size = (sizes_04[0][1], sizes_02[0][1], sizes_04[1][1] if len(sizes_04) > 1 else sizes_04[0][1])
             elif len(sizes) >= 3:
