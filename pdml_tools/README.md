@@ -46,6 +46,12 @@ python pdml_tools/pdml_hierarchy_candidates.py your_model.pdml --assembly-index 
 python pdml_tools/pdml_structure_signal_probe.py your_model.pdml --all-records
 ```
 
+如果连这个都太长，改用压缩摘要：
+
+```powershell
+python pdml_tools/pdml_structure_signal_probe.py your_model.pdml --all-records --summary-only
+```
+
 如果目标 assembly 不在 `geometry` section，而是在 `grid` 等其它 section 被扫出来，补上：
 
 ```powershell

@@ -196,6 +196,41 @@ def print_rows(records: Sequence[RecordView], rows: Dict[str, List[Tuple[int, Li
     print()
 
 
+def summarize_rows(
+    rows: Dict[str, List[Tuple[int, List[Optional[int]]]]],
+    *,
+    max_lines: int = 8,
+) -> List[str]:
+    summaries: List[Tuple[int, str]] = []
+
+    kind_priority = {"u32be": 0, "u16be": 1, "u8": 2, "u32le": 3, "u16le": 4}
+
+    for kind, kind_rows in rows.items():
+        for rel, values in kind_rows:
+            if rel >= 0:
+                continue
+            seen = [value for value in values if value is not None and value != 0]
+            if len(seen) < 2:
+                continue
+            unique = sorted(set(seen))
+            hits = len(seen)
+            if len(unique) == 1:
+                shape = f"const={unique[0]}"
+                score = 100 - kind_priority.get(kind, 9) * 10 - abs(rel)
+            elif len(unique) <= 3:
+                shape = "vals=" + "/".join(str(item) for item in unique)
+                score = 80 - kind_priority.get(kind, 9) * 10 - abs(rel)
+            else:
+                sample = "/".join(str(item) for item in unique[:4])
+                shape = f"var={sample}"
+                score = 40 - kind_priority.get(kind, 9) * 10 - abs(rel)
+
+            summaries.append((score, f"{kind}@{rel}: hits={hits} {shape}"))
+
+    summaries.sort(key=lambda item: (-item[0], item[1]))
+    return [item[1] for item in summaries[:max_lines]]
+
+
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("pdml_file", help="Input PDML file")
@@ -246,6 +281,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=2,
         help="Minimum number of records that must show a small integer at the same relative offset",
     )
+    parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="Print a compact signal summary instead of full raw windows/tables",
+    )
     return parser.parse_args(argv)
 
 
@@ -259,10 +299,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     selected = records[: args.max_records]
     if len(records) > len(selected):
-        print(f"Showing first {len(selected)} of {len(records)} container records.\n")
+        if not args.summary_only:
+            print(f"Showing first {len(selected)} of {len(records)} container records.\n")
 
-    print_inventory(selected)
-    print_hex_windows(reader, selected, args.before, args.after)
     rows = collect_rows(
         reader,
         selected,
@@ -271,6 +310,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         max_value=args.max_value,
         min_hits=args.min_hits,
     )
+
+    if args.summary_only:
+        section_counts: Dict[str, int] = {}
+        type_counts: Dict[str, int] = {}
+        for record in selected:
+            section_counts[record.section_guess] = section_counts.get(record.section_guess, 0) + 1
+            type_counts[record.node_type] = type_counts.get(record.node_type, 0) + 1
+
+        print("PDML_SIGNAL_SUMMARY")
+        print(f"containers={len(selected)}")
+        print(
+            "sections="
+            + ",".join(f"{name}:{count}" for name, count in sorted(section_counts.items()))
+        )
+        print(
+            "types="
+            + ",".join(f"{name}:{count}" for name, count in sorted(type_counts.items()))
+        )
+        for line in summarize_rows(rows):
+            print(f"signal={line}")
+        return 0
+
+    print_inventory(selected)
+    print_hex_windows(reader, selected, args.before, args.after)
     print_rows(selected, rows)
     return 0
 
