@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import struct
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
@@ -105,6 +106,31 @@ def nearby_double_context(reader: PDMLBinaryReader, offset: int, radius: int = 1
     return values[:limit]
 
 
+def level_probe(reader: PDMLBinaryReader, offset: int) -> Dict[str, Any]:
+    start = max(0, offset - 12)
+    raw_prefix = reader.data[start:offset]
+
+    candidate_offset_6 = reader.data[offset - 6] if offset >= 6 else None
+    candidate_offset_4_be = struct.unpack(">I", reader.data[offset - 4:offset])[0] if offset >= 4 else None
+    candidate_offset_4_le = struct.unpack("<I", reader.data[offset - 4:offset])[0] if offset >= 4 else None
+
+    def normalized_level(value: Optional[int]) -> Optional[int]:
+        if value is None:
+            return None
+        return value if 1 <= value <= 20 else None
+
+    return {
+        "prefix_start_offset_hex": f"0x{start:06X}",
+        "prefix_hex": raw_prefix.hex(" "),
+        "offset_minus_6_byte": candidate_offset_6,
+        "offset_minus_6_level_guess": normalized_level(candidate_offset_6),
+        "offset_minus_4_uint32_be": candidate_offset_4_be,
+        "offset_minus_4_be_level_guess": normalized_level(candidate_offset_4_be),
+        "offset_minus_4_uint32_le": candidate_offset_4_le,
+        "offset_minus_4_le_level_guess": normalized_level(candidate_offset_4_le),
+    }
+
+
 def geometry_record_dump(reader: PDMLBinaryReader) -> List[Dict[str, Any]]:
     records = reader._find_geometry_records()
     duplicate_names = Counter(record["name"] for record in records)
@@ -142,6 +168,7 @@ def geometry_record_dump(reader: PDMLBinaryReader) -> List[Dict[str, Any]]:
                 "node_type_guess": record["node_type"],
                 "name": record["name"],
                 "level": record["level"],
+                "raw_level_probe": level_probe(reader, offset),
                 "candidate_position": list(position),
                 "candidate_size": list(size) if size is not None else None,
                 "nearby_strings": nearby_string_context(reader, offset),
