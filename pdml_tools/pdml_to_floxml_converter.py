@@ -1831,7 +1831,11 @@ class PDMLBinaryReader:
                 return self._attach_compact_layout_children(nodes)
             return self._attach_heatsink_children(nodes)
 
-        # Fallback to name-based parent detection
+        # Use level-based hierarchy when level info is available
+        if has_level_info:
+            return self._attach_by_level(nodes)
+
+        # Fallback to name-based parent detection (for legacy files without level info)
         assemblies = [node for node in nodes if node.node_type == 'assembly']
         top_level: List[PDMLGeometryNode] = []
         for node in nodes:
@@ -2027,26 +2031,48 @@ class PDMLBinaryReader:
         return nodes[:split_index], nodes[split_index:]
 
     def _attach_compact_level_groups(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
+        """Attach nodes using level-based hierarchy.
+
+        Level encoding:
+        - Level 2: Top-level or sibling at root
+        - Level 3+: Nested child under current parent
+
+        Non-assembly nodes (cuboid, region, etc.) are attached to the current
+        parent assembly based on their level.
+        """
         if not nodes:
             return []
 
         top_level: List[PDMLGeometryNode] = []
         assembly_stack: List[PDMLGeometryNode] = []
 
+        def get_current_parent() -> Optional[PDMLGeometryNode]:
+            return assembly_stack[-1] if assembly_stack else None
+
         for node in nodes:
             level = max(2, min(node.level, 10))
+            current_parent = get_current_parent()
 
-            if node.node_type == 'assembly':
+            if self._is_container_node(node):
+                # Assembly or container node
                 if level >= 3 and assembly_stack:
                     assembly_stack[-1].children.append(node)
                 else:
+                    # Level 2: top-level or sibling
                     assembly_stack = []
                     top_level.append(node)
                 assembly_stack.append(node)
-                continue
-
-            assembly_stack = []
-            top_level.append(node)
+            else:
+                # Non-container node (cuboid, region, monitor, etc.)
+                # Attach to current parent based on level
+                if level >= 3 and current_parent is not None:
+                    current_parent.children.append(node)
+                else:
+                    # Level 2: either top-level or belongs to last assembly
+                    if current_parent is not None:
+                        current_parent.children.append(node)
+                    else:
+                        top_level.append(node)
 
         return top_level
 
