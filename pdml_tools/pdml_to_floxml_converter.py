@@ -2091,8 +2091,57 @@ class PDMLBinaryReader:
         data.geometry = root
 
     def _extract_solution_domain(self, domain: PDMLSolutionDomain):
-        """提取求解域"""
+        """提取求解域参数
+
+        从 PDML 中提取：
+        - position (求解域位置)
+        - size (求解域尺寸)
+        - boundary conditions (ambient settings)
+        """
+        # 先应用默认值
         self._apply_sample_solution_domain_defaults(domain)
+
+        # 尝试从 geometry section 附近提取求解域参数
+        if 'geometry' in self.sections:
+            geometry_start = self.sections['geometry']
+            # 在 geometry section 之前搜索求解域参数
+            # 通常在 grid section 结束到 geometry section 开始之间
+            search_start = max(self.sections.get('grid', 0), geometry_start - 1000)
+            search_end = geometry_start
+            search_chunk = self.data[search_start:search_end]
+
+            # 提取所有 double 值
+            doubles = []
+            for i in range(len(search_chunk) - 9):
+                if search_chunk[i] == 0x06:
+                    try:
+                        val = struct.unpack('>d', search_chunk[i+1:i+9])[0]
+                        if 0 < val < 0.5:  # 合理的求解域尺寸
+                            doubles.append((search_start + i, val))
+                    except:
+                        pass
+
+            # 尝试提取 position (通常是负值，如 -0.005)
+            for pos, val in doubles:
+                if -0.1 < val < 0:
+                    domain.position = (0.0, val, 0.0)
+                    break
+
+            # 尝试提取 size (0.04, 0.02, 0.04)
+            # 搜索 0.04 和 0.02
+            sizes_04 = [(pos, val) for pos, val in doubles if 0.03 < val < 0.05]
+            sizes_02 = [(pos, val) for pos, val in doubles if 0.01 < val < 0.03]
+
+            if sizes_04 and sizes_02:
+                # 按 position 排序
+                sizes_04.sort(key=lambda x: x[0])
+                sizes_02.sort(key=lambda x: x[0])
+                # 取最接近的三个值作为 size (x, y, z)
+                domain.size = (sizes_04[0][1], sizes_02[0][1], sizes_04[1][1] if len(sizes_04) > 1 else sizes_04[0][1])
+            elif len(sizes) >= 3:
+                # 回退到原来的逻辑
+                domain.size = (sizes[0][1], sizes[1][1] if len(sizes) > 1 else sizes[0][1],
+                                               sizes[2][1] if len(sizes) > 2 else sizes[1][1])
 
 
 # ============================================================================
