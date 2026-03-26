@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print multiple candidate hierarchy trees around a target PDML assembly.
+"""Print multiple candidate hierarchy trees around PDML assemblies.
 
 This tool is intentionally diagnostic. It does not assume the current
 converter's hierarchy interpretation is correct. Instead it:
@@ -237,6 +237,19 @@ def find_target(nodes: Sequence[TreeNode], global_index: int) -> Optional[TreeNo
     return None
 
 
+def build_parent_map(nodes: Sequence[TreeNode]) -> Dict[int, Optional[TreeNode]]:
+    parent_map: Dict[int, Optional[TreeNode]] = {}
+
+    def walk(node: TreeNode, parent: Optional[TreeNode]) -> None:
+        parent_map[node.record.global_index] = parent
+        for child in node.children:
+            walk(child, node)
+
+    for node in nodes:
+        walk(node, None)
+    return parent_map
+
+
 def print_subtree(node: TreeNode, max_depth: int, depth: int = 0) -> None:
     indent = "  " * depth
     print(
@@ -273,10 +286,55 @@ def print_context(records: Sequence[RecordView], target_index: int, radius: int)
     print()
 
 
+def print_assembly_inventory(records: Sequence[RecordView]) -> None:
+    containers = [record for record in records if is_container_node(record.node_type)]
+    print("Assembly Inventory")
+    print("gidx  type              section    cur  off6 off4be off4le  name")
+    print("-" * 108)
+    for record in containers:
+        print(
+            f"{record.global_index:>4}  "
+            f"{record.node_type:<16} "
+            f"{record.section_guess:<9} "
+            f"{record.current_level:>3}  "
+            f"{str(record.off6_level or '-'):>4} "
+            f"{str(record.off4be_level or '-'):>6} "
+            f"{str(record.off4le_level or '-'):>6}  "
+            f"{record.name}"
+        )
+    print()
+
+
+def print_parent_summary(records: Sequence[RecordView], candidates: Sequence[Tuple[str, List[TreeNode]]]) -> None:
+    containers = [record for record in records if is_container_node(record.node_type)]
+    parent_maps = [(name, build_parent_map(forest)) for name, forest in candidates]
+
+    print("Candidate Parent Summary")
+    for record in containers:
+        print(f"[{record.global_index}] {record.node_type} {record.name}")
+        for candidate_name, parent_map in parent_maps:
+            parent = parent_map.get(record.global_index)
+            if parent is None:
+                parent_text = "ROOT"
+            else:
+                parent_text = f"[{parent.record.global_index}] {parent.record.node_type} {parent.record.name}"
+            print(f"  {candidate_name:<16} -> {parent_text}")
+        print()
+
+
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("pdml_file", help="Input PDML file")
-    parser.add_argument("assembly_name", help="Assembly name substring to inspect")
+    parser.add_argument(
+        "assembly_name",
+        nargs="?",
+        help="Optional assembly name substring to inspect",
+    )
+    parser.add_argument(
+        "--assembly-index",
+        type=int,
+        help="Inspect a specific geometry record index instead of matching by name",
+    )
     parser.add_argument(
         "--all-records",
         action="store_true",
@@ -301,10 +359,32 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     _, records = load_records(args.pdml_file, geometry_only=not args.all_records)
 
-    matches = [record for record in records if args.assembly_name.lower() in record.name.lower()]
-    if not matches:
-        print(f"No geometry record matched assembly name substring: {args.assembly_name}")
-        return 1
+    candidates = [
+        ("stack/off4be", build_tree_stack(records, "off4be")),
+        ("l3-group/off4be", build_tree_l3_group(records, "off4be")),
+        ("l3-group/off6", build_tree_l3_group(records, "off6")),
+        ("stack/off6", build_tree_stack(records, "off6")),
+    ]
+
+    if args.assembly_index is None and not args.assembly_name:
+        print_assembly_inventory(records)
+        print_parent_summary(records, candidates)
+        print("Rerun with an assembly name or --assembly-index for full subtree details.")
+        return 0
+
+    if args.assembly_index is not None:
+        matches = [record for record in records if record.global_index == args.assembly_index]
+        if not matches:
+            print(f"No geometry record matched assembly index: {args.assembly_index}")
+            return 1
+    else:
+        matches = [record for record in records if args.assembly_name.lower() in record.name.lower()]
+        if not matches:
+            print(f"No geometry record matched assembly name substring: {args.assembly_name}")
+            print()
+            print_assembly_inventory(records)
+            return 1
+
 
     target = matches[0]
     print(f"Matched target: idx={target.global_index} type={target.node_type} name={target.name}")
@@ -315,13 +395,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print()
 
     print_context(records, target.global_index, args.context)
-
-    candidates = [
-        ("stack/off4be", build_tree_stack(records, "off4be")),
-        ("l3-group/off4be", build_tree_l3_group(records, "off4be")),
-        ("l3-group/off6", build_tree_l3_group(records, "off6")),
-        ("stack/off6", build_tree_stack(records, "off6")),
-    ]
 
     for name, forest in candidates:
         target_node = find_target(forest, target.global_index)

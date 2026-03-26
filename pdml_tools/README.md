@@ -16,14 +16,26 @@
 python pdml_tools/pdml_to_floxml_converter.py all.pdml -o test_v2.xml
 python pdml_tools/compare_geometry_hierarchy.py test_level.ecxml test_level_converted.xml
 python pdml_tools/pdml_record_dump.py test_level.pdml --summary-only
-python pdml_tools/pdml_hierarchy_candidates.py your_model.pdml "TopAttach"
+python pdml_tools/pdml_hierarchy_candidates.py your_model.pdml
 python pdml_tools/pdml_construct_schema.py Heatsink.pdml --mode geometry --limit 80
+```
+
+默认直接列出所有装配体，并打印每种候选规则下的父节点摘要：
+
+```powershell
+python pdml_tools/pdml_hierarchy_candidates.py your_model.pdml
 ```
 
 针对单个 assembly 对比候选层级树：
 
 ```powershell
 python pdml_tools/pdml_hierarchy_candidates.py your_model.pdml "Baltimoreudp" --depth 6 --context 12
+```
+
+如果你不想输名字，可以先看上面输出里的 `gidx`，再用编号直接查看：
+
+```powershell
+python pdml_tools/pdml_hierarchy_candidates.py your_model.pdml --assembly-index 12 --depth 6 --context 12
 ```
 
 如果目标 assembly 不在 `geometry` section，而是在 `grid` 等其它 section 被扫出来，补上：
