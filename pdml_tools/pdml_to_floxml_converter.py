@@ -1853,100 +1853,40 @@ class PDMLBinaryReader:
         return top_level
 
     def _attach_by_level(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
-        """Attach children based on level information extracted from PDML.
+        """Attach nodes based on level information.
 
-        PDML level encoding (refined understanding):
-        - Level 3: First item in a new child group (starts nesting)
-        - Level 2: Subsequent sibling item (same parent as previous L3)
+        Level encoding:
+        - Level 2: Root level
+        - Level 3: First nesting level
+        - Level 4: Second nesting level
+        - etc.
 
-        Key insight: L2 assembly should be a SIBLING of the previous assembly,
-        not a child. Only L3 starts a new nesting level.
-
-        Algorithm uses a stack to track the parent hierarchy at each depth.
+        The parent_stack tracks containers at each depth using (level, node) tuples.
         """
         top_level: List[PDMLGeometryNode] = []
-        parent_stack: List[PDMLGeometryNode] = []  # Stack of parent assemblies
-        last_assembly: Optional[PDMLGeometryNode] = None  # Track last assembly for sibling resolution
+        parent_stack: List[Tuple[int, PDMLGeometryNode]] = []
 
-        # Names that indicate top-level containers
-        CONTAINER_PATTERNS = [
-            'Layers', 'Layer', 'Attach', 'Assembly', 'Power',
-            'Electrical', 'Vias', 'Board', 'Parts', 'Components',
-            'Domain', 'Solution', 'Model'
-        ]
-
-        def is_container_assembly(name: str) -> bool:
-            for pattern in CONTAINER_PATTERNS:
-                if pattern.lower() in name.lower():
-                    return True
-            return False
-
-        def get_current_parent() -> Optional[PDMLGeometryNode]:
-            return parent_stack[-1] if parent_stack else None
+        def get_parent_for_level(target_level: int) -> Optional[PDMLGeometryNode]:
+            """Find the parent for a given level by popping deeper items."""
+            while parent_stack and parent_stack[-1][0] >= target_level:
+                parent_stack.pop()
+            return parent_stack[-1][1] if parent_stack else None
 
         for node in nodes:
-            level = getattr(node, 'level', 2) if hasattr(node, 'level') else 2
+            level = getattr(node, 'level', 2)
             if level < 2:
                 level = 2
-            if level > 10:
-                level = 10
 
-            current_parent = get_current_parent()
+            parent = get_parent_for_level(level)
 
-            if node.node_type == 'assembly':
-                name = node.name
-
-                if level == 3:
-                    # L3 assembly: starts a new child group under current parent
-                    if current_parent is not None:
-                        current_parent.children.append(node)
-                    else:
-                        top_level.append(node)
-                    # Push this assembly onto the stack - it's now the parent for nested items
-                    parent_stack.append(node)
-                    last_assembly = node
-
-                elif level == 2:
-                    # L2 assembly: sibling of the last assembly at the same depth
-                    if is_container_assembly(name) and not parent_stack:
-                        # Container at root level - start new top-level group
-                        top_level.append(node)
-                        parent_stack = [node]
-                        last_assembly = node
-                    elif last_assembly is not None and parent_stack:
-                        # Find the parent of the last assembly (pop one level)
-                        if len(parent_stack) > 1:
-                            parent_stack.pop()  # Pop the last assembly
-                        sibling_parent = get_current_parent()
-                        if sibling_parent is not None:
-                            sibling_parent.children.append(node)
-                        else:
-                            top_level.append(node)
-                        parent_stack.append(node)
-                        last_assembly = node
-                    else:
-                        # First assembly or no context - becomes top-level
-                        top_level.append(node)
-                        parent_stack = [node]
-                        last_assembly = node
-                else:
-                    # Higher levels - attach to current parent
-                    if current_parent is not None:
-                        current_parent.children.append(node)
-                    else:
-                        top_level.append(node)
-
+            if parent is not None:
+                parent.children.append(node)
             else:
-                # Non-assembly node (cuboid, region, monitor, etc.)
-                if level == 3:
-                    # L3 non-assembly: starts a new child group
-                    # Push a marker that this is a non-assembly group
-                    pass
-                # All non-assembly nodes become children of current parent
-                if current_parent is not None:
-                    current_parent.children.append(node)
-                else:
-                    top_level.append(node)
+                top_level.append(node)
+
+            # Container nodes become potential parents for deeper levels
+            if self._is_container_node(node):
+                parent_stack.append((level, node))
 
         return top_level
 
