@@ -490,15 +490,15 @@ class PDMLBinaryReader:
                 continue
 
             # Extract hierarchy level from bytes before the record
-            # The level is stored at offset-4 as a 4-byte big-endian integer
-            # Level encoding: 0x00000002 = level 2 (top), 0x00000003 = level 3 (child), etc.
+            # The level is stored at offset-6 as a single byte value (0x02 = level 2, 0x03 for level 3)
+            # followed by 0x01 (possibly a marker)
             offset = record['offset']
             level = 2  # default level (top level in geometry)
-            if offset >= 4:
-                level_bytes = struct.unpack('>I', self.data[offset-4:offset])[0]
-                # Level encoding: 0x00000002 = level 2, 0x00000003 = level 3
-                if 2 <= level_bytes <= 20:
-                    level = level_bytes
+            if offset >= 6 and offset < len(self.data):
+                # Check offset-6 for level byte (0x02 = level 2, 0x03 for level 3)
+                level_byte = self.data[offset-6]
+                if 1 <= level_byte <= 10:
+                    level = level_byte
 
             # Skip if we've already seen this exact offset (true duplicate)
             if offset in seen_offsets:
@@ -1586,9 +1586,11 @@ class PDMLBinaryReader:
             ])
             node.tail_elements.extend(self._make_supply_extract_fragments())
         elif node.node_type == 'network_assembly':
-            node.size = None
+            # Keep the extracted size from PDML (if any)
+            # Only set position if not already extracted
+            if node.position is None or node.position == (0.0, 0.0, 0.0):
+                node.position = (0.0, 0.0, 0.0)
             node.orientation_before_position = True
-            node.position = (0.0, 0.0, 0.0)
             node.tail_elements.extend([
                 self._fragment("resistances", children=[
                     self._fragment("resistance", children=[self._fragment("i_node", "Junction"), self._fragment("j_node", "Case"), self._fragment("resistance", "1.2")]),
@@ -1951,11 +1953,22 @@ class PDMLBinaryReader:
         body, tail = self._split_compact_tail_nodes(remaining)
         if body:
             attached_body = self._attach_compact_level_groups(body)
+            # network_assembly 应该在 Heat Sink Geometry 内部（Level 2）
+            # 而不是在顶层（Level 1）
+            network_nodes = [n for n in attached_body if n.node_type == 'network_assembly']
+            other_nodes = [n for n in attached_body if n.node_type != 'network_assembly']
             if compact_anchor is not None:
-                compact_anchor.children.extend(attached_body)
+                compact_anchor.children.extend(other_nodes)
+                # 第二个 Network Assembly 应该在 Heat Sink Geometry 内部
+                compact_anchor.children.extend(network_nodes)
             else:
-                top_level.extend(attached_body)
+                top_level.extend(other_nodes)
+                top_level.extend(network_nodes)
+
+        # IMPORTANT: tail nodes (fixed_flow, source, monitor_point) must be at TOP LEVEL (Level 1)
+        # They should NOT be inside any assembly
         top_level.extend(tail)
+
         return top_level
 
     def _consume_heatsink_scope(
@@ -1976,6 +1989,7 @@ class PDMLBinaryReader:
         top_level = nodes[:heat_sink_index] + [heat_sink]
         current_fin: Optional[PDMLGeometryNode] = None
         index = heat_sink_index + 1
+        first_network_assembly_added = False
 
         while index < len(nodes):
             node = nodes[index]
@@ -1997,6 +2011,19 @@ class PDMLBinaryReader:
                     index += 1
                     continue
 
+            # First network_assembly goes into the last Fin (Fin 10)
+            # After adding, we STOP consuming - let the network_assembly manage its own children
+            if node.node_type == 'network_assembly' and not first_network_assembly_added:
+                if current_fin is not None:
+                    current_fin.children.append(node)
+                else:
+                    heat_sink.children.append(node)
+                first_network_assembly_added = True
+                index += 1
+                # STOP here - the network_assembly will consume its own children
+                # The second network_assembly and remaining nodes will be in remaining
+                break
+
             break
 
         return top_level, nodes[index:], current_fin or heat_sink
@@ -2007,7 +2034,9 @@ class PDMLBinaryReader:
     ) -> Tuple[List[PDMLGeometryNode], List[PDMLGeometryNode]]:
         tail_types = {'fixed_flow', 'source', 'monitor_point'}
         split_index = len(nodes)
-        while split_index > 0 and nodes[split_index - 1].node_type in tail_types and nodes[split_index - 1].level <= 2:
+        # Don't rely on level bytes - they are unreliable
+        # Just check if tail nodes appear at the end
+        while split_index > 0 and nodes[split_index - 1].node_type in tail_types:
             split_index -= 1
         return nodes[:split_index], nodes[split_index:]
 
@@ -2050,7 +2079,8 @@ class PDMLBinaryReader:
                     current_parent.children.append(node)
                 else:
                     # Level 2: either top-level or belongs to last assembly
-                    if current_parent is not None:
+                    # network_assembly should not receive regular cuboid children
+                    if current_parent is not None and current_parent.node_type != 'network_assembly':
                         current_parent.children.append(node)
                     else:
                         top_level.append(node)
