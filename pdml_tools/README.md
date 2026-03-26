@@ -28,6 +28,18 @@ python pdml_tools/pdml_construct_schema.py Heatsink.pdml --mode geometry --limit
 python pdml_tools/pdml_hierarchy_candidates.py your_model.pdml
 ```
 
+如果你只想看 3 套极简层级方案，让自己挑最接近 GUI 的那套：
+
+```powershell
+python pdml_tools/pdml_hierarchy_candidates.py your_model.pdml --scheme-summary
+```
+
+如果你想直接看 3 套完整树形结构：
+
+```powershell
+python pdml_tools/pdml_hierarchy_candidates.py your_model.pdml --scheme-trees --depth 6
+```
+
 针对单个 assembly 对比候选层级树：
 
 ```powershell

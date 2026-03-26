@@ -7,8 +7,8 @@ converter's hierarchy interpretation is correct. Instead it:
 1. Scans geometry records from a PDML file.
 2. Shows the raw level probes around a chosen assembly.
 3. Builds several candidate trees using different level sources / rules.
-4. Prints the target subtree for each candidate so the user can compare it
-   against FloTHERM's GUI tree.
+4. Prints compact candidate parent maps or a target subtree so the user can
+   compare it against FloTHERM's GUI tree.
 """
 
 from __future__ import annotations
@@ -250,6 +250,25 @@ def build_parent_map(nodes: Sequence[TreeNode]) -> Dict[int, Optional[TreeNode]]
     return parent_map
 
 
+def compact_parent_signature(
+    records: Sequence[RecordView],
+    forest: Sequence[TreeNode],
+) -> List[str]:
+    parent_map = build_parent_map(forest)
+    container_ids = {record.global_index for record in records if is_container_node(record.node_type)}
+    lines: List[str] = []
+    for record in records:
+        if record.global_index not in container_ids:
+            continue
+        parent = parent_map.get(record.global_index)
+        if parent is None or parent.record.global_index not in container_ids:
+            parent_text = "ROOT"
+        else:
+            parent_text = str(parent.record.global_index)
+        lines.append(f"{record.global_index}->{parent_text}")
+    return lines
+
+
 def print_subtree(node: TreeNode, max_depth: int, depth: int = 0) -> None:
     indent = "  " * depth
     print(
@@ -322,6 +341,29 @@ def print_parent_summary(records: Sequence[RecordView], candidates: Sequence[Tup
         print()
 
 
+def print_scheme_summary(records: Sequence[RecordView], candidates: Sequence[Tuple[str, List[TreeNode]]]) -> None:
+    print("PDML_HIERARCHY_SCHEMES")
+    print("Format: child_gidx->parent_gidx, ROOT means top-level")
+    print()
+    for name, forest in candidates:
+        print(f"{name}:")
+        print("  " + ", ".join(compact_parent_signature(records, forest)))
+        print()
+
+
+def print_scheme_trees(candidates: Sequence[Tuple[str, List[TreeNode]]], max_depth: int) -> None:
+    print("PDML_HIERARCHY_TREES")
+    print()
+    for name, forest in candidates:
+        print(f"{name}:")
+        if not forest:
+            print("  <empty>")
+        else:
+            for node in forest:
+                print_subtree(node, max_depth)
+        print()
+
+
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("pdml_file", help="Input PDML file")
@@ -352,6 +394,16 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=5,
         help="Maximum subtree depth to print per candidate",
     )
+    parser.add_argument(
+        "--scheme-summary",
+        action="store_true",
+        help="Print only 3 compact hierarchy schemes for all container nodes",
+    )
+    parser.add_argument(
+        "--scheme-trees",
+        action="store_true",
+        help="Print 3 full candidate trees with indentation",
+    )
     return parser.parse_args(argv)
 
 
@@ -360,11 +412,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     _, records = load_records(args.pdml_file, geometry_only=not args.all_records)
 
     candidates = [
-        ("stack/off4be", build_tree_stack(records, "off4be")),
-        ("l3-group/off4be", build_tree_l3_group(records, "off4be")),
-        ("l3-group/off6", build_tree_l3_group(records, "off6")),
-        ("stack/off6", build_tree_stack(records, "off6")),
+        ("scheme_A_stack_off4be", build_tree_stack(records, "off4be")),
+        ("scheme_B_l3group_off4be", build_tree_l3_group(records, "off4be")),
+        ("scheme_C_l3group_off6", build_tree_l3_group(records, "off6")),
     ]
+
+    if args.scheme_summary:
+        print_scheme_summary(records, candidates)
+        return 0
+
+    if args.scheme_trees:
+        print_scheme_trees(candidates, args.depth)
+        return 0
 
     if args.assembly_index is None and not args.assembly_name:
         print_assembly_inventory(records)
