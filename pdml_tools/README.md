@@ -7,6 +7,7 @@
 - `compare_geometry_hierarchy.py`：用 `ECXML/FloXML` 对照几何层级
 - `pdml_record_dump.py`：导出结构化 PDML 记录 JSON 和人类可读摘要
 - `pdml_hierarchy_candidates.py`：对指定 assembly 打印多种候选层级树
+- `pdml_structure_signal_probe.py`：并排比较多个 assembly 周围的原始字节和整数信号
 - `pdml_construct_schema.py`：二进制结构扫描器
 - `PDML_REVERSE_TOOLING.md`：当前逆向方法与验证流程记录
 
@@ -17,6 +18,7 @@ python pdml_tools/pdml_to_floxml_converter.py all.pdml -o test_v2.xml
 python pdml_tools/compare_geometry_hierarchy.py test_level.ecxml test_level_converted.xml
 python pdml_tools/pdml_record_dump.py test_level.pdml --summary-only
 python pdml_tools/pdml_hierarchy_candidates.py your_model.pdml
+python pdml_tools/pdml_structure_signal_probe.py your_model.pdml --all-records
 python pdml_tools/pdml_construct_schema.py Heatsink.pdml --mode geometry --limit 80
 ```
 
@@ -36,6 +38,12 @@ python pdml_tools/pdml_hierarchy_candidates.py your_model.pdml "Baltimoreudp" --
 
 ```powershell
 python pdml_tools/pdml_hierarchy_candidates.py your_model.pdml --assembly-index 12 --depth 6 --context 12
+```
+
+如果层级候选树都不靠谱，直接退回原始信号对比：
+
+```powershell
+python pdml_tools/pdml_structure_signal_probe.py your_model.pdml --all-records
 ```
 
 如果目标 assembly 不在 `geometry` section，而是在 `grid` 等其它 section 被扫出来，补上：
