@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<xml_log_file version="1.0">
-    <!--Unpublished work. Copyright 2025 Siemens-->
-    <message text="ERROR   E/11019 - Failed file not found  D:/Program"/>
-    <message text="ERROR   E/9012 - Too few grid-cells to be solved NX = 1 and NY = 1"/>
-</xml_log_file>
