@@ -2,6 +2,10 @@
 """
 Add FloTHERM volume regions (<region>) to an existing FloXML project using JSON config.
 
+The same config can also:
+- create/update grid_constraint_att definitions
+- assign grid constraints directly onto existing geometry objects
+
 Supported region definition modes:
 1. Explicit:
    - position: [x, y, z]
@@ -145,6 +149,21 @@ def _iter_geometry_items(
             )
 
 
+def _iter_all_geometry_items(root_geometry: ET.Element) -> Iterable[GeometryItem]:
+    for item in _iter_geometry_items(root_geometry):
+        yield item
+        child_geometry = item.element.find("geometry")
+        if child_geometry is not None:
+            next_path = item.assembly_path
+            if item.tag == "assembly" and item.name:
+                next_path = item.assembly_path + (item.name,)
+            yield from _iter_geometry_items(
+                child_geometry,
+                parent_global=item.global_position,
+                assembly_path=next_path,
+            )
+
+
 def _find_root_geometry(root: ET.Element) -> ET.Element:
     geometry = root.find("geometry")
     if geometry is None:
@@ -174,7 +193,7 @@ def _find_or_create_grid_constraints(attributes: ET.Element) -> ET.Element:
 
 
 def _find_assembly_element(root_geometry: ET.Element, assembly_name: str) -> Optional[ET.Element]:
-    for item in _iter_geometry_items(root_geometry):
+    for item in _iter_all_geometry_items(root_geometry):
         if item.tag == "assembly" and item.name == assembly_name:
             return item.element
     return None
@@ -214,7 +233,7 @@ def _match_items(
     scope_assembly: Optional[str],
 ) -> List[GeometryItem]:
     matches: List[GeometryItem] = []
-    for item in _iter_geometry_items(root_geometry):
+    for item in _iter_all_geometry_items(root_geometry):
         if not item.name:
             continue
         if scope_assembly and scope_assembly not in item.assembly_path and item.name != scope_assembly:
@@ -222,6 +241,32 @@ def _match_items(
         if item.name in include_names or any(fnmatch.fnmatch(item.name, pattern) for pattern in include_patterns):
             matches.append(item)
     return matches
+
+
+def _apply_object_constraint(item: GeometryItem, cfg: Dict) -> None:
+    for constraint_tag in ("x_grid_constraint", "y_grid_constraint", "z_grid_constraint", "all_grid_constraint"):
+        if cfg.get(constraint_tag):
+            _set_text(item.element, constraint_tag, str(cfg[constraint_tag]))
+    if cfg.get("localized_grid") is not None:
+        _set_text(item.element, "localized_grid", "true" if cfg["localized_grid"] else "false")
+
+
+def _apply_object_constraints(root_geometry: ET.Element, config: Dict) -> int:
+    applied = 0
+    for obj_cfg in config.get("object_constraints", []):
+        include_names = list(obj_cfg.get("target_names", []))
+        include_patterns = list(obj_cfg.get("target_patterns", []))
+        scope_assembly = obj_cfg.get("scope_assembly")
+        matches = _match_items(root_geometry, include_names, include_patterns, scope_assembly)
+        if not matches:
+            raise ValueError(
+                f"object_constraints target did not match any geometry: "
+                f"names={include_names}, patterns={include_patterns}, scope_assembly={scope_assembly}"
+            )
+        for item in matches:
+            _apply_object_constraint(item, obj_cfg)
+            applied += 1
+    return applied
 
 
 def _build_region_element(name: str, position: Vector3, size: Vector3, cfg: Dict) -> ET.Element:
@@ -337,7 +382,7 @@ def _target_geometry(root_geometry: ET.Element, region_cfg: Dict) -> Tuple[ET.El
 
     # Assembly positions are local; convert global region position to parent-local.
     global_offset = (0.0, 0.0, 0.0)
-    for item in _iter_geometry_items(root_geometry):
+    for item in _iter_all_geometry_items(root_geometry):
         if item.element is assembly_elem:
             global_offset = item.global_position
             break
@@ -349,14 +394,17 @@ def add_regions(root: ET.Element, config: Dict) -> ET.Element:
     geometry = _find_root_geometry(root)
     regions = config.get("regions", [])
     grid_constraints = config.get("grid_constraints", [])
-    if not regions and not grid_constraints:
-        raise ValueError("JSON config must contain 'regions' and/or 'grid_constraints'")
+    object_constraints = config.get("object_constraints", [])
+    if not regions and not grid_constraints and not object_constraints:
+        raise ValueError("JSON config must contain 'regions', 'grid_constraints', and/or 'object_constraints'")
 
     if grid_constraints:
         attributes = _find_or_create_attributes(root)
         grid_constraints_elem = _find_or_create_grid_constraints(attributes)
         for constraint_cfg in grid_constraints:
             _upsert_grid_constraint(grid_constraints_elem, constraint_cfg)
+
+    _apply_object_constraints(geometry, config)
 
     for region_cfg in regions:
         name = region_cfg.get("name")
@@ -410,7 +458,8 @@ def main() -> int:
 
     print(
         f"[OK] Added {len(config.get('regions', []))} region(s), "
-        f"upserted {len(config.get('grid_constraints', []))} grid constraint(s): {output_path}"
+        f"upserted {len(config.get('grid_constraints', []))} grid constraint(s), "
+        f"applied {len(config.get('object_constraints', []))} object constraint rule(s): {output_path}"
     )
     return 0
 

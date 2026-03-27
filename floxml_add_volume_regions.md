@@ -5,6 +5,7 @@
 脚本现在也支持同时创建或更新 `<attributes>/<grid_constraints>` 里的 `grid_constraint_att` 定义，这样可以一次性完成：
 
 - 定义 grid constraint
+- 给已有几何对象直接挂 grid constraint
 - 新增引用这些 constraint 的 volume region
 
 它适合这种场景：
@@ -48,6 +49,12 @@ python floxml_add_volume_regions.py .\demo.xml --config .\floxml_volume_regions.
       "min_number": 43
     }
   ],
+  "object_constraints": [
+    {
+      "target_names": ["PCB"],
+      "all_grid_constraint": "Grid Constraint 1"
+    }
+  ],
   "regions": [
     {
       "name": "Region A",
@@ -61,6 +68,81 @@ python floxml_add_volume_regions.py .\demo.xml --config .\floxml_volume_regions.
 `regions` 是一个数组，每个元素对应一个要插入的 `<region>`。
 
 `grid_constraints` 是可选数组，每个元素对应一个 `grid_constraint_att`。如果同名约束已经存在，脚本会更新；如果不存在，就会新建。
+
+`object_constraints` 是可选数组，用来给已有几何对象直接写：
+
+- `all_grid_constraint`
+- `x_grid_constraint`
+- `y_grid_constraint`
+- `z_grid_constraint`
+
+## `object_constraints` 用法
+
+如果你想直接给某个现有 cuboid、pcb、source、region 等对象挂 grid constraint，而不是通过新增 region 来间接控制，就用这个配置。
+
+例如：
+
+```json
+{
+  "object_constraints": [
+    {
+      "target_names": ["PCB"],
+      "all_grid_constraint": "Grid Constraint 1",
+      "localized_grid": false
+    }
+  ]
+}
+```
+
+这表示：
+
+- 找到名字等于 `PCB` 的已有几何对象
+- 直接给它写上 `<all_grid_constraint>Grid Constraint 1</all_grid_constraint>`
+
+也支持通配符：
+
+```json
+{
+  "object_constraints": [
+    {
+      "target_patterns": ["U*", "R*", "C*"],
+      "all_grid_constraint": "Grid Constraint 1"
+    }
+  ]
+}
+```
+
+支持字段：
+
+- `target_names`：精确匹配名字列表
+- `target_patterns`：通配符匹配列表
+- `scope_assembly`：可选，只在某个 assembly 范围内匹配
+- `all_grid_constraint`
+- `x_grid_constraint`
+- `y_grid_constraint`
+- `z_grid_constraint`
+- `localized_grid`
+
+如果同一条规则匹配到多个对象，会对所有匹配对象都生效。
+
+### 什么时候用 `object_constraints`，什么时候用 `region`
+
+如果你要：
+
+- 只给某个现有对象本身挂网格约束
+
+优先用 `object_constraints`。
+
+如果你要：
+
+- 给某个对象周围的一整块空间做局部网格控制
+
+优先用 `region`。
+
+简单理解：
+
+- `object_constraints` = 直接改对象
+- `region` = 新建一个空间盒子来控网格
 
 ## `grid_constraints` 用法
 
@@ -442,6 +524,27 @@ python floxml_add_volume_regions.py .\model.xml --config .\my_regions.json -o .\
 python floxml_add_volume_regions.py .\model.xml --config .\floxml_volume_regions.example.json -o .\model_with_regions.xml
 ```
 
+给已有 PCB 直接挂 grid constraint：
+
+```json
+{
+  "grid_constraints": [
+    {
+      "name": "Grid Constraint 1",
+      "min_cell_size": 0.001,
+      "min_number": 43
+    }
+  ],
+  "object_constraints": [
+    {
+      "target_names": ["PCB"],
+      "all_grid_constraint": "Grid Constraint 1",
+      "localized_grid": false
+    }
+  ]
+}
+```
+
 按 PCB 和器件自动算一个包围 region：
 
 ```json
@@ -486,6 +589,7 @@ python floxml_add_volume_regions.py .\model.xml --config .\floxml_volume_regions
 - bbox 计算依赖已有几何体具有可用的 `position` 和 `size`
 - 当前只支持按 assembly 名称定位插入位置，不支持“插到某个几何节点后面”
 - `grid_constraints` 会按名字更新或新增，但不会删除旧约束
+- `object_constraints` 只按名字/通配符匹配现有几何，不会新建对象
 
 ## 后续可扩展方向
 
