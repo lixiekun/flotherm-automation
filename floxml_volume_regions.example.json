@@ -1,0 +1,38 @@
+{
+  "regions": [
+    {
+      "name": "Explicit Volume Region",
+      "position": [
+        -0.01,
+        -0.01,
+        -0.002
+      ],
+      "size": [
+        0.12,
+        0.08,
+        0.01
+      ],
+      "localized_grid": true,
+      "x_grid_constraint": "Grid Constraint 1"
+    },
+    {
+      "name": "BBox Region Around PCB",
+      "parent_assembly": "DemoBoard_Assembly",
+      "bbox_from": {
+        "include_names": [
+          "PCB"
+        ],
+        "include_patterns": [
+          "U*"
+        ],
+        "padding": [
+          0.001,
+          0.001,
+          0.0005
+        ]
+      },
+      "localized_grid": true,
+      "all_grid_constraint": "Grid Constraint 1"
+    }
+  ]
+}
