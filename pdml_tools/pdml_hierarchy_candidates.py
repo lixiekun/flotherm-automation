@@ -224,6 +224,87 @@ def build_tree_l3_group(records: Sequence[RecordView], level_mode: str) -> List[
     return forest
 
 
+def build_tree_l3_group_chain_variant(records: Sequence[RecordView], level_mode: str, chain_mode: str) -> List[TreeNode]:
+    forest: List[TreeNode] = []
+    parent_stack: List[TreeNode] = []
+    last_assembly: Optional[TreeNode] = None
+    previous_node: Optional[TreeNode] = None
+
+    def current_parent() -> Optional[TreeNode]:
+        return parent_stack[-1] if parent_stack else None
+
+    def should_chain(current_record: RecordView) -> bool:
+        if previous_node is None:
+            return False
+        if previous_node.record.node_type != "assembly":
+            return False
+
+        if chain_mode == "prev_level3":
+            return previous_node.level_used >= 3
+        if chain_mode == "prev_generic":
+            prev_name = previous_node.record.name.lower()
+            curr_name = current_record.name.lower()
+            return (
+                previous_node.record.name == current_record.name
+                or prev_name.startswith("assembly")
+                or curr_name.startswith("assembly")
+            )
+        if chain_mode == "prev_any":
+            return True
+        raise ValueError(f"Unknown chain mode: {chain_mode}")
+
+    for record in records:
+        level = max(2, min(get_level(record, level_mode), 10))
+        node = TreeNode(record=record, level_used=level)
+        parent = current_parent()
+
+        if record.node_type == "assembly":
+            if level == 3:
+                if parent is not None:
+                    parent.children.append(node)
+                else:
+                    forest.append(node)
+                parent_stack.append(node)
+                last_assembly = node
+            elif level == 2:
+                if should_chain(record) and last_assembly is not None:
+                    last_assembly.children.append(node)
+                    parent_stack.append(node)
+                    last_assembly = node
+                elif is_container_assembly_name(record.name) and not parent_stack:
+                    forest.append(node)
+                    parent_stack = [node]
+                    last_assembly = node
+                elif last_assembly is not None and parent_stack:
+                    if len(parent_stack) > 1:
+                        parent_stack.pop()
+                    sibling_parent = current_parent()
+                    if sibling_parent is not None:
+                        sibling_parent.children.append(node)
+                    else:
+                        forest.append(node)
+                    parent_stack.append(node)
+                    last_assembly = node
+                else:
+                    forest.append(node)
+                    parent_stack = [node]
+                    last_assembly = node
+            else:
+                if parent is not None:
+                    parent.children.append(node)
+                else:
+                    forest.append(node)
+        else:
+            if parent is not None:
+                parent.children.append(node)
+            else:
+                forest.append(node)
+
+        previous_node = node
+
+    return forest
+
+
 def walk_forest(nodes: Iterable[TreeNode]) -> Iterable[TreeNode]:
     for node in nodes:
         yield node
@@ -412,9 +493,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     _, records = load_records(args.pdml_file, geometry_only=not args.all_records)
 
     candidates = [
-        ("scheme_A_stack_off4be", build_tree_stack(records, "off4be")),
-        ("scheme_B_l3group_off4be", build_tree_l3_group(records, "off4be")),
-        ("scheme_C_l3group_off6", build_tree_l3_group(records, "off6")),
+        ("scheme_C_base_off6", build_tree_l3_group(records, "off6")),
+        ("scheme_C1_chain_prev_level3", build_tree_l3_group_chain_variant(records, "off6", "prev_level3")),
+        ("scheme_C2_chain_prev_generic", build_tree_l3_group_chain_variant(records, "off6", "prev_generic")),
+        ("scheme_C3_chain_prev_any", build_tree_l3_group_chain_variant(records, "off6", "prev_any")),
     ]
 
     if args.scheme_summary:
