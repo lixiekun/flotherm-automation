@@ -87,6 +87,7 @@ python floxml_add_volume_regions.py .\demo.xml --config .\floxml_volume_regions.
   "object_constraints": [
     {
       "target_names": ["PCB"],
+      "target_tags": ["cuboid"],
       "all_grid_constraint": "Grid Constraint 1",
       "localized_grid": false
     }
@@ -116,6 +117,7 @@ python floxml_add_volume_regions.py .\demo.xml --config .\floxml_volume_regions.
 
 - `target_names`：精确匹配名字列表
 - `target_patterns`：通配符匹配列表
+- `target_tags`：可选，限制匹配类型，例如 `cuboid`、`source`、`region`、`assembly`
 - `scope_assembly`：可选，只在某个 assembly 范围内匹配
 - `all_grid_constraint`
 - `x_grid_constraint`
@@ -124,6 +126,22 @@ python floxml_add_volume_regions.py .\demo.xml --config .\floxml_volume_regions.
 - `localized_grid`
 
 如果同一条规则匹配到多个对象，会对所有匹配对象都生效。
+
+如果你担心同名但不同类型的对象被一起匹配，建议一定补上 `target_tags`。
+
+例如同名 `PCB` 既可能有 `cuboid`，也可能有 `source`，就写成：
+
+```json
+{
+  "object_constraints": [
+    {
+      "target_names": ["PCB"],
+      "target_tags": ["cuboid"],
+      "all_grid_constraint": "Grid Constraint 1"
+    }
+  ]
+}
+```
 
 ### 什么时候用 `object_constraints`，什么时候用 `region`
 
@@ -253,6 +271,7 @@ python floxml_add_volume_regions.py .\demo.xml --config .\floxml_volume_regions.
 
 - `include_names`：精确匹配名字列表
 - `include_patterns`：通配符匹配列表，使用 `fnmatch` 规则，例如 `U*`、`R22 *`
+- `include_tags`：可选，限制参与 bbox 计算的几何类型，例如 `cuboid`
 - `padding`：可以是单个数字，或 `[px, py, pz]`
 - `scope_assembly`：可选，只在某个 assembly 范围内找匹配几何
 
@@ -279,6 +298,7 @@ bbox 计算逻辑：
   "name": "Board Region",
   "bbox_from": {
     "include_names": ["PCB"],
+    "include_tags": ["cuboid"],
     "include_patterns": ["U*", "R*", "C*"],
     "padding": 0.001
   }
@@ -288,10 +308,11 @@ bbox 计算逻辑：
 这段配置的意思是：
 
 1. 在 FloXML 里查找名字精确等于 `PCB` 的对象
-2. 再查找名字匹配 `U*`、`R*`、`C*` 的对象
-3. 用这些对象的 `position + size` 算出整体包围盒
-4. 再往外扩 `0.001 m`
-5. 最终生成这个 region 的 `position` 和 `size`
+2. 只保留 tag 是 `cuboid` 的对象
+3. 再查找名字匹配 `U*`、`R*`、`C*` 的对象
+4. 用这些对象的 `position + size` 算出整体包围盒
+5. 再往外扩 `0.001 m`
+6. 最终生成这个 region 的 `position` 和 `size`
 
 也就是说，`bbox_from` 的目标不是“指定 region 在哪里”，而是“指定 region 要包住谁”。
 

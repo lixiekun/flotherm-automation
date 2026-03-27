@@ -19,6 +19,9 @@
       "target_names": [
         "PCB"
       ],
+      "target_tags": [
+        "cuboid"
+      ],
       "all_grid_constraint": "Grid Constraint 1",
       "localized_grid": false
     }
@@ -45,6 +48,9 @@
       "bbox_from": {
         "include_names": [
           "PCB"
+        ],
+        "include_tags": [
+          "cuboid"
         ],
         "include_patterns": [
           "U*"

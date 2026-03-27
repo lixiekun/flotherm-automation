@@ -15,6 +15,7 @@ Supported region definition modes:
    - bbox_from:
        include_names: ["PCB", "U1", "U2"]
        include_patterns: ["R22 *", "C*"]
+       include_tags: ["cuboid"]
        padding: 0.001
        or padding: [0.001, 0.001, 0.0005]
 
@@ -230,6 +231,7 @@ def _match_items(
     root_geometry: ET.Element,
     include_names: List[str],
     include_patterns: List[str],
+    include_tags: List[str],
     scope_assembly: Optional[str],
 ) -> List[GeometryItem]:
     matches: List[GeometryItem] = []
@@ -237,6 +239,8 @@ def _match_items(
         if not item.name:
             continue
         if scope_assembly and scope_assembly not in item.assembly_path and item.name != scope_assembly:
+            continue
+        if include_tags and item.tag not in include_tags:
             continue
         if item.name in include_names or any(fnmatch.fnmatch(item.name, pattern) for pattern in include_patterns):
             matches.append(item)
@@ -256,12 +260,14 @@ def _apply_object_constraints(root_geometry: ET.Element, config: Dict) -> int:
     for obj_cfg in config.get("object_constraints", []):
         include_names = list(obj_cfg.get("target_names", []))
         include_patterns = list(obj_cfg.get("target_patterns", []))
+        include_tags = list(obj_cfg.get("target_tags", []))
         scope_assembly = obj_cfg.get("scope_assembly")
-        matches = _match_items(root_geometry, include_names, include_patterns, scope_assembly)
+        matches = _match_items(root_geometry, include_names, include_patterns, include_tags, scope_assembly)
         if not matches:
             raise ValueError(
                 f"object_constraints target did not match any geometry: "
-                f"names={include_names}, patterns={include_patterns}, scope_assembly={scope_assembly}"
+                f"names={include_names}, patterns={include_patterns}, tags={include_tags}, "
+                f"scope_assembly={scope_assembly}"
             )
         for item in matches:
             _apply_object_constraint(item, obj_cfg)
@@ -360,8 +366,9 @@ def _resolve_region_geometry(
 
     include_names = list(bbox_cfg.get("include_names", []))
     include_patterns = list(bbox_cfg.get("include_patterns", []))
+    include_tags = list(bbox_cfg.get("include_tags", []))
     scope_assembly = bbox_cfg.get("scope_assembly")
-    matches = _match_items(root_geometry, include_names, include_patterns, scope_assembly)
+    matches = _match_items(root_geometry, include_names, include_patterns, include_tags, scope_assembly)
     lower, upper = _compute_bbox(matches)
     padding = _normalize_padding(bbox_cfg.get("padding", 0.0))
     position = tuple(lower[i] - padding[i] for i in range(3))
