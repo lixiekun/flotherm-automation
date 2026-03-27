@@ -115,3 +115,22 @@ $j.geometry_records |
     @{n='prefix';e={$_.raw_level_probe.prefix_hex}} |
   Format-Table -AutoSize
 ```
+
+几何位置/尺寸如果看起来不对，可以一次生成 4 个 FloXML 几何变体，直接导入 FloTHERM 比较：
+
+```powershell
+python pdml_tools/pdml_geometry_variants.py your_model.pdml
+```
+
+输出目录默认是 `your_model_geometry_variants`，会生成：
+
+- `g1_baseline`
+- `g2_cuboid_center`
+- `g3_alt_windows`
+- `g4_alt_windows_cuboid_center`
+
+也可以手动指定输出目录：
+
+```powershell
+python pdml_tools/pdml_geometry_variants.py your_model.pdml -o .\_tmp_geom_variants
+```
