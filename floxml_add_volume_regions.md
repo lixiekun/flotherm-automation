@@ -114,6 +114,198 @@ bbox 计算逻辑：
 4. 按 `padding` 向外扩
 5. 生成 region 的 `position` 和 `size`
 
+### 如何理解 `bbox_from`
+
+可以把 `bbox_from` 理解成：
+
+- 不是手工告诉脚本 region 的 `position/size`
+- 而是先告诉脚本“这个 region 应该包住哪些已有几何”
+- 再由脚本自动计算这些几何的外包框
+
+例如：
+
+```json
+{
+  "name": "Board Region",
+  "bbox_from": {
+    "include_names": ["PCB"],
+    "include_patterns": ["U*", "R*", "C*"],
+    "padding": 0.001
+  }
+}
+```
+
+这段配置的意思是：
+
+1. 在 FloXML 里查找名字精确等于 `PCB` 的对象
+2. 再查找名字匹配 `U*`、`R*`、`C*` 的对象
+3. 用这些对象的 `position + size` 算出整体包围盒
+4. 再往外扩 `0.001 m`
+5. 最终生成这个 region 的 `position` 和 `size`
+
+也就是说，`bbox_from` 的目标不是“指定 region 在哪里”，而是“指定 region 要包住谁”。
+
+### `include_names` 和 `include_patterns`
+
+`include_names` 用于精确匹配：
+
+```json
+"include_names": ["PCB", "CPU"]
+```
+
+只会匹配名字完全等于 `PCB` 或 `CPU` 的几何对象。
+
+`include_patterns` 用于通配符匹配：
+
+```json
+"include_patterns": ["U*", "R*", "C*"]
+```
+
+这会匹配类似：
+
+- `U1`
+- `U2`
+- `R22`
+- `C15`
+
+脚本内部用的是 Python 的 `fnmatch` 规则，所以你可以把它理解成简单的通配符匹配。
+
+### `padding`
+
+`padding` 是给自动算出来的 bbox 额外留边距。
+
+如果写成单个数字：
+
+```json
+"padding": 0.001
+```
+
+表示 x/y/z 三个方向都各扩 `0.001 m`。
+
+如果写成 3 个值：
+
+```json
+"padding": [0.001, 0.001, 0.0005]
+```
+
+表示：
+
+- x 方向扩 `0.001 m`
+- y 方向扩 `0.001 m`
+- z 方向扩 `0.0005 m`
+
+### `scope_assembly` 和 `parent_assembly` 的区别
+
+这两个字段很容易混淆，但作用完全不同。
+
+`scope_assembly` 的作用是：
+
+- 只限制“查找哪些对象参与 bbox 计算”
+
+`parent_assembly` 的作用是：
+
+- 只决定“最终把 region 插到哪个 assembly 下面”
+
+例如：
+
+```json
+{
+  "name": "Module A Region",
+  "parent_assembly": "Module_A",
+  "bbox_from": {
+    "include_patterns": ["U*", "L*"],
+    "scope_assembly": "Module_A",
+    "padding": [0.001, 0.001, 0.0008]
+  }
+}
+```
+
+这段配置的意思是：
+
+1. 先只在 `Module_A` 这个 assembly 范围内查找 `U*`、`L*`
+2. 用这些对象算出 bbox
+3. 把生成的 region 插到 `Module_A` 下面
+
+如果你只写 `parent_assembly`，不写 `scope_assembly`，那么：
+
+- region 会插到这个 assembly 下
+- 但 bbox 仍然可能在全模型范围内搜索匹配对象
+
+如果你只写 `scope_assembly`，不写 `parent_assembly`，那么：
+
+- bbox 只在这个 assembly 范围内算
+- 但 region 默认还是插到根 `<geometry>` 下
+
+### 什么时候该用 `bbox_from`
+
+适合：
+
+- 想包住整块 PCB 和其上的器件
+- 想给某个子模块自动生成 volume region
+- 目标对象位置可能会变，但名字模式相对稳定
+
+不太适合：
+
+- 你已经非常清楚 region 的绝对位置和尺寸
+- 目标对象命名不稳定，通配规则不好写
+- 目标几何没有有效的 `size`，导致 bbox 无法计算
+
+### `bbox_from` 常用示例
+
+1. 包住整块板和器件
+
+```json
+{
+  "regions": [
+    {
+      "name": "Board Region",
+      "bbox_from": {
+        "include_names": ["PCB"],
+        "include_patterns": ["U*", "R*", "C*", "L*"],
+        "padding": 0.001
+      },
+      "localized_grid": true,
+      "all_grid_constraint": "Grid Constraint 1"
+    }
+  ]
+}
+```
+
+2. 只包某个模块
+
+```json
+{
+  "regions": [
+    {
+      "name": "Module A Region",
+      "parent_assembly": "Module_A",
+      "bbox_from": {
+        "include_patterns": ["U*", "L*"],
+        "scope_assembly": "Module_A",
+        "padding": [0.001, 0.001, 0.0008]
+      },
+      "localized_grid": true
+    }
+  ]
+}
+```
+
+3. 只包几个明确对象
+
+```json
+{
+  "regions": [
+    {
+      "name": "Hot Parts Region",
+      "bbox_from": {
+        "include_names": ["CPU", "GPU", "VRM"],
+        "padding": 0.0005
+      }
+    }
+  ]
+}
+```
+
 ## 插入到根 geometry 还是某个 assembly 下
 
 默认情况下，region 会直接插到根 `<geometry>` 下。
