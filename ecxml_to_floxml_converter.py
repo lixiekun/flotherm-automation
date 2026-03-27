@@ -2,10 +2,15 @@
 """
 ECXML to FloXML Converter
 
-将 JEDEC JEP181 ECXML 器件热模型转换为 FloTHERM FloXML 格式。
+将 JEDEC JEP181 ECXML 器件热模型转换为 FloTHERM FloXML 项目格式。
 
-仅输出 ECXML 中实际存在的数据（几何体、材料、热源、监控点），
-不生成硬编码的 model/solve/grid/ambient/fluid 配置。
+ECXML 是器件级热模型交换格式，缺少:
+  - 网格设置 (grid)
+  - 求解器配置 (solve)
+  - 模型设置 (model)
+  - 求解域 (solution_domain)
+
+本工具自动补充这些配置，生成完整的 FloXML 项目文件。
 """
 
 from __future__ import annotations
@@ -361,8 +366,14 @@ class ECXMLExtractor:
                     data.root_assembly = assembly
                 # 如果有多个根 assembly，可以作为子 assembly 添加
 
-            # 解析 sourceBlock
-            for source_elem in self._find_children(geometry_elem, 'sourceblock', 'sourceblock'):
+            # 解析独立热源
+            for source_elem in self._find_children(
+                geometry_elem,
+                'source2dBlock',
+                'source3dBlock',
+                'sourceBlock',
+                'sourceblock',
+            ):
                 source = self._parse_source_block(source_elem)
                 data.sources.append(source)
 
@@ -426,7 +437,7 @@ class FloXMLBuilder:
         return elem
 
     def build_project(self, ecxml_data: ECXMLData) -> ET.Element:
-        """构建 FloXML 项目（仅包含 ECXML 中实际存在的数据）"""
+        """构建完整的 FloXML 项目"""
         # 使用模板（如果可用）
         if self._template:
             builder = FloXMLTemplateBuilder(self._template)
@@ -440,16 +451,22 @@ class FloXMLBuilder:
         root = ET.Element("xml_case")
         self._append_text(root, "name", ecxml_data.name)
 
-        # 求解域（仅当 ECXML 中存在时输出）
+        root.append(self._build_model())
+        root.append(self._build_solve())
+
         if ecxml_data.solution_domain:
             sd = ecxml_data.solution_domain
-            root.append(self._build_solution_domain(
-                (sd.x, sd.y, sd.z),
-                (sd.width, sd.height, sd.depth)
-            ))
+            domain_pos = (sd.x, sd.y, sd.z)
+            domain_size = (sd.width, sd.height, sd.depth)
+        else:
+            components = self._collect_all_cuboids(ecxml_data)
+            bounds = self._calculate_bounds(components)
+            domain_pos, domain_size = self._calculate_domain(bounds)
 
+        root.append(self._build_grid(domain_size))
         root.append(self._build_attributes(ecxml_data))
         root.append(self._build_geometry(ecxml_data))
+        root.append(self._build_solution_domain(domain_pos, domain_size))
 
         return root
 
@@ -475,11 +492,10 @@ class FloXMLBuilder:
         return self.build_project(ecxml_data)
 
     def _build_attributes(self, ecxml_data: ECXMLData) -> ET.Element:
-        """构建 attributes 节（仅包含 ECXML 中定义的材料和热源）"""
+        """构建 attributes 节"""
         attributes = ET.Element("attributes")
         components = self._collect_all_cuboids(ecxml_data)
 
-        # 收集所有使用的材料名
         used_material_names = set()
         for c in components:
             if c.material:
@@ -487,37 +503,85 @@ class FloXMLBuilder:
         if ecxml_data.root_assembly and ecxml_data.root_assembly.material:
             used_material_names.add(ecxml_data.root_assembly.material)
 
-        # 材料定义（仅 ECXML 中有定义的）
+        materials = ET.SubElement(attributes, "materials")
         materials_dict = {m.name: m for m in ecxml_data.materials}
-        defined_materials = used_material_names & set(materials_dict.keys())
 
-        if defined_materials:
-            materials_elem = ET.SubElement(attributes, "materials")
-            for mat_name in defined_materials:
+        for mat_name in used_material_names:
+            mat_elem = ET.SubElement(materials, "isotropic_material_att")
+            self._append_text(mat_elem, "name", mat_name)
+
+            if mat_name in materials_dict:
                 mat_data = materials_dict[mat_name]
-                mat_elem = ET.SubElement(materials_elem, "isotropic_material_att")
-                self._append_text(mat_elem, "name", mat_name)
                 self._append_text(mat_elem, "conductivity", f"{mat_data.conductivity:.6g}")
                 self._append_text(mat_elem, "density", f"{mat_data.density:.6g}")
                 self._append_text(mat_elem, "specific_heat", f"{mat_data.specific_heat:.6g}")
+            else:
+                self._append_text(mat_elem, "conductivity", "1.0")
+                self._append_text(mat_elem, "density", "1.0")
+                self._append_text(mat_elem, "specific_heat", "1.0")
 
-        # 热源属性（仅 power > 0 的组件）
-        sources_with_power = []
+        sources = ET.SubElement(attributes, "sources")
         for comp in components:
             if comp.power > 0:
-                sources_with_power.append((f"{comp.name}_Source", comp.power))
+                self._build_source_att(sources, f"{comp.name}_Source", comp.power)
         for source in ecxml_data.sources:
             if source.power > 0:
-                sources_with_power.append((f"{source.name}_Source", source.power))
+                self._build_source_att(sources, f"{source.name}_Source", source.power)
 
-        if sources_with_power:
-            sources_elem = ET.SubElement(attributes, "sources")
-            for name, power in sources_with_power:
-                src = ET.SubElement(sources_elem, "source_att")
-                self._append_text(src, "name", name)
-                self._append_text(src, "power", f"{power:.6g}")
+        ambients = ET.SubElement(attributes, "ambients")
+        ambient = ET.SubElement(ambients, "ambient_att")
+        self._append_text(ambient, "name", self.config.ambient_name)
+        self._append_text(ambient, "pressure", "0")
+        self._append_text(ambient, "temperature", str(self.config.ambient_temp))
+        self._append_text(ambient, "radiant_temperature", str(self.config.ambient_temp))
+        self._append_text(ambient, "heat_transfer_coeff", "0")
+
+        velocity = ET.SubElement(ambient, "velocity")
+        for axis in ("x", "y", "z"):
+            self._append_text(velocity, axis, "0")
+
+        for tag in (
+            "turbulent_kinetic_energy",
+            "turbulent_dissipation_rate",
+            "concentration_1",
+            "concentration_2",
+            "concentration_3",
+            "concentration_4",
+            "concentration_5",
+        ):
+            self._append_text(ambient, tag, "0")
+
+        fluids = ET.SubElement(attributes, "fluids")
+        fluid = ET.SubElement(fluids, "fluid_att")
+        self._append_text(fluid, "name", self.config.fluid_name)
+        self._append_text(fluid, "conductivity_type", "constant")
+        self._append_text(fluid, "conductivity", "0.0261")
+        self._append_text(fluid, "viscosity_type", "constant")
+        self._append_text(fluid, "viscosity", "0.0000184")
+        self._append_text(fluid, "density_type", "constant")
+        self._append_text(fluid, "density", "1.16")
+        self._append_text(fluid, "specific_heat", "1008")
+        self._append_text(fluid, "expansivity", "0.003")
+        self._append_text(fluid, "diffusivity", "0")
+
+        if self._grid_config and self._grid_config.constraints:
+            from grid_config import GridBuilder
+            builder = GridBuilder()
+            attributes.append(builder.build_constraints_attributes(self._grid_config.constraints))
 
         return attributes
+
+    def _build_source_att(self, parent: ET.Element, name: str, power: float) -> None:
+        """构建 source_att 元素"""
+        src = ET.SubElement(parent, "source_att")
+        self._append_text(src, "name", name)
+        source_options = ET.SubElement(src, "source_options")
+        option = ET.SubElement(source_options, "option")
+        self._append_text(option, "applies_to", "temperature")
+        self._append_text(option, "type", "total")
+        self._append_text(option, "value", "0")
+        self._append_text(option, "power", f"{power:.6g}")
+        self._append_text(option, "linear_coefficient", "0")
 
     def _build_geometry(self, ecxml_data: ECXMLData) -> ET.Element:
         """构建 geometry 节"""
@@ -542,14 +606,17 @@ class FloXMLBuilder:
         assembly_elem = ET.SubElement(parent, "assembly")
         self._append_text(assembly_elem, "name", assembly.name)
         self._append_text(assembly_elem, "active", "true" if assembly.active else "false")
+        self._append_text(assembly_elem, "ignore", "false")
 
         position = ET.SubElement(assembly_elem, "position")
         self._append_text(position, "x", f"{assembly.position_x:.6g}")
         self._append_text(position, "y", f"{assembly.position_y:.6g}")
         self._append_text(position, "z", f"{assembly.position_z:.6g}")
 
-        if assembly.material:
-            self._append_text(assembly_elem, "material", assembly.material)
+        self._build_identity_orientation(assembly_elem)
+        self._append_text(assembly_elem, "material", assembly.material or self.config.default_material)
+        self._append_text(assembly_elem, "localized_grid", "false")
+        self._apply_grid_constraints(assembly_elem, assembly.name)
 
         if assembly.cuboids or assembly.sub_assemblies:
             geometry_elem = ET.SubElement(assembly_elem, "geometry")
@@ -576,6 +643,9 @@ class FloXMLBuilder:
         self._append_text(size, "y", f"{cuboid.height:.6g}")
         self._append_text(size, "z", f"{cuboid.depth:.6g}")
 
+        self._build_identity_orientation(cuboid_elem)
+        self._append_text(cuboid_elem, "localized_grid", "false")
+
         if cuboid.material:
             self._append_text(cuboid_elem, "material", cuboid.material)
 
@@ -600,8 +670,11 @@ class FloXMLBuilder:
         self._append_text(size, "y", f"{source.height:.6g}")
         self._append_text(size, "z", f"{source.depth:.6g}")
 
+        self._build_identity_orientation(source_elem)
+
         if source.power > 0:
             self._append_text(source_elem, "source", f"{source.name}_Source")
+        self._append_text(source_elem, "localized_grid", "false")
 
         return source_elem
 
@@ -621,7 +694,7 @@ class FloXMLBuilder:
 
     def _build_solution_domain(self, position: Tuple[float, float, float],
                                size: Tuple[float, float, float]) -> ET.Element:
-        """构建 solution_domain 节（仅位置和尺寸）"""
+        """构建 solution_domain 节"""
         domain = ET.Element("solution_domain")
 
         pos = ET.SubElement(domain, "position")
@@ -633,6 +706,18 @@ class FloXMLBuilder:
         self._append_text(sz, "x", f"{size[0]:.6g}")
         self._append_text(sz, "y", f"{size[1]:.6g}")
         self._append_text(sz, "z", f"{size[2]:.6g}")
+
+        for face in (
+            "x_low_ambient",
+            "x_high_ambient",
+            "y_low_ambient",
+            "y_high_ambient",
+            "z_low_ambient",
+            "z_high_ambient",
+        ):
+            self._append_text(domain, face, self.config.ambient_name)
+
+        self._append_text(domain, "fluid", self.config.fluid_name)
 
         return domain
 
