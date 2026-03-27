@@ -2,6 +2,11 @@
 
 `floxml_add_volume_regions.py` 用来给已有的 FloXML 项目文件追加一个或多个 `<region>`，也就是 FloTHERM 里的 volume region。
 
+脚本现在也支持同时创建或更新 `<attributes>/<grid_constraints>` 里的 `grid_constraint_att` 定义，这样可以一次性完成：
+
+- 定义 grid constraint
+- 新增引用这些 constraint 的 volume region
+
 它适合这种场景：
 
 - 你已经有一个可导入的 FloXML
@@ -36,6 +41,13 @@ python floxml_add_volume_regions.py .\demo.xml --config .\floxml_volume_regions.
 
 ```json
 {
+  "grid_constraints": [
+    {
+      "name": "Grid Constraint 1",
+      "min_cell_size": 0.001,
+      "min_number": 43
+    }
+  ],
   "regions": [
     {
       "name": "Region A",
@@ -47,6 +59,62 @@ python floxml_add_volume_regions.py .\demo.xml --config .\floxml_volume_regions.
 ```
 
 `regions` 是一个数组，每个元素对应一个要插入的 `<region>`。
+
+`grid_constraints` 是可选数组，每个元素对应一个 `grid_constraint_att`。如果同名约束已经存在，脚本会更新；如果不存在，就会新建。
+
+## `grid_constraints` 用法
+
+如果你的 region 要引用：
+
+- `all_grid_constraint`
+- `x_grid_constraint`
+- `y_grid_constraint`
+- `z_grid_constraint`
+
+那么项目里最好已经存在对应名字的 `grid_constraint_att`。现在这个脚本可以直接在 JSON 里一起定义。
+
+示例：
+
+```json
+{
+  "grid_constraints": [
+    {
+      "name": "Grid Constraint 1",
+      "enable_min_cell_size": true,
+      "min_cell_size": 0.001,
+      "number_cells_control": "min_number",
+      "min_number": 43,
+      "high_inflation": {
+        "inflation_type": "size",
+        "inflation_size": 0.005,
+        "number_cells_control": "min_number",
+        "min_number": 23
+      }
+    }
+  ]
+}
+```
+
+支持字段：
+
+- `name`：必填
+- `enable_min_cell_size`：可选，默认 `true`
+- `min_cell_size`：可选
+- `number_cells_control`：可选，默认 `min_number`
+- `min_number`：可选
+- `high_inflation`：可选对象
+
+`high_inflation` 支持：
+
+- `inflation_type`
+- `inflation_size`
+- `number_cells_control`
+- `min_number`
+
+所以最完整的使用方式通常是：
+
+1. 在 `grid_constraints` 里定义或更新一个约束
+2. 在 `regions` 里让 region 去引用它
 
 ## 方式 1：显式指定 position 和 size
 
@@ -368,6 +436,12 @@ bbox 计算逻辑：
 python floxml_add_volume_regions.py .\model.xml --config .\my_regions.json -o .\model_with_regions.xml
 ```
 
+同时新增 grid constraint 和 region：
+
+```powershell
+python floxml_add_volume_regions.py .\model.xml --config .\floxml_volume_regions.example.json -o .\model_with_regions.xml
+```
+
 按 PCB 和器件自动算一个包围 region：
 
 ```json
@@ -411,6 +485,7 @@ python floxml_add_volume_regions.py .\model.xml --config .\my_regions.json -o .\
 - 目前是“追加 region”，不会检查重名 region，也不会自动更新已有 region
 - bbox 计算依赖已有几何体具有可用的 `position` 和 `size`
 - 当前只支持按 assembly 名称定位插入位置，不支持“插到某个几何节点后面”
+- `grid_constraints` 会按名字更新或新增，但不会删除旧约束
 
 ## 后续可扩展方向
 

@@ -1,4 +1,19 @@
 {
+  "grid_constraints": [
+    {
+      "name": "Grid Constraint 1",
+      "enable_min_cell_size": true,
+      "min_cell_size": 0.001,
+      "number_cells_control": "min_number",
+      "min_number": 43,
+      "high_inflation": {
+        "inflation_type": "size",
+        "inflation_size": 0.005,
+        "number_cells_control": "min_number",
+        "min_number": 23
+      }
+    }
+  ],
   "regions": [
     {
       "name": "Explicit Volume Region",

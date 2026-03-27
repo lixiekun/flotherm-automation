@@ -83,6 +83,14 @@ def _append_text(parent: ET.Element, tag: str, text: str) -> ET.Element:
     return elem
 
 
+def _set_text(parent: ET.Element, tag: str, text: str) -> ET.Element:
+    child = parent.find(tag)
+    if child is None:
+        child = ET.SubElement(parent, tag)
+    child.text = text
+    return child
+
+
 def _vector_add(a: Vector3, b: Vector3) -> Vector3:
     return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
 
@@ -142,6 +150,27 @@ def _find_root_geometry(root: ET.Element) -> ET.Element:
     if geometry is None:
         raise ValueError("FloXML missing <geometry> section")
     return geometry
+
+
+def _find_or_create_attributes(root: ET.Element) -> ET.Element:
+    attributes = root.find("attributes")
+    if attributes is None:
+        insert_at = 0
+        for idx, child in enumerate(list(root)):
+            if child.tag in {"geometry", "solution_domain"}:
+                insert_at = idx
+                break
+            insert_at = idx + 1
+        attributes = ET.Element("attributes")
+        root.insert(insert_at, attributes)
+    return attributes
+
+
+def _find_or_create_grid_constraints(attributes: ET.Element) -> ET.Element:
+    grid_constraints = attributes.find("grid_constraints")
+    if grid_constraints is None:
+        grid_constraints = ET.SubElement(attributes, "grid_constraints")
+    return grid_constraints
 
 
 def _find_assembly_element(root_geometry: ET.Element, assembly_name: str) -> Optional[ET.Element]:
@@ -234,6 +263,43 @@ def _build_region_element(name: str, position: Vector3, size: Vector3, cfg: Dict
     return region
 
 
+def _upsert_grid_constraint(grid_constraints_elem: ET.Element, cfg: Dict) -> ET.Element:
+    name = cfg.get("name")
+    if not name:
+        raise ValueError("Each grid constraint requires a name")
+
+    existing = None
+    for child in grid_constraints_elem.findall("grid_constraint_att"):
+        if (child.findtext("name") or "").strip() == name:
+            existing = child
+            break
+
+    elem = existing if existing is not None else ET.SubElement(grid_constraints_elem, "grid_constraint_att")
+    _set_text(elem, "name", str(name))
+    _set_text(elem, "enable_min_cell_size", "true" if cfg.get("enable_min_cell_size", True) else "false")
+
+    if cfg.get("min_cell_size") is not None:
+        _set_text(elem, "min_cell_size", f"{float(cfg['min_cell_size']):.6g}")
+
+    _set_text(elem, "number_cells_control", str(cfg.get("number_cells_control", "min_number")))
+    if cfg.get("min_number") is not None:
+        _set_text(elem, "min_number", str(cfg["min_number"]))
+
+    hi_cfg = cfg.get("high_inflation")
+    if hi_cfg:
+        hi = elem.find("high_inflation")
+        if hi is None:
+            hi = ET.SubElement(elem, "high_inflation")
+        _set_text(hi, "inflation_type", str(hi_cfg.get("inflation_type", "size")))
+        if hi_cfg.get("inflation_size") is not None:
+            _set_text(hi, "inflation_size", f"{float(hi_cfg['inflation_size']):.6g}")
+        _set_text(hi, "number_cells_control", str(hi_cfg.get("number_cells_control", "min_number")))
+        if hi_cfg.get("min_number") is not None:
+            _set_text(hi, "min_number", str(hi_cfg["min_number"]))
+
+    return elem
+
+
 def _resolve_region_geometry(
     root_geometry: ET.Element,
     region_cfg: Dict,
@@ -282,8 +348,15 @@ def _target_geometry(root_geometry: ET.Element, region_cfg: Dict) -> Tuple[ET.El
 def add_regions(root: ET.Element, config: Dict) -> ET.Element:
     geometry = _find_root_geometry(root)
     regions = config.get("regions", [])
-    if not regions:
-        raise ValueError("JSON config missing non-empty 'regions' list")
+    grid_constraints = config.get("grid_constraints", [])
+    if not regions and not grid_constraints:
+        raise ValueError("JSON config must contain 'regions' and/or 'grid_constraints'")
+
+    if grid_constraints:
+        attributes = _find_or_create_attributes(root)
+        grid_constraints_elem = _find_or_create_grid_constraints(attributes)
+        for constraint_cfg in grid_constraints:
+            _upsert_grid_constraint(grid_constraints_elem, constraint_cfg)
 
     for region_cfg in regions:
         name = region_cfg.get("name")
@@ -335,7 +408,10 @@ def main() -> int:
     indent_xml(root)
     tree.write(output_path, encoding="utf-8", xml_declaration=True)
 
-    print(f"[OK] Added {len(config.get('regions', []))} region(s): {output_path}")
+    print(
+        f"[OK] Added {len(config.get('regions', []))} region(s), "
+        f"upserted {len(config.get('grid_constraints', []))} grid constraint(s): {output_path}"
+    )
     return 0
 
 
