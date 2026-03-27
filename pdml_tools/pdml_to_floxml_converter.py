@@ -1909,13 +1909,13 @@ class PDMLBinaryReader:
 
             else:
                 # Non-assembly node (cuboid, region, monitor, etc.)
-                if level == 3:
-                    # L3 non-assembly: starts a new child group
-                    # Push a marker that this is a non-assembly group
-                    pass
-                # All non-assembly nodes become children of current parent
-                if current_parent is not None:
+                if level >= 3 and current_parent is not None:
                     current_parent.children.append(node)
+                elif level == 2 and parent_stack:
+                    if len(parent_stack) > 1:
+                        parent_stack[-2].children.append(node)
+                    else:
+                        parent_stack[-1].children.append(node)
                 else:
                     top_level.append(node)
 
