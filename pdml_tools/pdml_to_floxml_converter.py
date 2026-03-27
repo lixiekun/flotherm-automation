@@ -489,14 +489,23 @@ class PDMLBinaryReader:
             if name in self.INTERNAL_GEOMETRY_NAMES or name.startswith('Wall ('):
                 continue
 
-            # Extract hierarchy level from bytes before the record
-            # The level is stored at offset-4 as a 4-byte big-endian integer
-            # Level encoding: 0x00000002 = level 2 (top), 0x00000003 = level 3 (child), etc.
+            # Extract hierarchy level from bytes before the record.
+            #
+            # In practice we see two candidate signals near geometry name records:
+            # - offset-6: a compact byte signal that often distinguishes group starts
+            # - offset-4: a 4-byte BE integer that is frequently just 0x00000002
+            #
+            # For hierarchy reconstruction, the offset-6 byte is the more useful
+            # primary signal; fall back to the BE integer when the byte is not in a
+            # plausible range.
             offset = record['offset']
             level = 2  # default level (top level in geometry)
-            if offset >= 4:
+            if offset >= 6:
+                level_byte = self.data[offset-6]
+                if 1 <= level_byte <= 20:
+                    level = level_byte
+            if level == 2 and offset >= 4:
                 level_bytes = struct.unpack('>I', self.data[offset-4:offset])[0]
-                # Level encoding: 0x00000002 = level 2, 0x00000003 = level 3
                 if 2 <= level_bytes <= 20:
                     level = level_bytes
 
@@ -1896,40 +1905,114 @@ class PDMLBinaryReader:
         return top_level
 
     def _attach_by_level(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
-        """Attach nodes based on level information.
+        """Attach children using the C1 hierarchy heuristic.
 
-        Level encoding:
-        - Level 2: Root level
-        - Level 3: First nesting level
-        - Level 4: Second nesting level
-        - etc.
+        Working heuristic:
+        - level 3 marks the start of a nested child group
+        - level 2 usually indicates a sibling
+        - but if the previous assembly opened a group, the next level-2 assembly
+          may still belong under that assembly as a deeper chain node
 
-        The parent_stack tracks containers at each depth using (level, node) tuples.
+        This matches the most common non-compact assembly trees we have observed
+        so far better than a pure stack model.
         """
         top_level: List[PDMLGeometryNode] = []
-        parent_stack: List[Tuple[int, PDMLGeometryNode]] = []
+        parent_stack: List[PDMLGeometryNode] = []
+        last_assembly: Optional[PDMLGeometryNode] = None
+        previous_node: Optional[PDMLGeometryNode] = None
 
-        def get_parent_for_level(target_level: int) -> Optional[PDMLGeometryNode]:
-            """Find the parent for a given level by popping deeper items."""
-            while parent_stack and parent_stack[-1][0] >= target_level:
-                parent_stack.pop()
-            return parent_stack[-1][1] if parent_stack else None
+        # Names that indicate top-level containers
+        CONTAINER_PATTERNS = [
+            'Layers', 'Layer', 'Attach', 'Assembly', 'Power',
+            'Electrical', 'Vias', 'Board', 'Parts', 'Components',
+            'Domain', 'Solution', 'Model'
+        ]
+
+        def is_container_assembly(name: str) -> bool:
+            for pattern in CONTAINER_PATTERNS:
+                if pattern.lower() in name.lower():
+                    return True
+            return False
+
+        def get_current_parent() -> Optional[PDMLGeometryNode]:
+            return parent_stack[-1] if parent_stack else None
+
+        def should_chain(current_node: PDMLGeometryNode) -> bool:
+            if previous_node is None or previous_node.node_type != 'assembly':
+                return False
+            return getattr(previous_node, 'level', 2) >= 3
 
         for node in nodes:
-            level = getattr(node, 'level', 2)
+            level = getattr(node, 'level', 2) if hasattr(node, 'level') else 2
             if level < 2:
                 level = 2
+            if level > 10:
+                level = 10
 
-            parent = get_parent_for_level(level)
+            current_parent = get_current_parent()
 
-            if parent is not None:
-                parent.children.append(node)
+            if node.node_type == 'assembly':
+                name = node.name
+
+                if level == 3:
+                    # L3 assembly: starts a new child group under current parent
+                    if current_parent is not None:
+                        current_parent.children.append(node)
+                    else:
+                        top_level.append(node)
+                    # Push this assembly onto the stack - it's now the parent for nested items
+                    parent_stack.append(node)
+                    last_assembly = node
+
+                elif level == 2:
+                    if should_chain(node) and last_assembly is not None:
+                        # Some PDMLs keep the tail of a deep chain at level 2 even
+                        # though it still belongs under the previously opened child.
+                        last_assembly.children.append(node)
+                        parent_stack.append(node)
+                        last_assembly = node
+                    # L2 assembly: sibling of the last assembly at the same depth
+                    elif is_container_assembly(name) and not parent_stack:
+                        # Container at root level - start new top-level group
+                        top_level.append(node)
+                        parent_stack = [node]
+                        last_assembly = node
+                    elif last_assembly is not None and parent_stack:
+                        # Find the parent of the last assembly (pop one level)
+                        if len(parent_stack) > 1:
+                            parent_stack.pop()  # Pop the last assembly
+                        sibling_parent = get_current_parent()
+                        if sibling_parent is not None:
+                            sibling_parent.children.append(node)
+                        else:
+                            top_level.append(node)
+                        parent_stack.append(node)
+                        last_assembly = node
+                    else:
+                        # First assembly or no context - becomes top-level
+                        top_level.append(node)
+                        parent_stack = [node]
+                        last_assembly = node
+                else:
+                    # Higher levels - attach to current parent
+                    if current_parent is not None:
+                        current_parent.children.append(node)
+                    else:
+                        top_level.append(node)
+
             else:
-                top_level.append(node)
+                # Non-assembly node (cuboid, region, monitor, etc.)
+                if level == 3:
+                    # L3 non-assembly: starts a new child group
+                    # Push a marker that this is a non-assembly group
+                    pass
+                # All non-assembly nodes become children of current parent
+                if current_parent is not None:
+                    current_parent.children.append(node)
+                else:
+                    top_level.append(node)
 
-            # Container nodes become potential parents for deeper levels
-            if self._is_container_node(node):
-                parent_stack.append((level, node))
+            previous_node = node
 
         return top_level
 
