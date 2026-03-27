@@ -18,7 +18,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Iterable
+from typing import Any, Dict, List, Optional, Tuple, Iterable
 import xml.etree.ElementTree as ET
 
 
@@ -78,6 +78,7 @@ class AssemblyData:
     sources: List[SourceData] = field(default_factory=list)
     monitor_points: List[MonitorPointData] = field(default_factory=list)
     sub_assemblies: List['AssemblyData'] = field(default_factory=list)
+    geometry_items: List[Tuple[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -266,31 +267,24 @@ class ECXMLExtractor:
         # 查找 geometry 子元素
         geo = self._find_child(elem, 'geometry')
         if geo is not None:
-            # 解析 solid3dBlock 元素
-            for block in self._find_children(geo, 'solid3dBlock', 'solid3dblock'):
-                cuboid = self._parse_solid3d_block(block)
-                assembly.cuboids.append(cuboid)
-
-            # 解析 assembly 内部的独立热源
-            for source_elem in self._find_children(
-                geo,
-                'source2dBlock',
-                'source3dBlock',
-                'sourceBlock',
-                'sourceblock',
-            ):
-                source = self._parse_source_block(source_elem)
-                assembly.sources.append(source)
-
-            # 解析 assembly 内部的监控点
-            for mp_elem in self._find_children(geo, 'monitorpoint', 'monitor_point'):
-                mp = self._parse_monitor_point(mp_elem)
-                assembly.monitor_points.append(mp)
-
-            # 递归解析嵌套 assembly
-            for sub_assembly in self._find_children(geo, 'assembly'):
-                sub_data = self._parse_assembly(sub_assembly)
-                assembly.sub_assemblies.append(sub_data)
+            for child in geo:
+                tag_lower = self._get_tag_lower(child)
+                if tag_lower in {'solid3dblock'}:
+                    cuboid = self._parse_solid3d_block(child)
+                    assembly.cuboids.append(cuboid)
+                    assembly.geometry_items.append(("cuboid", cuboid))
+                elif tag_lower in {'source2dblock', 'source3dblock', 'sourceblock'}:
+                    source = self._parse_source_block(child)
+                    assembly.sources.append(source)
+                    assembly.geometry_items.append(("source", source))
+                elif tag_lower in {'monitorpoint', 'monitor_point'}:
+                    mp = self._parse_monitor_point(child)
+                    assembly.monitor_points.append(mp)
+                    assembly.geometry_items.append(("monitor_point", mp))
+                elif tag_lower == 'assembly':
+                    sub_data = self._parse_assembly(child)
+                    assembly.sub_assemblies.append(sub_data)
+                    assembly.geometry_items.append(("assembly", sub_data))
 
         return assembly
 
@@ -521,6 +515,7 @@ class FloXMLBuilder:
         ecxml_data = ECXMLData(name=f"{project_name}_Project")
         ecxml_data.root_assembly = AssemblyData(name=f"{project_name}_Assembly")
         ecxml_data.root_assembly.cuboids = components
+        ecxml_data.root_assembly.geometry_items = [("cuboid", comp) for comp in components]
         return self.build_project(ecxml_data)
 
     def _build_attributes(self, ecxml_data: ECXMLData) -> ET.Element:
@@ -654,14 +649,25 @@ class FloXMLBuilder:
 
         if assembly.cuboids or assembly.sources or assembly.monitor_points or assembly.sub_assemblies:
             geometry_elem = ET.SubElement(assembly_elem, "geometry")
-            for cuboid in assembly.cuboids:
-                self._build_cuboid_element(geometry_elem, cuboid)
-            for source in assembly.sources:
-                self._build_source_element(geometry_elem, source)
-            for mp in assembly.monitor_points:
-                self._build_monitor_point_element(geometry_elem, mp)
-            for sub_assembly in assembly.sub_assemblies:
-                self._build_assembly_element(geometry_elem, sub_assembly)
+            if assembly.geometry_items:
+                for item_type, item in assembly.geometry_items:
+                    if item_type == "cuboid":
+                        self._build_cuboid_element(geometry_elem, item)
+                    elif item_type == "source":
+                        self._build_source_element(geometry_elem, item)
+                    elif item_type == "monitor_point":
+                        self._build_monitor_point_element(geometry_elem, item)
+                    elif item_type == "assembly":
+                        self._build_assembly_element(geometry_elem, item)
+            else:
+                for cuboid in assembly.cuboids:
+                    self._build_cuboid_element(geometry_elem, cuboid)
+                for source in assembly.sources:
+                    self._build_source_element(geometry_elem, source)
+                for mp in assembly.monitor_points:
+                    self._build_monitor_point_element(geometry_elem, mp)
+                for sub_assembly in assembly.sub_assemblies:
+                    self._build_assembly_element(geometry_elem, sub_assembly)
 
         return assembly_elem
 
