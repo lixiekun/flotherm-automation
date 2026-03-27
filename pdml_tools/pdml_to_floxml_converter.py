@@ -2185,6 +2185,20 @@ class PDMLBinaryReader:
         top_level.extend(remaining)
         return top_level
 
+    def _normalize_noncompact_assembly_positions(self, nodes: List[PDMLGeometryNode]):
+        """Treat non-compact assemblies as pure containers.
+
+        The hierarchy for non-compact PDML now matches well, but the extracted
+        assembly positions appear to be global offsets in some models while
+        child cuboids are also emitted with their own positions. Zeroing the
+        assembly container avoids double-applying the parent translation.
+        """
+        for node in nodes:
+            if node.node_type == 'assembly':
+                node.position = (0.0, 0.0, 0.0)
+            if node.children:
+                self._normalize_noncompact_assembly_positions(node.children)
+
     def _extract_geometry(self, data: PDMLData):
         """提取几何体层级"""
         root = PDMLGeometryNode(
@@ -2198,7 +2212,10 @@ class PDMLBinaryReader:
 
         nodes = [self._build_geometry_node_from_record(record) for record in self._find_geometry_records()]
         nodes = self._collapse_controller_children(nodes)
-        root.children.extend(self._attach_assembly_children(nodes))
+        attached_nodes = self._attach_assembly_children(nodes)
+        if self.profile != self.COMPACT_FORCED_FLOW_LAYOUT:
+            self._normalize_noncompact_assembly_positions(attached_nodes)
+        root.children.extend(attached_nodes)
         data.geometry = root
 
     def _extract_solution_domain(self, domain: PDMLSolutionDomain):
