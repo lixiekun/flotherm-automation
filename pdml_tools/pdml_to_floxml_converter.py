@@ -336,6 +336,7 @@ class PDMLBinaryReader:
         self._extract_attributes(result)
         self._extract_geometry(result)
         self._extract_solution_domain(result.solution_domain)
+        self._infer_solution_domain_from_geometry(result)
 
         return result
 
@@ -1329,10 +1330,6 @@ class PDMLBinaryReader:
                     self._fragment("all_grid_constraint", "Grid Constraint 1"),
                 ])
                 node.tail_elements.append(self._fragment("notes", "NOTES"))
-            elif name.startswith('R22 ['):
-                node.position = (0.0, 0.0, 0.0)
-                node.size = (0.005, 0.005, 0.001)
-                node.post_elements.append(self._fragment("all_radiation", "Sub-Divided1"))
             elif name == 'Block with Holes':
                 node.material = "Aluminum"
                 node.post_elements.append(self._fragment("thermal", "Heat"))
@@ -1426,8 +1423,6 @@ class PDMLBinaryReader:
             )
             if name.startswith('GR-'):
                 node.hidden = True
-                node.position = (0.0, 0.0, 0.0)
-                node.size = (0.005, 0.005, 0.001)
                 node.localized_grid = False
             else:
                 node.post_elements.append(self._fragment("x_grid_constraint", "Grid Constraint 1"))
@@ -1438,9 +1433,7 @@ class PDMLBinaryReader:
             node.size = None
             node.orientation = None
             node.localized_grid = None
-            if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT and name == 'Source Temperature':
-                node.position = (0.02, -0.00475, 0.02)
-            elif name == 'MP-01':
+            if name == 'MP-01':
                 node.post_elements.append(self._fragment("notes", "THERMOCOUPLE A44"))
             return self._finalize_geometry_node(node)
 
@@ -1455,7 +1448,6 @@ class PDMLBinaryReader:
 
     def _decorate_extended_geometry_node(self, node: PDMLGeometryNode, base_offset: int) -> PDMLGeometryNode:
         if node.node_type == 'cylinder':
-            node.position = (1.0, 2.0, 3.0)
             raw_size = node.size
             radius_height = self._extract_explicit_vector(base_offset, 820, 850, 2)
             radius = radius_height[0] if len(radius_height) > 0 and radius_height[0] else (raw_size[0] / 2.0 if raw_size else 0.125)
@@ -1595,84 +1587,15 @@ class PDMLBinaryReader:
             ])
             node.tail_elements.extend(self._make_supply_extract_fragments())
         elif node.node_type == 'network_assembly':
-            # Keep the extracted size from PDML (if any)
-            # Only set position if not already extracted
-            if node.position is None or node.position == (0.0, 0.0, 0.0):
-                node.position = (0.0, 0.0, 0.0)
             node.orientation_before_position = True
-            node.tail_elements.extend([
-                self._fragment("resistances", children=[
-                    self._fragment("resistance", children=[self._fragment("i_node", "Junction"), self._fragment("j_node", "Case"), self._fragment("resistance", "1.2")]),
-                    self._fragment("resistance", children=[self._fragment("i_node", "Junction"), self._fragment("j_node", "PCB"), self._fragment("resistance", "22.2")]),
-                ]),
-                self._fragment("capacitances", children=[
-                    self._fragment("capacitance", children=[self._fragment("i_node", "Junction"), self._fragment("capacitance", "3.3")]),
-                    self._fragment("capacitance", children=[self._fragment("i_node", "Case"), self._fragment("capacitance", "4.4")]),
-                    self._fragment("capacitance", children=[self._fragment("i_node", "PCB"), self._fragment("capacitance", "1.1")]),
-                ]),
-                self._fragment("network_nodes", children=[
-                    self._fragment("network_node", children=[
-                        self._fragment("name", "Junction"),
-                        self._fragment("thermal", "Heat"),
-                        self._fragment("notes", "Junction"),
-                        self._fragment("network_cuboids", children=[
-                            self._fragment("network_cuboid", children=[
-                                self._fragment("name", "J1"),
-                                self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0")]),
-                                self._fragment("size", children=[self._fragment("x", "0.04"), self._fragment("y", "0.04"), self._fragment("z", "0.001")]),
-                                self._fragment("localized_grid", "false"),
-                            ])
-                        ]),
-                        self._fragment("network_monitor_points", children=[
-                            self._fragment("monitor_point", children=[
-                                self._fragment("name", "Junction Temperature"),
-                                self._fragment("active", "true"),
-                                self._fragment("position", children=[self._fragment("x", "0.02"), self._fragment("y", "0.02"), self._fragment("z", "0.0005")]),
-                            ])
-                        ]),
-                    ]),
-                    self._fragment("network_node", children=[
-                        self._fragment("name", "Case"),
-                        self._fragment("network_cuboids", children=[
-                            self._fragment("network_cuboid", children=[
-                                self._fragment("name", "C1"),
-                                self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0.001")]),
-                                self._fragment("size", children=[self._fragment("x", "0.04"), self._fragment("y", "0.04"), self._fragment("z", "0.001")]),
-                                self._fragment("localized_grid", "false"),
-                            ]),
-                            self._fragment("network_cuboid", children=[
-                                self._fragment("name", "C2"),
-                                self._fragment("collapse", children=[self._fragment("direction", "z_direction"), self._fragment("type", "low_face")]),
-                                self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0.002")]),
-                                self._fragment("size", children=[self._fragment("x", "0.04"), self._fragment("y", "0.04"), self._fragment("z", "0.001")]),
-                                self._fragment("localized_grid", "false"),
-                            ]),
-                        ]),
-                    ]),
-                    self._fragment("network_node", children=[
-                        self._fragment("name", "PCB"),
-                        self._fragment("network_cuboids", children=[
-                            self._fragment("network_cuboid", children=[
-                                self._fragment("name", "PCB1"),
-                                self._fragment("collapse", children=[self._fragment("direction", "z_direction"), self._fragment("type", "low_face")]),
-                                self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0")]),
-                                self._fragment("size", children=[self._fragment("x", "0.04"), self._fragment("y", "0.04"), self._fragment("z", "0.001")]),
-                                self._fragment("localized_grid", "false"),
-                            ]),
-                        ]),
-                    ]),
-                ]),
-            ])
         elif node.node_type == 'heatsink':
             base = self._extract_explicit_vector(base_offset, 610, 635, 3)
             if "Plate Fin" in node.name:
                 base = (base[1], base[0], base[2]) if len(base) >= 3 else (0.09, 0.081, 0.005)
                 sink_type = "plate_fin"
-                node.position = (0.455, 0.4875, 0.4595)
             else:
                 base = (base[0], base[1], base[2]) if len(base) >= 3 else (0.02, 0.02, 0.0035)
                 sink_type = "pin_fin"
-                node.position = (0.49, 0.49, 0.49)
             node.size = None
             node.orientation = (
                 (1.0, 0.0, 0.0),
@@ -1685,9 +1608,9 @@ class PDMLBinaryReader:
                 self._fragment("active", "true"),
             ])
             node.mid_elements.append(self._fragment("heat_sink_base", children=[
-                self._fragment("x", "0.09" if sink_type == "plate_fin" else "0.02"),
-                self._fragment("y", "0.08099997" if sink_type == "plate_fin" else "0.02"),
-                self._fragment("z", "0.005" if sink_type == "plate_fin" else "0.0035"),
+                self._fragment("x", base[0] if len(base) > 0 else (0.09 if sink_type == "plate_fin" else 0.02)),
+                self._fragment("y", base[1] if len(base) > 1 else (0.08099997 if sink_type == "plate_fin" else 0.02)),
+                self._fragment("z", base[2] if len(base) > 2 else (0.005 if sink_type == "plate_fin" else 0.0035)),
             ]))
             node.post_elements.append(self._fragment("modeling_method", "detailed"))
             if sink_type == "plate_fin":
@@ -1752,22 +1675,6 @@ class PDMLBinaryReader:
                 self._fragment("dielectric_material", "FR4"),
                 self._fragment("conductor_material", "Copper"),
             ])
-            node.tail_elements.append(self._fragment("components", children=[
-                self._fragment("component", children=[
-                    self._fragment("name", "U1"),
-                    self._fragment("position", children=[self._fragment("x", "0.04"), self._fragment("y", "0.04")]),
-                    self._fragment("size", children=[self._fragment("x", "0.01"), self._fragment("y", "0.01"), self._fragment("z", "0.0015")]),
-                    self._fragment("side", "top"),
-                    self._fragment("power", "0.55"),
-                    self._fragment("component_material", "Aluminum"),
-                    self._fragment("modeling_options", "discrete"),
-                    self._fragment("solid_component", "true"),
-                    self._fragment("resistance_junction_board", "0"),
-                    self._fragment("resistance_junction_case", "0"),
-                    self._fragment("resistance_junction_sides", "0"),
-                    self._fragment("localized_grid", "false"),
-                ])
-            ]))
         elif node.node_type == 'die':
             node.active_before_name = True
             node.post_elements.extend([
@@ -2185,20 +2092,6 @@ class PDMLBinaryReader:
         top_level.extend(remaining)
         return top_level
 
-    def _normalize_noncompact_assembly_positions(self, nodes: List[PDMLGeometryNode]):
-        """Treat non-compact assemblies as pure containers.
-
-        The hierarchy for non-compact PDML now matches well, but the extracted
-        assembly positions appear to be global offsets in some models while
-        child cuboids are also emitted with their own positions. Zeroing the
-        assembly container avoids double-applying the parent translation.
-        """
-        for node in nodes:
-            if node.node_type == 'assembly':
-                node.position = (0.0, 0.0, 0.0)
-            if node.children:
-                self._normalize_noncompact_assembly_positions(node.children)
-
     def _extract_geometry(self, data: PDMLData):
         """提取几何体层级"""
         root = PDMLGeometryNode(
@@ -2212,11 +2105,46 @@ class PDMLBinaryReader:
 
         nodes = [self._build_geometry_node_from_record(record) for record in self._find_geometry_records()]
         nodes = self._collapse_controller_children(nodes)
-        attached_nodes = self._attach_assembly_children(nodes)
-        if self.profile != self.COMPACT_FORCED_FLOW_LAYOUT:
-            self._normalize_noncompact_assembly_positions(attached_nodes)
-        root.children.extend(attached_nodes)
+        root.children.extend(self._attach_assembly_children(nodes))
         data.geometry = root
+
+    def _iter_geometry_bounds(
+        self,
+        node: PDMLGeometryNode,
+        parent_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+    ) -> List[Tuple[Tuple[float, float, float], Tuple[float, float, float]]]:
+        current_offset = (
+            parent_offset[0] + node.position[0],
+            parent_offset[1] + node.position[1],
+            parent_offset[2] + node.position[2],
+        )
+        bounds: List[Tuple[Tuple[float, float, float], Tuple[float, float, float]]] = []
+
+        if node.size is not None and len(node.size) >= 3:
+            lower = current_offset
+            upper = tuple(current_offset[i] + node.size[i] for i in range(3))
+            bounds.append((lower, upper))
+
+        for child in node.children:
+            bounds.extend(self._iter_geometry_bounds(child, current_offset))
+
+        return bounds
+
+    def _infer_solution_domain_from_geometry(self, data: PDMLData):
+        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT or data.geometry is None:
+            return
+
+        bounds = self._iter_geometry_bounds(data.geometry)
+        if not bounds:
+            return
+
+        mins = [min(bound[0][i] for bound in bounds) for i in range(3)]
+        maxs = [max(bound[1][i] for bound in bounds) for i in range(3)]
+        spans = [maxs[i] - mins[i] for i in range(3)]
+        padding = [max(span * 0.05, 1e-6) for span in spans]
+
+        data.solution_domain.position = tuple(mins[i] - padding[i] for i in range(3))
+        data.solution_domain.size = tuple(spans[i] + (2.0 * padding[i]) for i in range(3))
 
     def _extract_solution_domain(self, domain: PDMLSolutionDomain):
         """提取求解域参数
