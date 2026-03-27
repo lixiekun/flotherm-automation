@@ -362,7 +362,7 @@ class ECXMLExtractor:
                 # 如果有多个根 assembly，可以作为子 assembly 添加
 
             # 解析 sourceBlock
-            for source_elem in self._find_children(geometry_elem, 'sourceblock', 'sourceblock'):
+            for source_elem in self._find_children(geometry_elem, 'sourceblock', 'source2dblock'):
                 source = self._parse_source_block(source_elem)
                 data.sources.append(source)
 
