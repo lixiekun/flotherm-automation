@@ -2,15 +2,10 @@
 """
 ECXML to FloXML Converter
 
-将 JEDEC JEP181 ECXML 器件热模型转换为 FloTHERM FloXML 项目格式。
+将 JEDEC JEP181 ECXML 器件热模型转换为 FloTHERM FloXML 格式。
 
-ECXML 是器件级热模型交换格式，缺少:
-  - 网格设置 (grid)
-  - 求解器配置 (solve)
-  - 模型设置 (model)
-  - 求解域 (solution_domain)
-
-本工具自动补充这些配置，生成完整的 FloXML 项目文件。
+仅输出 ECXML 中实际存在的数据（几何体、材料、热源、监控点），
+不生成硬编码的 model/solve/grid/ambient/fluid 配置。
 """
 
 from __future__ import annotations
@@ -416,27 +411,13 @@ class FloXMLBuilder:
         self._grid_config = None
         self._template: Optional[FloXMLTemplate] = None
 
-        # 加载模板（优先）
         if config.template_file:
             from floxml_template import load_template
             self._template = load_template(config.template_file)
             print(f"[INFO] 已加载模板: {config.template_file}")
 
-        # 加载网格配置
         if config.grid_config_file:
             self._load_grid_config(config.grid_config_file)
-
-    def _load_grid_config(self, filepath: str) -> None:
-        """加载网格配置文件"""
-        try:
-            from grid_config import GridExcelReader, GridConfig
-            reader = GridExcelReader(filepath)
-            self._grid_config = reader.read_config()
-            print(f"[INFO] 已加载网格配置: {filepath}")
-        except ImportError:
-            print(f"[WARN] 无法加载网格配置: 需要 openpyxl 或 pandas")
-        except Exception as e:
-            print(f"[WARN] 加载网格配置失败: {e}")
 
     def _append_text(self, parent: ET.Element, tag: str, text: str) -> ET.Element:
         """添加带文本的子元素"""
@@ -444,25 +425,8 @@ class FloXMLBuilder:
         elem.text = text
         return elem
 
-    def _build_identity_orientation(self, parent: ET.Element) -> ET.Element:
-        """构建单位方向矩阵。"""
-        orientation = ET.SubElement(parent, "orientation")
-        local_x = ET.SubElement(orientation, "local_x")
-        self._append_text(local_x, "i", "1")
-        self._append_text(local_x, "j", "0")
-        self._append_text(local_x, "k", "0")
-        local_y = ET.SubElement(orientation, "local_y")
-        self._append_text(local_y, "i", "0")
-        self._append_text(local_y, "j", "1")
-        self._append_text(local_y, "k", "0")
-        local_z = ET.SubElement(orientation, "local_z")
-        self._append_text(local_z, "i", "0")
-        self._append_text(local_z, "j", "0")
-        self._append_text(local_z, "k", "1")
-        return orientation
-
     def build_project(self, ecxml_data: ECXMLData) -> ET.Element:
-        """构建完整的 FloXML 项目"""
+        """构建 FloXML 项目（仅包含 ECXML 中实际存在的数据）"""
         # 使用模板（如果可用）
         if self._template:
             builder = FloXMLTemplateBuilder(self._template)
@@ -473,39 +437,19 @@ class FloXMLBuilder:
                 ecxml_data.sources
             )
 
-        # 使用默认构建方法
         root = ET.Element("xml_case")
-
-        # 项目名称
         self._append_text(root, "name", ecxml_data.name)
 
-        # 模型设置
-        root.append(self._build_model())
-
-        # 求解设置
-        root.append(self._build_solve())
-
-        # 确定求解域
+        # 求解域（仅当 ECXML 中存在时输出）
         if ecxml_data.solution_domain:
-            domain_pos = (ecxml_data.solution_domain.x, ecxml_data.solution_domain.y, ecxml_data.solution_domain.z)
-            domain_size = (ecxml_data.solution_domain.width, ecxml_data.solution_domain.height, ecxml_data.solution_domain.depth)
-        else:
-            # 从组件计算求解域
-            components = self._collect_all_cuboids(ecxml_data)
-            bounds = self._calculate_bounds(components)
-            domain_pos, domain_size = self._calculate_domain(bounds)
+            sd = ecxml_data.solution_domain
+            root.append(self._build_solution_domain(
+                (sd.x, sd.y, sd.z),
+                (sd.width, sd.height, sd.depth)
+            ))
 
-        # 网格设置
-        root.append(self._build_grid(domain_size))
-
-        # 属性
         root.append(self._build_attributes(ecxml_data))
-
-        # 几何体
         root.append(self._build_geometry(ecxml_data))
-
-        # 求解域
-        root.append(self._build_solution_domain(domain_pos, domain_size))
 
         return root
 
@@ -529,6 +473,168 @@ class FloXMLBuilder:
         ecxml_data.root_assembly = AssemblyData(name=f"{project_name}_Assembly")
         ecxml_data.root_assembly.cuboids = components
         return self.build_project(ecxml_data)
+
+    def _build_attributes(self, ecxml_data: ECXMLData) -> ET.Element:
+        """构建 attributes 节（仅包含 ECXML 中定义的材料和热源）"""
+        attributes = ET.Element("attributes")
+        components = self._collect_all_cuboids(ecxml_data)
+
+        # 收集所有使用的材料名
+        used_material_names = set()
+        for c in components:
+            if c.material:
+                used_material_names.add(c.material)
+        if ecxml_data.root_assembly and ecxml_data.root_assembly.material:
+            used_material_names.add(ecxml_data.root_assembly.material)
+
+        # 材料定义（仅 ECXML 中有定义的）
+        materials_dict = {m.name: m for m in ecxml_data.materials}
+        defined_materials = used_material_names & set(materials_dict.keys())
+
+        if defined_materials:
+            materials_elem = ET.SubElement(attributes, "materials")
+            for mat_name in defined_materials:
+                mat_data = materials_dict[mat_name]
+                mat_elem = ET.SubElement(materials_elem, "isotropic_material_att")
+                self._append_text(mat_elem, "name", mat_name)
+                self._append_text(mat_elem, "conductivity", f"{mat_data.conductivity:.6g}")
+                self._append_text(mat_elem, "density", f"{mat_data.density:.6g}")
+                self._append_text(mat_elem, "specific_heat", f"{mat_data.specific_heat:.6g}")
+
+        # 热源属性（仅 power > 0 的组件）
+        sources_with_power = []
+        for comp in components:
+            if comp.power > 0:
+                sources_with_power.append((f"{comp.name}_Source", comp.power))
+        for source in ecxml_data.sources:
+            if source.power > 0:
+                sources_with_power.append((f"{source.name}_Source", source.power))
+
+        if sources_with_power:
+            sources_elem = ET.SubElement(attributes, "sources")
+            for name, power in sources_with_power:
+                src = ET.SubElement(sources_elem, "source_att")
+                self._append_text(src, "name", name)
+                self._append_text(src, "power", f"{power:.6g}")
+
+        return attributes
+
+    def _build_geometry(self, ecxml_data: ECXMLData) -> ET.Element:
+        """构建 geometry 节"""
+        geometry = ET.Element("geometry")
+
+        # 构建根 assembly 及其子元素
+        if ecxml_data.root_assembly:
+            self._build_assembly_element(geometry, ecxml_data.root_assembly)
+
+        # 构建独立的热源
+        for source in ecxml_data.sources:
+            self._build_source_element(geometry, source)
+
+        # 构建监控点
+        for mp in ecxml_data.monitor_points:
+            self._build_monitor_point_element(geometry, mp)
+
+        return geometry
+
+    def _build_assembly_element(self, parent: ET.Element, assembly: AssemblyData) -> ET.Element:
+        """递归构建 assembly 元素"""
+        assembly_elem = ET.SubElement(parent, "assembly")
+        self._append_text(assembly_elem, "name", assembly.name)
+        self._append_text(assembly_elem, "active", "true" if assembly.active else "false")
+
+        position = ET.SubElement(assembly_elem, "position")
+        self._append_text(position, "x", f"{assembly.position_x:.6g}")
+        self._append_text(position, "y", f"{assembly.position_y:.6g}")
+        self._append_text(position, "z", f"{assembly.position_z:.6g}")
+
+        if assembly.material:
+            self._append_text(assembly_elem, "material", assembly.material)
+
+        if assembly.cuboids or assembly.sub_assemblies:
+            geometry_elem = ET.SubElement(assembly_elem, "geometry")
+            for cuboid in assembly.cuboids:
+                self._build_cuboid_element(geometry_elem, cuboid)
+            for sub_assembly in assembly.sub_assemblies:
+                self._build_assembly_element(geometry_elem, sub_assembly)
+
+        return assembly_elem
+
+    def _build_cuboid_element(self, parent: ET.Element, cuboid: CuboidData) -> ET.Element:
+        """构建 cuboid 元素"""
+        cuboid_elem = ET.SubElement(parent, "cuboid")
+        self._append_text(cuboid_elem, "name", cuboid.name)
+        self._append_text(cuboid_elem, "active", "true" if cuboid.active else "false")
+
+        position = ET.SubElement(cuboid_elem, "position")
+        self._append_text(position, "x", f"{cuboid.x:.6g}")
+        self._append_text(position, "y", f"{cuboid.y:.6g}")
+        self._append_text(position, "z", f"{cuboid.z:.6g}")
+
+        size = ET.SubElement(cuboid_elem, "size")
+        self._append_text(size, "x", f"{cuboid.width:.6g}")
+        self._append_text(size, "y", f"{cuboid.height:.6g}")
+        self._append_text(size, "z", f"{cuboid.depth:.6g}")
+
+        if cuboid.material:
+            self._append_text(cuboid_elem, "material", cuboid.material)
+
+        if cuboid.power > 0:
+            self._append_text(cuboid_elem, "source", f"{cuboid.name}_Source")
+
+        return cuboid_elem
+
+    def _build_source_element(self, parent: ET.Element, source: SourceData) -> ET.Element:
+        """构建 source 元素"""
+        source_elem = ET.SubElement(parent, "source")
+        self._append_text(source_elem, "name", source.name)
+        self._append_text(source_elem, "active", "true" if source.active else "false")
+
+        position = ET.SubElement(source_elem, "position")
+        self._append_text(position, "x", f"{source.x:.6g}")
+        self._append_text(position, "y", f"{source.y:.6g}")
+        self._append_text(position, "z", f"{source.z:.6g}")
+
+        size = ET.SubElement(source_elem, "size")
+        self._append_text(size, "x", f"{source.width:.6g}")
+        self._append_text(size, "y", f"{source.height:.6g}")
+        self._append_text(size, "z", f"{source.depth:.6g}")
+
+        if source.power > 0:
+            self._append_text(source_elem, "source", f"{source.name}_Source")
+
+        return source_elem
+
+    def _build_monitor_point_element(self, parent: ET.Element, mp: MonitorPointData) -> ET.Element:
+        """构建 monitor_point 元素"""
+        mp_elem = ET.SubElement(parent, "monitor_point")
+        self._append_text(mp_elem, "name", mp.name)
+        self._append_text(mp_elem, "active", "true" if mp.active else "false")
+
+        # 位置
+        position = ET.SubElement(mp_elem, "position")
+        self._append_text(position, "x", f"{mp.x:.6g}")
+        self._append_text(position, "y", f"{mp.y:.6g}")
+        self._append_text(position, "z", f"{mp.z:.6g}")
+
+        return mp_elem
+
+    def _build_solution_domain(self, position: Tuple[float, float, float],
+                               size: Tuple[float, float, float]) -> ET.Element:
+        """构建 solution_domain 节（仅位置和尺寸）"""
+        domain = ET.Element("solution_domain")
+
+        pos = ET.SubElement(domain, "position")
+        self._append_text(pos, "x", f"{position[0]:.6g}")
+        self._append_text(pos, "y", f"{position[1]:.6g}")
+        self._append_text(pos, "z", f"{position[2]:.6g}")
+
+        sz = ET.SubElement(domain, "size")
+        self._append_text(sz, "x", f"{size[0]:.6g}")
+        self._append_text(sz, "y", f"{size[1]:.6g}")
+        self._append_text(sz, "z", f"{size[2]:.6g}")
+
+        return domain
 
     def _build_model(self) -> ET.Element:
         """构建 model 节"""
@@ -604,12 +710,21 @@ class FloXMLBuilder:
 
     def _build_grid(self, domain_size: Tuple[float, float, float]) -> ET.Element:
         """构建 grid 节"""
-        # 如果有 Excel 网格配置，使用它
         if self._grid_config:
             return self._build_grid_from_config()
-
-        # 否则使用自动计算
         return self._build_grid_auto(domain_size)
+
+    def _load_grid_config(self, filepath: str) -> None:
+        """加载网格配置文件"""
+        try:
+            from grid_config import GridExcelReader, GridConfig
+            reader = GridExcelReader(filepath)
+            self._grid_config = reader.read_config()
+            print(f"[INFO] 已加载网格配置: {filepath}")
+        except ImportError:
+            print(f"[WARN] 无法加载网格配置: 需要 openpyxl 或 pandas")
+        except Exception as e:
+            print(f"[WARN] 加载网格配置失败: {e}")
 
     def _build_grid_from_config(self) -> ET.Element:
         """从配置构建 grid"""
@@ -628,7 +743,6 @@ class FloXMLBuilder:
         self._append_text(system_grid, "smoothing_type", "v3")
         self._append_text(system_grid, "dynamic_update", "true")
 
-        # 计算网格尺寸
         def grid_axis(parent: ET.Element, tag: str, size: float):
             axis = ET.SubElement(parent, tag)
             min_sz = min(max(size / 100.0, 1e-4), 0.001)
@@ -644,158 +758,22 @@ class FloXMLBuilder:
 
         return grid
 
-    def _build_attributes(self, ecxml_data: ECXMLData) -> ET.Element:
-        """构建 attributes 节"""
-        attributes = ET.Element("attributes")
-
-        # 收集所有使用的材料名
-        used_material_names = set()
-        components = self._collect_all_cuboids(ecxml_data)
-        for c in components:
-            if c.material:
-                used_material_names.add(c.material)
-        if ecxml_data.root_assembly and ecxml_data.root_assembly.material:
-            used_material_names.add(ecxml_data.root_assembly.material)
-
-        # 材料定义
-        materials = ET.SubElement(attributes, "materials")
-
-        # 使用 ECXML 中的材料
-        materials_dict = {m.name: m for m in ecxml_data.materials}
-
-        # 添加使用的材料
-        for mat_name in used_material_names:
-            mat_elem = ET.SubElement(materials, "isotropic_material_att")
-            self._append_text(mat_elem, "name", mat_name)
-
-            if mat_name in materials_dict:
-                mat_data = materials_dict[mat_name]
-                self._append_text(mat_elem, "conductivity", f"{mat_data.conductivity:.6g}")
-                self._append_text(mat_elem, "density", f"{mat_data.density:.6g}")
-                self._append_text(mat_elem, "specific_heat", f"{mat_data.specific_heat:.6g}")
-            else:
-                # 默认材料属性
-                self._append_text(mat_elem, "conductivity", "1.0")
-                self._append_text(mat_elem, "density", "1.0")
-                self._append_text(mat_elem, "specific_heat", "1.0")
-
-        # 热源属性
-        sources = ET.SubElement(attributes, "sources")
-
-        # 从 cuboid 收集热源
-        for comp in components:
-            if comp.power > 0:
-                self._build_source_att(sources, f"{comp.name}_Source", comp.power)
-
-        # 从独立 source 收集热源
-        for source in ecxml_data.sources:
-            if source.power > 0:
-                self._build_source_att(sources, f"{source.name}_Source", source.power)
-
-        # 环境
-        ambients = ET.SubElement(attributes, "ambients")
-        ambient = ET.SubElement(ambients, "ambient_att")
-        self._append_text(ambient, "name", self.config.ambient_name)
-        self._append_text(ambient, "pressure", "0")
-        self._append_text(ambient, "temperature", str(self.config.ambient_temp))
-        self._append_text(ambient, "radiant_temperature", str(self.config.ambient_temp))
-        self._append_text(ambient, "heat_transfer_coeff", "0")
-
-        velocity = ET.SubElement(ambient, "velocity")
-        for axis in ("x", "y", "z"):
-            self._append_text(velocity, axis, "0")
-
-        for tag in ("turbulent_kinetic_energy", "turbulent_dissipation_rate",
-                    "concentration_1", "concentration_2", "concentration_3",
-                    "concentration_4", "concentration_5"):
-            self._append_text(ambient, tag, "0")
-
-        # 流体
-        fluids = ET.SubElement(attributes, "fluids")
-        fluid = ET.SubElement(fluids, "fluid_att")
-        self._append_text(fluid, "name", self.config.fluid_name)
-        self._append_text(fluid, "conductivity_type", "constant")
-        self._append_text(fluid, "conductivity", "0.0261")
-        self._append_text(fluid, "viscosity_type", "constant")
-        self._append_text(fluid, "viscosity", "0.0000184")
-        self._append_text(fluid, "density_type", "constant")
-        self._append_text(fluid, "density", "1.16")
-        self._append_text(fluid, "specific_heat", "1008")
-        self._append_text(fluid, "expansivity", "0.003")
-        self._append_text(fluid, "diffusivity", "0")
-
-        # 网格约束 (如果有)
-        if self._grid_config and self._grid_config.constraints:
-            from grid_config import GridBuilder
-            builder = GridBuilder()
-            attributes.append(builder.build_constraints_attributes(self._grid_config.constraints))
-
-        return attributes
-
-    def _build_source_att(self, parent: ET.Element, name: str, power: float) -> None:
-        """构建 source_att 元素"""
-        src = ET.SubElement(parent, "source_att")
-        self._append_text(src, "name", name)
-        source_options = ET.SubElement(src, "source_options")
-        option = ET.SubElement(source_options, "option")
-        self._append_text(option, "applies_to", "temperature")
-        self._append_text(option, "type", "total")
-        self._append_text(option, "value", "0")
-        self._append_text(option, "power", f"{power:.6g}")
-        self._append_text(option, "linear_coefficient", "0")
-
-    def _build_geometry(self, ecxml_data: ECXMLData) -> ET.Element:
-        """构建 geometry 节"""
-        geometry = ET.Element("geometry")
-
-        # 构建根 assembly 及其子元素
-        if ecxml_data.root_assembly:
-            self._build_assembly_element(geometry, ecxml_data.root_assembly)
-
-        # 构建独立的热源
-        for source in ecxml_data.sources:
-            self._build_source_element(geometry, source)
-
-        # 构建监控点
-        for mp in ecxml_data.monitor_points:
-            self._build_monitor_point_element(geometry, mp)
-
-        return geometry
-
-    def _build_assembly_element(self, parent: ET.Element, assembly: AssemblyData) -> ET.Element:
-        """递归构建 assembly 元素"""
-        assembly_elem = ET.SubElement(parent, "assembly")
-        self._append_text(assembly_elem, "name", assembly.name)
-        self._append_text(assembly_elem, "active", "true" if assembly.active else "false")
-        self._append_text(assembly_elem, "ignore", "false")
-
-        # 位置
-        position = ET.SubElement(assembly_elem, "position")
-        self._append_text(position, "x", f"{assembly.position_x:.6g}")
-        self._append_text(position, "y", f"{assembly.position_y:.6g}")
-        self._append_text(position, "z", f"{assembly.position_z:.6g}")
-
-        # 方向
-        self._build_identity_orientation(assembly_elem)
-        self._append_text(assembly_elem, "material", assembly.material or self.config.default_material)
-        self._append_text(assembly_elem, "localized_grid", "false")
-
-        # 应用网格约束
-        self._apply_grid_constraints(assembly_elem, assembly.name)
-
-        # 子几何体
-        if assembly.cuboids or assembly.sub_assemblies:
-            geometry_elem = ET.SubElement(assembly_elem, "geometry")
-
-            # 构建 cuboid
-            for cuboid in assembly.cuboids:
-                self._build_cuboid_element(geometry_elem, cuboid)
-
-            # 递归构建子 assembly
-            for sub_assembly in assembly.sub_assemblies:
-                self._build_assembly_element(geometry_elem, sub_assembly)
-
-        return assembly_elem
+    def _build_identity_orientation(self, parent: ET.Element) -> ET.Element:
+        """构建单位方向矩阵。"""
+        orientation = ET.SubElement(parent, "orientation")
+        local_x = ET.SubElement(orientation, "local_x")
+        self._append_text(local_x, "i", "1")
+        self._append_text(local_x, "j", "0")
+        self._append_text(local_x, "k", "0")
+        local_y = ET.SubElement(orientation, "local_y")
+        self._append_text(local_y, "i", "0")
+        self._append_text(local_y, "j", "1")
+        self._append_text(local_y, "k", "0")
+        local_z = ET.SubElement(orientation, "local_z")
+        self._append_text(local_z, "i", "0")
+        self._append_text(local_z, "j", "0")
+        self._append_text(local_z, "k", "1")
+        return orientation
 
     def _apply_grid_constraints(self, elem: ET.Element, assembly_name: str) -> None:
         """根据配置应用网格约束到元素"""
@@ -805,7 +783,6 @@ class FloXMLBuilder:
         import fnmatch
 
         for mapping in self._grid_config.assembly_constraints:
-            # 支持通配符匹配
             if fnmatch.fnmatch(assembly_name, mapping.assembly_name):
                 if mapping.all_constraint:
                     self._append_text(elem, "all_grid_constraint", mapping.all_constraint)
@@ -817,107 +794,6 @@ class FloXMLBuilder:
                     if mapping.z_constraint:
                         self._append_text(elem, "z_grid_constraint", mapping.z_constraint)
                 break
-
-    def _build_cuboid_element(self, parent: ET.Element, cuboid: CuboidData) -> ET.Element:
-        """构建 cuboid 元素"""
-        cuboid_elem = ET.SubElement(parent, "cuboid")
-        self._append_text(cuboid_elem, "name", cuboid.name)
-        self._append_text(cuboid_elem, "active", "true" if cuboid.active else "false")
-
-        # 位置
-        position = ET.SubElement(cuboid_elem, "position")
-        self._append_text(position, "x", f"{cuboid.x:.6g}")
-        self._append_text(position, "y", f"{cuboid.y:.6g}")
-        self._append_text(position, "z", f"{cuboid.z:.6g}")
-
-        # 尺寸
-        size = ET.SubElement(cuboid_elem, "size")
-        self._append_text(size, "x", f"{cuboid.width:.6g}")
-        self._append_text(size, "y", f"{cuboid.height:.6g}")
-        self._append_text(size, "z", f"{cuboid.depth:.6g}")
-
-        # 方向
-        self._build_identity_orientation(cuboid_elem)
-        self._append_text(cuboid_elem, "localized_grid", "false")
-
-        # 材料
-        if cuboid.material:
-            self._append_text(cuboid_elem, "material", cuboid.material)
-
-        # 热源
-        if cuboid.power > 0:
-            self._append_text(cuboid_elem, "source", f"{cuboid.name}_Source")
-
-        return cuboid_elem
-
-    def _build_source_element(self, parent: ET.Element, source: SourceData) -> ET.Element:
-        """构建 source 元素"""
-        source_elem = ET.SubElement(parent, "source")
-        self._append_text(source_elem, "name", source.name)
-        self._append_text(source_elem, "active", "true" if source.active else "false")
-
-        # 位置
-        position = ET.SubElement(source_elem, "position")
-        self._append_text(position, "x", f"{source.x:.6g}")
-        self._append_text(position, "y", f"{source.y:.6g}")
-        self._append_text(position, "z", f"{source.z:.6g}")
-
-        # 尺寸
-        size = ET.SubElement(source_elem, "size")
-        self._append_text(size, "x", f"{source.width:.6g}")
-        self._append_text(size, "y", f"{source.height:.6g}")
-        self._append_text(size, "z", f"{source.depth:.6g}")
-
-        # 方向
-        self._build_identity_orientation(source_elem)
-
-        # 热源引用
-        self._append_text(source_elem, "source", f"{source.name}_Source")
-        self._append_text(source_elem, "localized_grid", "false")
-
-        return source_elem
-
-    def _build_monitor_point_element(self, parent: ET.Element, mp: MonitorPointData) -> ET.Element:
-        """构建 monitor_point 元素"""
-        mp_elem = ET.SubElement(parent, "monitor_point")
-        self._append_text(mp_elem, "name", mp.name)
-        self._append_text(mp_elem, "active", "true" if mp.active else "false")
-
-        # 位置
-        position = ET.SubElement(mp_elem, "position")
-        self._append_text(position, "x", f"{mp.x:.6g}")
-        self._append_text(position, "y", f"{mp.y:.6g}")
-        self._append_text(position, "z", f"{mp.z:.6g}")
-
-        return mp_elem
-
-    def _build_solution_domain(self, position: Tuple[float, float, float],
-                               size: Tuple[float, float, float]) -> ET.Element:
-        """构建 solution_domain 节"""
-        domain = ET.Element("solution_domain")
-
-        # 位置
-        pos = ET.SubElement(domain, "position")
-        self._append_text(pos, "x", f"{position[0]:.6g}")
-        self._append_text(pos, "y", f"{position[1]:.6g}")
-        self._append_text(pos, "z", f"{position[2]:.6g}")
-
-        # 尺寸
-        sz = ET.SubElement(domain, "size")
-        self._append_text(sz, "x", f"{size[0]:.6g}")
-        self._append_text(sz, "y", f"{size[1]:.6g}")
-        self._append_text(sz, "z", f"{size[2]:.6g}")
-
-        # 边界条件
-        for face in ("x_low_ambient", "x_high_ambient",
-                     "y_low_ambient", "y_high_ambient",
-                     "z_low_ambient", "z_high_ambient"):
-            self._append_text(domain, face, self.config.ambient_name)
-
-        # 流体
-        self._append_text(domain, "fluid", self.config.fluid_name)
-
-        return domain
 
     def _calculate_bounds(self, components: List[ComponentData]) -> Tuple[float, float, float, float, float, float]:
         """计算组件边界框"""
