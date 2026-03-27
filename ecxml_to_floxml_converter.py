@@ -75,6 +75,8 @@ class AssemblyData:
     position_z: float = 0.0
     material: str = "Default"
     cuboids: List[CuboidData] = field(default_factory=list)
+    sources: List[SourceData] = field(default_factory=list)
+    monitor_points: List[MonitorPointData] = field(default_factory=list)
     sub_assemblies: List['AssemblyData'] = field(default_factory=list)
 
 
@@ -268,6 +270,22 @@ class ECXMLExtractor:
             for block in self._find_children(geo, 'solid3dBlock', 'solid3dblock'):
                 cuboid = self._parse_solid3d_block(block)
                 assembly.cuboids.append(cuboid)
+
+            # 解析 assembly 内部的独立热源
+            for source_elem in self._find_children(
+                geo,
+                'source2dBlock',
+                'source3dBlock',
+                'sourceBlock',
+                'sourceblock',
+            ):
+                source = self._parse_source_block(source_elem)
+                assembly.sources.append(source)
+
+            # 解析 assembly 内部的监控点
+            for mp_elem in self._find_children(geo, 'monitorpoint', 'monitor_point'):
+                mp = self._parse_monitor_point(mp_elem)
+                assembly.monitor_points.append(mp)
 
             # 递归解析嵌套 assembly
             for sub_assembly in self._find_children(geo, 'assembly'):
@@ -484,6 +502,20 @@ class FloXMLBuilder:
 
         return components
 
+    def _collect_all_sources(self, ecxml_data: ECXMLData) -> List[SourceData]:
+        """收集所有 source 数据，包括 assembly 内的 source。"""
+        sources = list(ecxml_data.sources)
+
+        def collect_from_assembly(assembly: AssemblyData):
+            sources.extend(assembly.sources)
+            for sub in assembly.sub_assemblies:
+                collect_from_assembly(sub)
+
+        if ecxml_data.root_assembly:
+            collect_from_assembly(ecxml_data.root_assembly)
+
+        return sources
+
     def build_project_legacy(self, components: List[ComponentData], project_name: str) -> ET.Element:
         """构建完整的 FloXML 项目（向后兼容）"""
         ecxml_data = ECXMLData(name=f"{project_name}_Project")
@@ -520,11 +552,13 @@ class FloXMLBuilder:
                 self._append_text(mat_elem, "density", "1.0")
                 self._append_text(mat_elem, "specific_heat", "1.0")
 
+        all_sources = self._collect_all_sources(ecxml_data)
+
         sources = ET.SubElement(attributes, "sources")
         for comp in components:
             if comp.power > 0:
                 self._build_source_att(sources, f"{comp.name}_Source", comp.power)
-        for source in ecxml_data.sources:
+        for source in all_sources:
             if source.power > 0:
                 self._build_source_att(sources, f"{source.name}_Source", source.power)
 
@@ -618,10 +652,14 @@ class FloXMLBuilder:
         self._append_text(assembly_elem, "localized_grid", "false")
         self._apply_grid_constraints(assembly_elem, assembly.name)
 
-        if assembly.cuboids or assembly.sub_assemblies:
+        if assembly.cuboids or assembly.sources or assembly.monitor_points or assembly.sub_assemblies:
             geometry_elem = ET.SubElement(assembly_elem, "geometry")
             for cuboid in assembly.cuboids:
                 self._build_cuboid_element(geometry_elem, cuboid)
+            for source in assembly.sources:
+                self._build_source_element(geometry_elem, source)
+            for mp in assembly.monitor_points:
+                self._build_monitor_point_element(geometry_elem, mp)
             for sub_assembly in assembly.sub_assemblies:
                 self._build_assembly_element(geometry_elem, sub_assembly)
 
