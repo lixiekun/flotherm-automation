@@ -1,7 +1,7 @@
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from ecxml_to_floxml_converter import ECXMLExtractor, ECXMLToFloXMLConverter
+from floxml_tools.ecxml_to_floxml_converter import ECXMLExtractor, ECXMLToFloXMLConverter
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

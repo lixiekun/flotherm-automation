@@ -594,7 +594,7 @@ class FloXMLBuilder:
         self._append_text(fluid, "diffusivity", "0")
 
         if self._grid_config and self._grid_config.constraints:
-            from grid_config import GridBuilder
+            from .grid_config import GridBuilder
             builder = GridBuilder()
             attributes.append(builder.build_constraints_attributes(self._grid_config.constraints))
 
@@ -846,7 +846,7 @@ class FloXMLBuilder:
     def _load_grid_config(self, filepath: str) -> None:
         """加载网格配置文件"""
         try:
-            from grid_config import GridExcelReader, GridConfig
+            from .grid_config import GridExcelReader, GridConfig
             reader = GridExcelReader(filepath)
             self._grid_config = reader.read_config()
             print(f"[INFO] 已加载网格配置: {filepath}")
@@ -857,7 +857,7 @@ class FloXMLBuilder:
 
     def _build_grid_from_config(self) -> ET.Element:
         """从配置构建 grid"""
-        from grid_config import GridBuilder
+        from .grid_config import GridBuilder
         builder = GridBuilder()
         return builder.build_grid(self._grid_config)
 

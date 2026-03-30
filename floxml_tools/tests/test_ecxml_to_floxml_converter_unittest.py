@@ -5,7 +5,7 @@ import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from ecxml_to_floxml_converter import ECXMLToFloXMLConverter
+from floxml_tools.ecxml_to_floxml_converter import ECXMLToFloXMLConverter
 
 
 SAMPLE_ECXML = textwrap.dedent(

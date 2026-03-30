@@ -35,11 +35,11 @@ python ecxml_editor.py model.ecxml --set-power U1_CPU 15.0 -o modified.ecxml
 python ecxml_editor.py model.ecxml --power-config power_config.json -o modified.ecxml
 
 # ECXML to FloXML conversion
-python ecxml_to_floxml_converter.py input.ecxml -o output.xml
-python ecxml_to_floxml_converter.py input.ecxml -o output.xml --padding-ratio 0.15
+python -m floxml_tools.ecxml_to_floxml_converter input.ecxml -o output.xml
+python -m floxml_tools.ecxml_to_floxml_converter input.ecxml -o output.xml --padding-ratio 0.15
 
 # Wrap geometry FloXML as project FloXML
-python wrap_geometry_floxml_as_project.py geometry.xml -o project.xml
+python -m floxml_tools.wrap_geometry_floxml_as_project geometry.xml -o project.xml
 ```
 
 ### Pack File Operations
@@ -87,10 +87,9 @@ python excel_floxml_generator.py materials --data materials.json -o output.xml
          │              Processing Layer               │
          ├────────────────────────────────────────────┤
          │ excel_batch_simulation.py  (multi-config)  │
-         │ ecxml_to_floxml_converter.py (format conv) │
+         │ floxml_tools/              (format conv)   │
          │ batch_ecxml_solver.py      (batch solve)   │
          │ excel_floxml_generator.py  (FloXML gen)    │
-         │ grid_config.py             (grid settings) │
          └────────────────────────────────────────────┘
                           │
                           ▼
@@ -107,13 +106,14 @@ python excel_floxml_generator.py materials --data materials.json -o output.xml
 | `ecxml_editor.py` | Parse/modify ECXML (JEDEC JEP181) - components, powers, materials |
 | `pdml_tools/pdml_parser.py` | Parse PDML/FloXML - full model with grid, solve, geometry |
 | `pack_editor.py` | Extract/modify .pack archives (ZIP format) |
-| `ecxml_to_floxml_converter.py` | Convert ECXML to complete FloXML project |
+| `floxml_tools/ecxml_to_floxml_converter.py` | Convert ECXML to complete FloXML project |
+| `floxml_tools/floxml_add_volume_regions.py` | Inject volume regions and grid constraints into FloXML |
+| `floxml_tools/floxml_grid_parser.py` | Parse grid settings from FloXML |
+| `floxml_tools/grid_config.py` | Grid configuration from Excel (system_grid, patches, constraints) |
+| `floxml_tools/wrap_geometry_floxml_as_project.py` | Wrap Assembly FloXML as Project FloXML |
 | `excel_batch_simulation.py` | Multi-config batch simulation from Excel |
 | `batch_ecxml_solver.py` | Batch solve ECXML files using `flotherm -z` |
 | `excel_floxml_generator.py` | Generate FloXML via Excel COM automation |
-| `grid_config.py` | Grid configuration from Excel (system_grid, patches, constraints) |
-| `floxml_grid_parser.py` | Parse grid settings from FloXML |
-| `wrap_geometry_floxml_as_project.py` | Wrap Assembly FloXML as Project FloXML |
 
 ## FloTHERM 2020.2 Automation Capabilities
 
