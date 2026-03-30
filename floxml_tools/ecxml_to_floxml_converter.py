@@ -1085,23 +1085,67 @@ class ECXMLToFloXMLConverter:
             print("[WARN] 源 FloXML 中未找到 <grid_constraints>")
 
         # 注入 region（网格区域定义，引用 grid_constraint）
+        # 递归收集源中所有 region（可能嵌套在 assembly/geometry 内）
         src_geo = _find_child(src_root, 'geometry')
         tgt_geo = _find_child(root, 'geometry')
         if src_geo is not None and tgt_geo is not None:
-            src_regions = [deepcopy(c) for c in src_geo if _strip_ns(c.tag) == 'region']
+            src_regions = list(src_geo.iter('region'))
             if src_regions:
-                for reg in src_regions:
-                    name_el = reg.find('name')
+                # 按层级注入：顶层的 region 放到目标顶层，嵌套的按 assembly name 匹配
+                injected = 0
+                for src_reg in src_regions:
+                    reg_copy = deepcopy(src_reg)
+                    name_el = reg_copy.find('name')
                     reg_name = name_el.text if name_el is not None else ''
-                    # 移除同名旧 region
-                    for c in list(tgt_geo):
-                        if _strip_ns(c.tag) == 'region':
-                            n2 = c.find('name')
-                            if n2 is not None and n2.text == reg_name:
-                                tgt_geo.remove(c)
-                                break
-                    tgt_geo.append(reg)
-                print(f"[OK] 已注入 {len(src_regions)} 个 <region>")
+
+                    # 判断是否在顶层 geometry 下
+                    parent = None
+                    for p in src_geo.iter():
+                        if src_reg in list(p):
+                            parent = p
+                            break
+                    is_top_level = (parent is src_geo)
+
+                    if is_top_level:
+                        # 注入到目标顶层 geometry
+                        for c in list(tgt_geo):
+                            if c.tag == 'region':
+                                n2 = c.find('name')
+                                if n2 is not None and n2.text == reg_name:
+                                    tgt_geo.remove(c)
+                                    break
+                        tgt_geo.append(reg_copy)
+                        injected += 1
+                    else:
+                        # 嵌套 region：找到源中所属的 assembly name，在目标中找同名 assembly 注入
+                        # 向上找父 assembly
+                        asm_name = None
+                        for p in src_geo.iter():
+                            if p.tag == 'assembly' and src_reg in list(p.iter()):
+                                if p is not src_reg:
+                                    pn = p.find('name')
+                                    if pn is not None:
+                                        asm_name = pn.text
+                                        break
+                        if asm_name:
+                            # 在目标中找同名 assembly
+                            for tgt_asm in tgt_geo.iter('assembly'):
+                                tn = tgt_asm.find('name')
+                                if tn is not None and tn.text == asm_name:
+                                    tgt_asm_geo = tgt_asm.find('geometry')
+                                    if tgt_asm_geo is None:
+                                        tgt_asm_geo = ET.SubElement(tgt_asm, 'geometry')
+                                    # 移除同名旧 region
+                                    for c in list(tgt_asm_geo):
+                                        if c.tag == 'region':
+                                            n2 = c.find('name')
+                                            if n2 is not None and n2.text == reg_name:
+                                                tgt_asm_geo.remove(c)
+                                                break
+                                    tgt_asm_geo.append(reg_copy)
+                                    injected += 1
+                                    break
+                print(f"[OK] 已注入 {injected} 个 <region>")
             else:
                 print("[WARN] 源 FloXML <geometry> 中未找到 <region>")
         else:
