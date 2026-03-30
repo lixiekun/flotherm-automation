@@ -1084,6 +1084,32 @@ class ECXMLToFloXMLConverter:
         else:
             print("[WARN] 源 FloXML 中未找到 <grid_constraints>")
 
+        # 注入 region（网格区域定义，引用 grid_constraint）
+        src_geo = _find_child(src_root, 'geometry')
+        tgt_geo = _find_child(root, 'geometry')
+        if src_geo is not None and tgt_geo is not None:
+            src_regions = [deepcopy(c) for c in src_geo if _strip_ns(c.tag) == 'region']
+            if src_regions:
+                for reg in src_regions:
+                    name_el = reg.find('name')
+                    reg_name = name_el.text if name_el is not None else ''
+                    # 移除同名旧 region
+                    for c in list(tgt_geo):
+                        if _strip_ns(c.tag) == 'region':
+                            n2 = c.find('name')
+                            if n2 is not None and n2.text == reg_name:
+                                tgt_geo.remove(c)
+                                break
+                    tgt_geo.append(reg)
+                print(f"[OK] 已注入 {len(src_regions)} 个 <region>")
+            else:
+                print("[WARN] 源 FloXML <geometry> 中未找到 <region>")
+        else:
+            if src_geo is None:
+                print("[WARN] 源 FloXML 中未找到 <geometry>")
+            if tgt_geo is None:
+                print("[WARN] 目标 FloXML 中未找到 <geometry>")
+
     def _parse_pdml_source(self, source_path: str) -> Optional[ET.Element]:
         """解析源 PDML/FloXML 文件，返回 root Element
 
