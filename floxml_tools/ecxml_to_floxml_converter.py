@@ -1139,8 +1139,14 @@ class ECXMLToFloXMLConverter:
         if header[:5] == b'#FFFB':
             print(f"[INFO] 检测到二进制 PDML 文件，使用 PDML 解析器提取网格...")
             try:
-                from pdml_tools.pdml_to_floxml_converter import PDMLBinaryReader as _PDMLReader
-                from pdml_tools.pdml_to_floxml_converter import FloXMLBuilder as _PDMLFloXMLBuilder
+                import importlib
+                import sys
+                _parent = str(Path(__file__).resolve().parent.parent)
+                if _parent not in sys.path:
+                    sys.path.insert(0, _parent)
+                _pdml_mod = importlib.import_module('pdml_tools.pdml_to_floxml_converter')
+                _PDMLReader = _pdml_mod.PDMLBinaryReader
+                _PDMLFloXMLBuilder = _pdml_mod.FloXMLBuilder
                 reader = _PDMLReader(source_path)
                 pdml_data = reader.read()
                 builder = _PDMLFloXMLBuilder()
