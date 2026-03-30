@@ -38,6 +38,10 @@ python ecxml_editor.py model.ecxml --power-config power_config.json -o modified.
 python -m floxml_tools.ecxml_to_floxml_converter input.ecxml -o output.xml
 python -m floxml_tools.ecxml_to_floxml_converter input.ecxml -o output.xml --padding-ratio 0.15
 
+# ECXML to FloXML with grid from PDML (binary #FFFB or FloXML)
+python -m floxml_tools.ecxml_to_floxml_converter input.ecxml -o output.xml --pdml project.pdml
+python -m floxml_tools.ecxml_to_floxml_converter input.ecxml -o output.xml --pdml project.floxml
+
 # Wrap geometry FloXML as project FloXML
 python -m floxml_tools.wrap_geometry_floxml_as_project geometry.xml -o project.xml
 ```
@@ -106,7 +110,8 @@ python excel_floxml_generator.py materials --data materials.json -o output.xml
 | `ecxml_editor.py` | Parse/modify ECXML (JEDEC JEP181) - components, powers, materials |
 | `pdml_tools/pdml_parser.py` | Parse PDML/FloXML - full model with grid, solve, geometry |
 | `pack_editor.py` | Extract/modify .pack archives (ZIP format) |
-| `floxml_tools/ecxml_to_floxml_converter.py` | Convert ECXML to complete FloXML project |
+| `floxml_tools/ecxml_to_floxml_converter.py` | Convert ECXML to complete FloXML project; `--pdml` injects grid from PDML/FloXML |
+| `pdml_tools/pdml_to_floxml_converter.py` | Parse binary PDML (#FFFB) and convert to FloXML |
 | `floxml_tools/floxml_add_volume_regions.py` | Inject volume regions and grid constraints into FloXML |
 | `floxml_tools/floxml_grid_parser.py` | Parse grid settings from FloXML |
 | `floxml_tools/grid_config.py` | Grid configuration from Excel (system_grid, patches, constraints) |

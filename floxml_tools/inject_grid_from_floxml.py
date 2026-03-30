@@ -235,13 +235,16 @@ def main(argv=None) -> int:
 
     if args.ecxml:
         # 先将 ECXML 转换为 FloXML 到临时文件
-        from .ecxml_to_floxml_converter import ECXMLToFloXMLConverter, ConversionConfig
+        from .ecxml_to_floxml_converter import (ECXMLExtractor, FloXMLBuilder,
+                                                 ConversionConfig)
         config = ConversionConfig(
             padding_ratio=args.padding_ratio,
             ambient_temp=args.ambient_temp,
         )
-        converter = ECXMLToFloXMLConverter(config)
-        floxml_root = converter.convert(str(args.ecxml))
+        extractor = ECXMLExtractor(str(args.ecxml))
+        ecxml_data = extractor.extract_all()
+        builder = FloXMLBuilder(config)
+        floxml_root = builder.build_project(ecxml_data)
 
         # 写临时文件
         tmp_path = str(args.output) + ".tmp"

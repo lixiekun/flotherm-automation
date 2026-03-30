@@ -130,6 +130,7 @@ class ConversionConfig:
     default_material: str = "Default"
     grid_config_file: Optional[str] = None  # Excel 网格配置文件路径
     template_file: Optional[str] = None  # FloXML 模板文件路径
+    floxml_source: Optional[str] = None  # 源 FloXML/PDML 文件路径（用于提取网格设置）
 
     @classmethod
     def from_template(cls, filepath: str) -> 'ConversionConfig':
@@ -1001,6 +1002,10 @@ class ECXMLToFloXMLConverter:
             builder = FloXMLBuilder(self.config)
             root = builder.build_project(ecxml_data)
 
+            # 如果提供了源 FloXML，注入网格设置
+            if self.config.floxml_source:
+                self._inject_grid_from_floxml(root, self.config.floxml_source)
+
             # 确定输出路径
             if output_path is None:
                 output_path = input_path.with_name(f"{input_path.stem}_floxml.xml")
@@ -1016,6 +1021,139 @@ class ECXMLToFloXMLConverter:
             result["errors"].append(str(e))
 
         return result
+
+    def _inject_grid_from_floxml(self, root: ET.Element, source_path: str) -> None:
+        """从源 PDML/FloXML 提取网格设置并注入到目标 root
+
+        支持三种格式：
+        1. XML 格式的 FloXML/PDML（直接解析）
+        2. 二进制 PDML（#FFFB 头，尝试从 .pack/ZIP 中提取 FloXML）
+        3. .pack ZIP 压缩包（提取内部 XML）
+        """
+        from copy import deepcopy
+        import zipfile
+        import tempfile
+
+        src_root = self._parse_pdml_source(source_path)
+        if src_root is None:
+            print("[WARN] 无法解析源文件，跳过网格注入")
+            return
+
+        def _find_child(parent, tag):
+            child = parent.find(tag)
+            if child is not None:
+                return child
+            for c in parent:
+                if c.tag.split('}')[1] if '}' in c.tag else c.tag == tag:
+                    return c
+            return None
+
+        def _strip_ns(tag):
+            return tag.split('}')[1] if '}' in tag else tag
+
+        def _remove_child(parent, tag):
+            child = _find_child(parent, tag)
+            if child is not None:
+                parent.remove(child)
+
+        # 注入 <grid>（system_grid + patches）
+        src_grid = _find_child(src_root, 'grid')
+        if src_grid is not None:
+            _remove_child(root, 'grid')
+            root.insert(0, deepcopy(src_grid))
+            print(f"[OK] 已注入 <grid> (system_grid + patches)")
+        else:
+            print("[WARN] 源 FloXML 中未找到 <grid>")
+
+        # 注入 <grid_constraints>
+        src_gc = _find_child(src_root, 'grid_constraints')
+        if src_gc is None:
+            src_attrs = _find_child(src_root, 'attributes')
+            if src_attrs is not None:
+                src_gc = _find_child(src_attrs, 'grid_constraints')
+        if src_gc is not None:
+            tgt_attrs = _find_child(root, 'attributes')
+            if tgt_attrs is not None:
+                _remove_child(tgt_attrs, 'grid_constraints')
+                tgt_attrs.append(deepcopy(src_gc))
+            else:
+                _remove_child(root, 'grid_constraints')
+                root.append(deepcopy(src_gc))
+            count = sum(1 for c in src_gc if _strip_ns(c.tag) == 'grid_constraint_att')
+            print(f"[OK] 已注入 <grid_constraints> ({count} 个约束)")
+        else:
+            print("[WARN] 源 FloXML 中未找到 <grid_constraints>")
+
+    def _parse_pdml_source(self, source_path: str) -> Optional[ET.Element]:
+        """解析源 PDML/FloXML 文件，返回 root Element
+
+        支持格式：
+        1. XML 文本（FloXML / XML 格式的 PDML）→ 直接解析
+        2. 二进制 PDML（#FFFB 头）→ 尝试 ZIP 提取内部 XML
+        3. .pack 文件（ZIP）→ 提取内部 XML
+        """
+        import zipfile
+        import tempfile
+
+        # 1) 尝试直接作为 XML 解析
+        try:
+            tree = ET.parse(source_path)
+            print(f"[OK] 已解析源文件 (XML): {source_path}")
+            return tree.getroot()
+        except ET.ParseError:
+            pass
+
+        # 2) 非 XML，尝试作为 ZIP（.pack 或 ZIP 格式的 PDML）
+        try:
+            with zipfile.ZipFile(source_path, 'r') as zf:
+                # 查找 PDProject 下的 group 文件，判断是否为 .pack
+                names = zf.namelist()
+                is_pack = any('PDProject/group' in n for n in names)
+
+                if is_pack:
+                    print(f"[ERROR] .pack 文件中的项目定义是二进制 PDML 格式，无法提取网格设置")
+                    print(f"  请在 FloTHERM 中打开项目后导出 FloXML，再用 --pdml 指定导出的文件")
+                    return None
+
+                # 其他 ZIP：查找内部的 XML 文件
+                xml_candidates = [
+                    n for n in names
+                    if n.endswith(('.xml', '.pdml', '.floxml'))
+                ]
+                if not xml_candidates:
+                    print(f"[WARN] ZIP 中未找到 XML 文件: {source_path}")
+                    return None
+
+                xml_candidates.sort(key=lambda n: zf.getinfo(n).file_size, reverse=True)
+                with zf.open(xml_candidates[0]) as xf:
+                    tree = ET.parse(xf)
+                print(f"[OK] 已从 ZIP 中提取: {xml_candidates[0]}")
+                return tree.getroot()
+        except zipfile.BadZipFile:
+            pass
+
+        # 3) 二进制 PDML（#FFFB 头），使用 PDML 解析器
+        with open(source_path, 'rb') as f:
+            header = f.read(64)
+
+        if header[:5] == b'#FFFB':
+            print(f"[INFO] 检测到二进制 PDML 文件，使用 PDML 解析器提取网格...")
+            try:
+                from pdml_tools.pdml_to_floxml_converter import PDMLBinaryReader as _PDMLReader
+                from pdml_tools.pdml_to_floxml_converter import FloXMLBuilder as _PDMLFloXMLBuilder
+                reader = _PDMLReader(source_path)
+                pdml_data = reader.read()
+                builder = _PDMLFloXMLBuilder()
+                pdml_root = builder.build(pdml_data)
+                print(f"[OK] 已从二进制 PDML 提取网格设置")
+                return pdml_root
+            except Exception as e:
+                print(f"[ERROR] PDML 解析失败: {e}")
+                return None
+        else:
+            print(f"[ERROR] 无法识别文件格式: {source_path}")
+
+        return None
 
     def _write_floxml(self, root: ET.Element, output_path: Path) -> None:
         """写入 FloXML 文件"""
@@ -1111,6 +1249,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--grid-config", type=str,
                         help="Excel 网格配置文件路径")
 
+    # 源 PDML/FloXML（提取网格）
+    parser.add_argument("--pdml", type=str,
+                        help="源 PDML 或 FloXML 文件路径，用于提取网格设置")
+
     # 模板配置
     parser.add_argument("--template", type=str,
                         help="FloXML 模板 JSON 文件路径")
@@ -1138,6 +1280,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             ambient_temp=args.ambient_temp,
             outer_iterations=args.outer_iterations,
             grid_config_file=args.grid_config,
+            floxml_source=args.pdml,
         )
 
     converter = ECXMLToFloXMLConverter(config)
