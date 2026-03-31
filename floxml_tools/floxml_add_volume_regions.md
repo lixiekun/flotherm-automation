@@ -34,19 +34,19 @@ python floxml_add_volume_regions.py input.xml --config floxml_volume_regions.exa
 例如用 JSON 配置：
 
 ```powershell
-python -m floxml_tools.floxml_add_volume_regions .\demo.xml --config .\config.json -o .\demo_with_regions.xml
+python floxml_add_volume_regions.py .\demo.xml --config .\config.json -o .\demo_with_regions.xml
 ```
 
 用 Excel 配置：
 
 ```powershell
-python -m floxml_tools.floxml_add_volume_regions .\demo.xml --config .\config.xlsx -o .\demo_with_regions.xml
+python floxml_add_volume_regions.py .\demo.xml --config .\config.xlsx -o .\demo_with_regions.xml
 ```
 
 生成 Excel 模板：
 
 ```powershell
-python -m floxml_tools.floxml_add_volume_regions --create-template template.xlsx
+python floxml_add_volume_regions.py --create-template template.xlsx
 ```
 
 ## JSON 结构
@@ -87,7 +87,7 @@ python -m floxml_tools.floxml_add_volume_regions --create-template template.xlsx
 ### 生成模板
 
 ```powershell
-python -m floxml_tools.floxml_add_volume_regions --create-template volume_regions_template.xlsx
+python floxml_add_volume_regions.py --create-template volume_regions_template.xlsx
 ```
 
 仓库里也有一份现成模板：`examples/FloXML/Spreadsheets/volume_regions_template.xlsx`
@@ -95,7 +95,7 @@ python -m floxml_tools.floxml_add_volume_regions --create-template volume_region
 ### 使用 Excel 配置
 
 ```powershell
-python -m floxml_tools.floxml_add_volume_regions input.xml --config config.xlsx -o output.xml
+python floxml_add_volume_regions.py input.xml --config config.xlsx -o output.xml
 ```
 
 `--config` 参数会自动根据后缀识别 JSON 还是 Excel。
@@ -626,19 +626,19 @@ bbox 计算逻辑（多几何体联合包围盒）：
 只加一个手工 region：
 
 ```powershell
-python -m floxml_tools.floxml_add_volume_regions .\model.xml --config .\my_regions.json -o .\model_with_regions.xml
+python floxml_add_volume_regions.py .\model.xml --config .\my_regions.json -o .\model_with_regions.xml
 ```
 
 用 Excel 配置：
 
 ```powershell
-python -m floxml_tools.floxml_add_volume_regions .\model.xml --config .\regions.xlsx -o .\model_with_regions.xml
+python floxml_add_volume_regions.py .\model.xml --config .\regions.xlsx -o .\model_with_regions.xml
 ```
 
 同时新增 grid constraint 和 region：
 
 ```powershell
-python -m floxml_tools.floxml_add_volume_regions .\model.xml --config .\floxml_volume_regions.example.json -o .\model_with_regions.xml
+python floxml_add_volume_regions.py .\model.xml --config .\floxml_volume_regions.example.json -o .\model_with_regions.xml
 ```
 
 给已有 PCB 直接挂 grid constraint：
