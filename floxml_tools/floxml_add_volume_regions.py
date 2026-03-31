@@ -445,12 +445,381 @@ def load_json(path: Path) -> Dict:
         return json.load(fh)
 
 
+# ============================================================================
+# Excel 配置读取
+# ============================================================================
+
+def _split_list(value) -> List[str]:
+    """将逗号分隔的字符串拆分为列表，非字符串原样返回"""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [s.strip() for s in value.split(",") if s.strip()]
+    if isinstance(value, (list, tuple)):
+        return [str(v).strip() for v in value if str(v).strip()]
+    return [str(value)]
+
+
+def _parse_bool(value) -> Optional[bool]:
+    """解析布尔值"""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    s = str(value).strip().lower()
+    if s in ("true", "1", "yes"):
+        return True
+    if s in ("false", "0", "no", ""):
+        return False
+    return None
+
+
+def _parse_number(value):
+    """解析数值，失败则返回 None"""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _row_dict(ws, row: int, headers: List[str]) -> Dict:
+    """将一行数据转为 {header: value} dict，跳过全空行"""
+    values = []
+    for col_idx in range(1, len(headers) + 1):
+        values.append(ws.cell(row=row, column=col_idx).value)
+    if all(v is None for v in values):
+        return {}
+    return dict(zip(headers, values))
+
+
+def _read_grid_constraints_sheet(ws) -> List[Dict]:
+    """读取 grid_constraints sheet"""
+    headers = [str(ws.cell(row=1, column=c).value or "").strip() for c in range(1, ws.max_column + 1)]
+    if not headers or not headers[0]:
+        return []
+
+    results = []
+    for row in range(2, ws.max_row + 1):
+        rd = _row_dict(ws, row, headers)
+        if not rd:
+            continue
+        name = str(rd.get("name", "")).strip()
+        if not name:
+            continue
+
+        entry: Dict = {"name": name}
+
+        v = _parse_bool(rd.get("enable_min_cell_size"))
+        if v is not None:
+            entry["enable_min_cell_size"] = v
+
+        v = _parse_number(rd.get("min_cell_size"))
+        if v is not None:
+            entry["min_cell_size"] = v
+
+        v = rd.get("number_cells_control")
+        if v and str(v).strip():
+            entry["number_cells_control"] = str(v).strip()
+
+        v = _parse_number(rd.get("min_number"))
+        if v is not None:
+            entry["min_number"] = int(v)
+
+        # high_inflation 子对象
+        hi = {}
+        for key, json_key in [
+            ("high_inflation_type", "inflation_type"),
+            ("high_inflation_size", "inflation_size"),
+            ("high_inflation_number_cells_control", "number_cells_control"),
+            ("high_inflation_min_number", "min_number"),
+        ]:
+            raw = rd.get(key)
+            if raw is None or str(raw).strip() == "":
+                continue
+            if json_key == "min_number":
+                hi[json_key] = int(float(raw))
+            elif json_key == "inflation_size":
+                hi[json_key] = float(raw)
+            else:
+                hi[json_key] = str(raw).strip()
+        if hi:
+            entry["high_inflation"] = hi
+
+        results.append(entry)
+    return results
+
+
+def _read_object_constraints_sheet(ws) -> List[Dict]:
+    """读取 object_constraints sheet"""
+    headers = [str(ws.cell(row=1, column=c).value or "").strip() for c in range(1, ws.max_column + 1)]
+    if not headers or not headers[0]:
+        return []
+
+    results = []
+    for row in range(2, ws.max_row + 1):
+        rd = _row_dict(ws, row, headers)
+        if not rd:
+            continue
+
+        entry: Dict = {}
+
+        names = _split_list(rd.get("target_names"))
+        if names:
+            entry["target_names"] = names
+
+        patterns = _split_list(rd.get("target_patterns"))
+        if patterns:
+            entry["target_patterns"] = patterns
+
+        tags = _split_list(rd.get("target_tags"))
+        if tags:
+            entry["target_tags"] = tags
+
+        v = rd.get("scope_assembly")
+        if v and str(v).strip():
+            entry["scope_assembly"] = str(v).strip()
+
+        for col_tag in ("x_grid_constraint", "y_grid_constraint", "z_grid_constraint", "all_grid_constraint"):
+            v = rd.get(col_tag)
+            if v and str(v).strip():
+                entry[col_tag] = str(v).strip()
+
+        v = _parse_bool(rd.get("localized_grid"))
+        if v is not None:
+            entry["localized_grid"] = v
+
+        if entry:
+            results.append(entry)
+    return results
+
+
+def _read_regions_sheet(ws) -> List[Dict]:
+    """读取 regions sheet（支持 explicit 和 bbox 两种模式）"""
+    headers = [str(ws.cell(row=1, column=c).value or "").strip() for c in range(1, ws.max_column + 1)]
+    if not headers or not headers[0]:
+        return []
+
+    results = []
+    for row in range(2, ws.max_row + 1):
+        rd = _row_dict(ws, row, headers)
+        if not rd:
+            continue
+
+        name = str(rd.get("name", "")).strip()
+        if not name:
+            continue
+
+        entry: Dict = {"name": name}
+
+        # parent_assembly
+        v = rd.get("parent_assembly")
+        if v and str(v).strip():
+            entry["parent_assembly"] = str(v).strip()
+
+        # 判断 bbox 模式还是 explicit 模式
+        bbox_names = _split_list(rd.get("bbox_include_names"))
+        bbox_patterns = _split_list(rd.get("bbox_include_patterns"))
+
+        if bbox_names or bbox_patterns:
+            # bbox 模式
+            bbox: Dict = {}
+            if bbox_names:
+                bbox["include_names"] = bbox_names
+            if bbox_patterns:
+                bbox["include_patterns"] = bbox_patterns
+            tags = _split_list(rd.get("bbox_include_tags"))
+            if tags:
+                bbox["include_tags"] = tags
+            scope = rd.get("bbox_scope_assembly")
+            if scope and str(scope).strip():
+                bbox["scope_assembly"] = str(scope).strip()
+
+            # padding: 单值或逗号分隔 3 值
+            raw_padding = rd.get("bbox_padding")
+            if raw_padding is not None and str(raw_padding).strip():
+                parts = [s.strip() for s in str(raw_padding).split(",") if s.strip()]
+                if len(parts) == 1:
+                    bbox["padding"] = float(parts[0])
+                elif len(parts) == 3:
+                    bbox["padding"] = [float(p) for p in parts]
+
+            entry["bbox_from"] = bbox
+        else:
+            # explicit 模式
+            pos_x = _parse_number(rd.get("position_x"))
+            pos_y = _parse_number(rd.get("position_y"))
+            pos_z = _parse_number(rd.get("position_z"))
+            if pos_x is not None or pos_y is not None or pos_z is not None:
+                entry["position"] = [pos_x or 0.0, pos_y or 0.0, pos_z or 0.0]
+
+            size_x = _parse_number(rd.get("size_x"))
+            size_y = _parse_number(rd.get("size_y"))
+            size_z = _parse_number(rd.get("size_z"))
+            if size_x is not None or size_y is not None or size_z is not None:
+                entry["size"] = [size_x or 0.0, size_y or 0.0, size_z or 0.0]
+
+        # 公共字段
+        for col_tag in ("x_grid_constraint", "y_grid_constraint", "z_grid_constraint", "all_grid_constraint"):
+            v = rd.get(col_tag)
+            if v and str(v).strip():
+                entry[col_tag] = str(v).strip()
+
+        v = _parse_bool(rd.get("active"))
+        if v is not None:
+            entry["active"] = v
+
+        v = _parse_bool(rd.get("hidden"))
+        if v is not None:
+            entry["hidden"] = v
+
+        v = _parse_bool(rd.get("localized_grid"))
+        if v is not None:
+            entry["localized_grid"] = v
+
+        results.append(entry)
+    return results
+
+
+def load_excel(path: Path) -> Dict:
+    """从 Excel 文件读取配置，返回与 JSON 格式相同的 dict"""
+    try:
+        from openpyxl import load_workbook as _load_wb
+    except ImportError:
+        raise ImportError("需要安装 openpyxl 来读取 Excel 配置: pip install openpyxl")
+
+    wb = _load_wb(str(path), read_only=True, data_only=True)
+    config: Dict = {}
+
+    for sheet_name in ("grid_constraints", "object_constraints", "regions"):
+        ws = wb[sheet_name] if sheet_name in wb.sheetnames else None
+        if ws is None:
+            continue
+        if sheet_name == "grid_constraints":
+            data = _read_grid_constraints_sheet(ws)
+            if data:
+                config["grid_constraints"] = data
+        elif sheet_name == "object_constraints":
+            data = _read_object_constraints_sheet(ws)
+            if data:
+                config["object_constraints"] = data
+        elif sheet_name == "regions":
+            data = _read_regions_sheet(ws)
+            if data:
+                config["regions"] = data
+
+    wb.close()
+    return config
+
+
+def load_config(path: Path) -> Dict:
+    """自动识别 JSON / Excel 配置文件"""
+    suffix = path.suffix.lower()
+    if suffix in (".xlsx", ".xls", ".xlsm"):
+        return load_excel(path)
+    return load_json(path)
+
+
+def create_template_excel(output_path: str) -> None:
+    """创建 volume regions 配置的 Excel 模板"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment
+
+    wb = Workbook()
+    header_font = Font(bold=True)
+    center_align = Alignment(horizontal='center')
+
+    def _write_headers(ws, headers):
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.alignment = center_align
+
+    def _set_col_widths(ws, width=18):
+        for idx in range(1, ws.max_column + 1):
+            ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = width
+
+    # ── Sheet 1: grid_constraints ──
+    ws1 = wb.active
+    ws1.title = "grid_constraints"
+    _write_headers(ws1, [
+        "name", "enable_min_cell_size", "min_cell_size", "number_cells_control", "min_number",
+        "high_inflation_type", "high_inflation_size",
+        "high_inflation_number_cells_control", "high_inflation_min_number",
+    ])
+    example1 = [
+        ["Grid Constraint 1", "true", 0.001, "min_number", 43, "size", 0.005, "min_number", 23],
+    ]
+    for r, row_data in enumerate(example1, 2):
+        for c, val in enumerate(row_data, 1):
+            ws1.cell(row=r, column=c, value=val)
+    _set_col_widths(ws1)
+
+    # ── Sheet 2: object_constraints ──
+    ws2 = wb.create_sheet("object_constraints")
+    _write_headers(ws2, [
+        "target_names", "target_patterns", "target_tags", "scope_assembly",
+        "x_grid_constraint", "y_grid_constraint", "z_grid_constraint", "all_grid_constraint",
+        "localized_grid",
+    ])
+    example2 = [
+        ["PCB", "", "cuboid", "", "", "", "", "Grid Constraint 1", "false"],
+    ]
+    for r, row_data in enumerate(example2, 2):
+        for c, val in enumerate(row_data, 1):
+            ws2.cell(row=r, column=c, value=val)
+    _set_col_widths(ws2)
+
+    # ── Sheet 3: regions ──
+    ws3 = wb.create_sheet("regions")
+    _write_headers(ws3, [
+        "name", "parent_assembly",
+        "position_x", "position_y", "position_z", "size_x", "size_y", "size_z",
+        "bbox_include_names", "bbox_include_patterns", "bbox_include_tags",
+        "bbox_scope_assembly", "bbox_padding",
+        "active", "hidden", "localized_grid",
+        "x_grid_constraint", "y_grid_constraint", "z_grid_constraint", "all_grid_constraint",
+    ])
+    example3 = [
+        # explicit 模式示例
+        ["Explicit Volume Region", "", -0.01, -0.01, -0.002, 0.12, 0.08, 0.01,
+         "", "", "", "", "",
+         "", "", "true", "Grid Constraint 1", "", "", ""],
+        # bbox 模式示例
+        ["BBox Region Around PCB", "DemoBoard_Assembly",
+         "", "", "", "", "", "",
+         "PCB", "U*", "cuboid", "", "0.001,0.001,0.0005",
+         "", "", "true", "", "", "", "Grid Constraint 1"],
+    ]
+    for r, row_data in enumerate(example3, 2):
+        for c, val in enumerate(row_data, 1):
+            ws3.cell(row=r, column=c, value=val)
+    _set_col_widths(ws3)
+
+    wb.save(output_path)
+    print(f"[OK] 模板已创建: {output_path}")
+
+
+# ============================================================================
+# CLI 接口
+# ============================================================================
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Add volume regions to FloXML using JSON config")
-    parser.add_argument("input", help="Input FloXML file")
-    parser.add_argument("--config", required=True, help="Region JSON config")
+    parser = argparse.ArgumentParser(description="Add volume regions to FloXML using JSON or Excel config")
+    parser.add_argument("input", nargs="?", help="Input FloXML file")
+    parser.add_argument("--config", help="Region config file (.json or .xlsx)")
     parser.add_argument("-o", "--output", help="Output FloXML file")
+    parser.add_argument("--create-template", metavar="PATH",
+                        help="Create an example Excel template at PATH")
     args = parser.parse_args()
+
+    if args.create_template:
+        create_template_excel(args.create_template)
+        return 0
+
+    if not args.input or not args.config:
+        parser.error("input and --config are required (unless using --create-template)")
 
     input_path = Path(args.input)
     config_path = Path(args.config)
@@ -458,7 +827,7 @@ def main() -> int:
 
     tree = ET.parse(input_path)
     root = tree.getroot()
-    config = load_json(config_path)
+    config = load_config(config_path)
     root = add_regions(root, config)
     indent_xml(root)
     tree.write(output_path, encoding="utf-8", xml_declaration=True)
