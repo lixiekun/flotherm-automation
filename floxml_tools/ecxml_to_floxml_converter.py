@@ -131,6 +131,7 @@ class ConversionConfig:
     grid_config_file: Optional[str] = None  # Excel 网格配置文件路径
     template_file: Optional[str] = None  # FloXML 模板文件路径
     floxml_source: Optional[str] = None  # 源 FloXML/PDML 文件路径（用于提取网格设置）
+    config_file: Optional[str] = None  # 统一 JSON 配置文件路径（注入属性/分配）
 
     @classmethod
     def from_template(cls, filepath: str) -> 'ConversionConfig':
@@ -1002,6 +1003,12 @@ class ECXMLToFloXMLConverter:
             builder = FloXMLBuilder(self.config)
             root = builder.build_project(ecxml_data)
 
+            # 注入 JSON 配置（surface、radiation、fan、thermal 等）
+            if self.config.config_file:
+                from .config_injector import ConfigInjector
+                injector = ConfigInjector(self.config.config_file)
+                injector.inject(root)
+
             # 如果提供了源 FloXML，注入网格设置
             if self.config.floxml_source:
                 self._inject_grid_from_floxml(root, self.config.floxml_source)
@@ -1325,6 +1332,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--grid-config", type=str,
                         help="Excel 网格配置文件路径")
 
+    # 统一 JSON 配置（注入 surface/radiation/fan/thermal/resistance 等）
+    parser.add_argument("--config", type=str,
+                        help="统一 JSON 配置文件路径（注入属性定义和分配）")
+
     # 源 PDML/FloXML（提取网格）
     parser.add_argument("--pdml", type=str,
                         help="源 PDML 或 FloXML 文件路径，用于提取网格设置")
@@ -1357,6 +1368,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             outer_iterations=args.outer_iterations,
             grid_config_file=args.grid_config,
             floxml_source=args.pdml,
+            config_file=args.config,
         )
 
     converter = ECXMLToFloXMLConverter(config)

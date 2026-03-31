@@ -1,0 +1,226 @@
+{
+  "_comment": "统一 FloXML JSON 配置 — 所有 section 均为可选，只写需要的即可",
+
+  "model": {
+    "modeling": {
+      "solution": "flow_heat",
+      "radiation": "on",
+      "dimensionality": "3d",
+      "transient": false,
+      "store_mass_flux": false,
+      "store_heat_flux": false,
+      "store_surface_temp": false,
+      "store_grad_t": false,
+      "store_bn_sc": false,
+      "store_power_density": false,
+      "store_mean_radiant_temperature": false,
+      "compute_capture_index": false,
+      "user_defined_subgroups": false,
+      "store_lma": false
+    },
+    "turbulence": {
+      "type": "turbulent",
+      "turbulence_type": "auto_algebraic"
+    },
+    "gravity": {
+      "type": "normal",
+      "normal_direction": "neg_y",
+      "value_type": "user",
+      "gravity_value": 9.81
+    },
+    "global": {
+      "datum_pressure": 101325,
+      "radiant_temperature": 300,
+      "ambient_temperature": 300,
+      "concentration_1": 0,
+      "concentration_2": 0,
+      "concentration_3": 0,
+      "concentration_4": 0,
+      "concentration_5": 0
+    }
+  },
+
+  "solve": {
+    "overall_control": {
+      "outer_iterations": 500,
+      "fan_relaxation": 1,
+      "estimated_free_convection_velocity": 0.2,
+      "solver_option": "multi_grid",
+      "active_plate_conduction": false,
+      "use_double_precision": false,
+      "network_assembly_block_correction": false,
+      "freeze_flow": false,
+      "store_error_field": false
+    }
+  },
+
+  "fluid": {
+    "name": "Air",
+    "conductivity_type": "constant",
+    "conductivity": 0.0261,
+    "viscosity_type": "constant",
+    "viscosity": 0.0000184,
+    "density_type": "constant",
+    "density": 1.16,
+    "specific_heat": 1008,
+    "expansivity": 0.003,
+    "diffusivity": 0
+  },
+
+  "ambient": {
+    "name": "Ambient",
+    "pressure": 0,
+    "temperature": 300,
+    "radiant_temperature": 300,
+    "heat_transfer_coeff": 0,
+    "velocity": { "x": 0, "y": 0, "z": 0 },
+    "turbulent_kinetic_energy": 0,
+    "turbulent_dissipation_rate": 0,
+    "concentration_1": 0,
+    "concentration_2": 0,
+    "concentration_3": 0,
+    "concentration_4": 0,
+    "concentration_5": 0
+  },
+
+  "attributes": {
+
+    "surfaces": [
+      {
+        "name": "Paint",
+        "emissivity": 0.88,
+        "roughness": 0,
+        "rsurf_fluid": 0,
+        "rsurf_solid": 0,
+        "area_factor": 1
+      }
+    ],
+
+    "surface_exchanges": [
+      {
+        "name": "TIM_Paste",
+        "heat_transfer_method": "surface",
+        "heat_transfer_coefficient": "specified",
+        "specified_constant_value": 5000,
+        "reference_temperature": "calculated"
+      }
+    ],
+
+    "radiations": [
+      {
+        "name": "SubDiv1",
+        "surface": "subdivided_radiating",
+        "min_area": 0,
+        "subdivided_surface_tolerance": 0.01
+      }
+    ],
+
+    "resistances": [
+      {
+        "name": "PerforatedPlate",
+        "loss_coefficients_based_on": "approach_velocity",
+        "transparent_to_radiation": true,
+        "resistance_z": {
+          "a_coefficient": 1,
+          "b_coefficient": 0,
+          "free_area_ratio": 0.4,
+          "length_scale": 1,
+          "index": 1
+        }
+      }
+    ],
+
+    "fans": [
+      {
+        "name": "SystemFan",
+        "flow_type": "normal",
+        "flow_spec": "non_linear",
+        "open_volume_flow_rate": 0.05,
+        "stagnation_pressure": 200,
+        "fan_curve_points": [
+          {"volume_flow": 0, "pressure": 200},
+          {"volume_flow": 0.01, "pressure": 195},
+          {"volume_flow": 0.03, "pressure": 120},
+          {"volume_flow": 0.05, "pressure": 0}
+        ]
+      }
+    ],
+
+    "thermals": [
+      {
+        "name": "FixedTemp",
+        "thermal_model": "fixed_temperature",
+        "fixed_temperature": 85
+      }
+    ],
+
+    "transients": [
+      {
+        "name": "StepPower",
+        "trans_curve_points": [
+          {"time": 0, "coef": 0},
+          {"time": 1, "coef": 1}
+        ],
+        "periodic": false
+      }
+    ],
+
+    "materials": [
+      {
+        "name": "PCB_FR4",
+        "type": "orthotropic",
+        "x_conductivity": 20,
+        "y_conductivity": 20,
+        "z_conductivity": 0.3,
+        "density": 1900,
+        "specific_heat": 600
+      }
+    ],
+
+    "grid_constraints": [
+      {
+        "name": "Fin_Constraint",
+        "enable_min_cell_size": true,
+        "min_cell_size": 0.0005,
+        "number_cells_control": "min_number",
+        "min_number": 20
+      }
+    ]
+  },
+
+  "geometry": {
+    "assignments": [
+      {
+        "target_names": ["Base"],
+        "target_tags": ["cuboid"],
+        "properties": {
+          "x_high_surface": "Paint",
+          "x_low_surface": "Paint",
+          "y_high_surface": "Paint",
+          "y_low_surface": "Paint",
+          "z_high_surface": "Paint",
+          "z_low_surface": "Paint"
+        }
+      },
+      {
+        "target_patterns": ["Fin*"],
+        "target_tags": ["assembly"],
+        "properties": {
+          "x_grid_constraint": "Fin_Constraint"
+        }
+      }
+    ]
+  },
+
+  "regions": [
+    {
+      "name": "FinRegion",
+      "bbox_from": {
+        "include_patterns": ["Fin*"],
+        "padding": [0.001, 0.001, 0.001]
+      },
+      "localized_grid": true,
+      "all_grid_constraint": "Fin_Constraint"
+    }
+  ]
+}
