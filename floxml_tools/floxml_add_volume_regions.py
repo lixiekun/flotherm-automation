@@ -376,6 +376,105 @@ def _resolve_region_geometry(
     return position, size  # type: ignore[return-value]
 
 
+def _item_overlaps_bbox(item: GeometryItem, lower: Vector3, upper: Vector3) -> bool:
+    """Check if a geometry item's bbox overlaps with the given bbox."""
+    if item.global_size is None:
+        return False
+    for i in range(3):
+        item_hi = item.global_position[i] + item.global_size[i]
+        if item.global_position[i] >= upper[i] or item_hi <= lower[i]:
+            return False
+    return True
+
+
+def _decompose_selected_items(
+    selected_items: List[GeometryItem],
+    root_geometry: ET.Element,
+) -> List[List[GeometryItem]]:
+    """
+    Recursively decompose selected items into rectangular groups that
+    don't include non-selected geometry items within each group's bbox.
+
+    Algorithm:
+    1. Compute overall bbox of selected items
+    2. Find obstacles (non-selected items within the bbox)
+    3. If no obstacles → single group
+    4. Try splitting along each axis at item boundaries
+    5. Pick the split that minimizes remaining obstacles
+    6. Recurse on each sub-group
+    """
+    if len(selected_items) <= 1:
+        return [selected_items] if selected_items else []
+
+    lower, upper = _compute_bbox(selected_items)
+
+    # Find obstacles: non-selected items within the overall bbox
+    selected_ids = {id(item.element) for item in selected_items}
+    obstacles: List[GeometryItem] = []
+    for item in _iter_all_geometry_items(root_geometry):
+        if id(item.element) in selected_ids:
+            continue
+        if item.global_size is None:
+            continue
+        if _item_overlaps_bbox(item, lower, upper):
+            obstacles.append(item)
+
+    if not obstacles:
+        return [selected_items]
+
+    # Find the best split across all axes
+    best = None
+    tol = 1e-9
+
+    for axis in range(3):
+        # Collect boundary positions of all items on this axis
+        boundaries = set()
+        for item in selected_items:
+            lo = item.global_position[axis]
+            hi = lo + (item.global_size[axis] if item.global_size else 0)
+            boundaries.add(lo)
+            boundaries.add(hi)
+
+        for split_val in sorted(boundaries):
+            if split_val <= lower[axis] + tol or split_val >= upper[axis] - tol:
+                continue
+
+            group_a = [
+                item for item in selected_items
+                if item.global_position[axis] + (item.global_size[axis] if item.global_size else 0) <= split_val + tol
+            ]
+            group_b = [
+                item for item in selected_items
+                if item.global_position[axis] >= split_val - tol
+            ]
+
+            if not group_a or not group_b:
+                continue
+
+            # Score: fewer obstacles in sub-bboxes is better
+            score = 0
+            for group in (group_a, group_b):
+                if len(group) == len(selected_items):
+                    # Split didn't actually divide anything
+                    score = float("inf")
+                    break
+                gl, gu = _compute_bbox(group)
+                score += sum(1 for o in obstacles if _item_overlaps_bbox(o, gl, gu))
+
+            if score < (best[0] if best else float("inf")):
+                best = (score, group_a, group_b)
+
+    if best is None:
+        # Can't split, return individual items
+        return [[item] for item in selected_items]
+
+    _, group_a, group_b = best
+    results = []
+    results.extend(_decompose_selected_items(group_a, root_geometry))
+    results.extend(_decompose_selected_items(group_b, root_geometry))
+    return results
+
+
 def _target_geometry(root_geometry: ET.Element, region_cfg: Dict) -> Tuple[ET.Element, Vector3]:
     parent_assembly = region_cfg.get("parent_assembly")
     if not parent_assembly:
@@ -418,11 +517,40 @@ def add_regions(root: ET.Element, config: Dict) -> ET.Element:
         if not name:
             raise ValueError("Each region requires a name")
 
-        global_position, size = _resolve_region_geometry(geometry, region_cfg)
-        target_geometry, parent_offset = _target_geometry(geometry, region_cfg)
-        local_position = _vector_sub(global_position, parent_offset)
-        region_elem = _build_region_element(name, local_position, size, region_cfg)
-        target_geometry.append(region_elem)
+        bbox_cfg = region_cfg.get("bbox_from")
+        split = bbox_cfg.get("split_regions", False) if bbox_cfg else False
+
+        if split:
+            # Decompose into multiple rectangular regions avoiding obstacles
+            include_names = list(bbox_cfg.get("include_names", []))
+            include_patterns = list(bbox_cfg.get("include_patterns", []))
+            include_tags = list(bbox_cfg.get("include_tags", []))
+            scope_assembly = bbox_cfg.get("scope_assembly")
+            matches = _match_items(geometry, include_names, include_patterns, include_tags, scope_assembly)
+            if not matches:
+                raise ValueError(
+                    f"bbox_from target did not match any geometry for region '{name}': "
+                    f"names={include_names}, patterns={include_patterns}, tags={include_tags}"
+                )
+
+            groups = _decompose_selected_items(matches, geometry)
+            padding = _normalize_padding(bbox_cfg.get("padding", 0.0))
+
+            for i, group in enumerate(groups):
+                sub_name = f"{name}_{i+1}" if len(groups) > 1 else name
+                lower, upper = _compute_bbox(group)
+                global_position = tuple(lower[j] - padding[j] for j in range(3))
+                size = tuple((upper[j] - lower[j]) + (2.0 * padding[j]) for j in range(3))
+                target_geometry_elem, parent_offset = _target_geometry(geometry, region_cfg)
+                local_position = _vector_sub(global_position, parent_offset)
+                region_elem = _build_region_element(sub_name, local_position, size, region_cfg)
+                target_geometry_elem.append(region_elem)
+        else:
+            global_position, size = _resolve_region_geometry(geometry, region_cfg)
+            target_geometry_elem, parent_offset = _target_geometry(geometry, region_cfg)
+            local_position = _vector_sub(global_position, parent_offset)
+            region_elem = _build_region_element(name, local_position, size, region_cfg)
+            target_geometry_elem.append(region_elem)
 
     return root
 
@@ -645,6 +773,11 @@ def _read_regions_sheet(ws) -> List[Dict]:
                 elif len(parts) == 3:
                     bbox["padding"] = [float(p) for p in parts]
 
+            # split_regions: auto-split to avoid non-selected items
+            v = _parse_bool(rd.get("split_regions"))
+            if v:
+                bbox["split_regions"] = True
+
             entry["bbox_from"] = bbox
         else:
             # explicit 模式
@@ -777,7 +910,7 @@ def create_template_excel(output_path: str) -> None:
         "name", "parent_assembly",
         "position_x", "position_y", "position_z", "size_x", "size_y", "size_z",
         "bbox_include_names", "bbox_include_patterns", "bbox_include_tags",
-        "bbox_scope_assembly", "bbox_padding",
+        "bbox_scope_assembly", "bbox_padding", "split_regions",
         "active", "hidden", "localized_grid",
         "x_grid_constraint", "y_grid_constraint", "z_grid_constraint", "all_grid_constraint",
     ])
@@ -789,8 +922,13 @@ def create_template_excel(output_path: str) -> None:
         # bbox 模式示例
         ["BBox Region Around PCB", "DemoBoard_Assembly",
          "", "", "", "", "", "",
-         "PCB", "U*", "cuboid", "", "0.001,0.001,0.0005",
+         "PCB", "U*", "cuboid", "", "0.001,0.001,0.0005", "",
          "", "", "true", "", "", "", "Grid Constraint 1"],
+        # bbox + split_regions 模式示例
+        ["Split Region L-Shape", "",
+         "", "", "", "", "", "",
+         "C1,C2,C3,C4,C7", "", "", "", "0.05", "true",
+         "", "true", "", "", "", "Grid Constraint 1"],
     ]
     for r, row_data in enumerate(example3, 2):
         for c, val in enumerate(row_data, 1):

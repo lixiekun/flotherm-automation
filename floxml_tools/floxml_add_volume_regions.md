@@ -149,6 +149,55 @@ python floxml_add_volume_regions.py input.xml --config config.xlsx -o output.xml
 - `bbox_include_names` 和 `bbox_include_patterns` 用逗号分隔多个值
 - 3 个 Sheet 都是可选的，缺少的 Sheet 会被跳过
 
+### `split_regions` — 自动拆分避开未选中对象
+
+当 `bbox_from` 选中的几何体之间有未选中的对象时，单个矩形 region 会把未选中对象也包进去。开启 `split_regions` 后，脚本会自动把选中对象拆分成多个矩形 region，每个 region 都不会包含未选中的对象。
+
+例如 3×3 九宫格中选中 1,2,3,4,7（L 形）：
+
+```
+┌───┬───┬───┐       ┌───┬───┬───┐
+│ 1 │ 2 │ 3 │       │ R1│ R1│ R1│
+├───┼───┼───┤       ├───┼───┼───┤
+│ 4 │ 5 │ 6 │  →    │R2 │ 5 │ 6 │
+├───┼───┼───┤       ├───┼───┼───┤
+│ 7 │ 8 │ 9 │       │R2 │ 8 │ 9 │
+└───┴───┴───┘       └───┴───┴───┘
+```
+
+结果：2 个 region（R1=顶行, R2=左列）
+
+JSON 配置：
+
+```json
+{
+  "regions": [
+    {
+      "name": "LShape",
+      "bbox_from": {
+        "include_names": ["C1", "C2", "C3", "C4", "C7"],
+        "split_regions": true,
+        "padding": 0.05
+      }
+    }
+  ]
+}
+```
+
+Excel 配置（regions sheet 加列 `split_regions`）：
+
+| name | ... | bbox_include_names | bbox_padding | split_regions | ... |
+|------|-----|-------------------|-------------|--------------|-----|
+| LShape | | C1,C2,C3,C4,C7 | 0.05 | true | |
+
+**拆分规则**：
+
+- 递归地沿 x/y/z 轴尝试切分选中对象
+- 优先选择使子区域中障碍物最少的切分
+- 如果无法切分，退化为单个对象各自的 region
+- 拆分后的 region 命名为 `{name}_1`、`{name}_2` 等（如果只产生 1 个 region，保留原名）
+- 每个子 region 独立应用 `padding` 和 grid constraint 设置
+
 `grid_constraints` 是可选数组，每个元素对应一个 `grid_constraint_att`。如果同名约束已经存在，脚本会更新；如果不存在，就会新建。
 
 `object_constraints` 是可选数组，用来给已有几何对象直接写：
