@@ -275,13 +275,20 @@ python floxml_add_volume_regions.py .\demo.xml --config .\floxml_volume_regions.
 - `padding`：可以是单个数字，或 `[px, py, pz]`
 - `scope_assembly`：可选，只在某个 assembly 范围内找匹配几何
 
-bbox 计算逻辑：
+bbox 计算逻辑（多几何体联合包围盒）：
 
-1. 找到所有匹配的几何对象
-2. 读取它们的 `position + size`
-3. 计算整体包围盒
-4. 按 `padding` 向外扩
-5. 生成 region 的 `position` 和 `size`
+1. **匹配几何体**：遍历整棵几何树，按 `include_names`（精确）和 `include_patterns`（通配符）进行匹配，二者为 OR 关系；`include_tags` 额外做 AND 过滤
+2. **读取全局坐标**：每个匹配到的几何对象，取其 `global_position`（累加了所有父 assembly 的偏移）和 `global_size`
+3. **计算联合包围盒**：对所有匹配体的 xyz 取 min/max，形成一个包含所有匹配体的最小外接矩形：
+   - `lower = (min_x, min_y, min_z)`
+   - `upper = (max_x + size_x, max_y + size_y, max_z + size_z)`
+4. **加 padding**：各方向向外扩 padding 值：
+   - `position = lower - padding`
+   - `size = (upper - lower) + 2 * padding`
+5. **坐标转换**：如果指定了 `parent_assembly`，将全局坐标转换为该 assembly 的局部坐标后再写入 FloXML
+6. **生成 region**：用最终的 position 和 size 构建 `<region>` 元素
+
+举例：匹配到 PCB (0,0,0) size (0.1,0.08,0.002) 和 U1 (0.02,0.02,0.002) size (0.03,0.03,0.001)，联合 bbox 为 lower=(0,0,0) upper=(0.1,0.08,0.003)，加 padding 0.001 后 position=(-0.001,-0.001,-0.001) size=(0.102,0.082,0.005)
 
 ### 如何理解 `bbox_from`
 
