@@ -27,13 +27,26 @@ python floxml_add_volume_regions.py input.xml --config floxml_volume_regions.exa
 参数说明：
 
 - `input`：输入 FloXML 文件
-- `--config`：JSON 配置文件
+- `--config`：配置文件（`.json` 或 `.xlsx`，自动识别）
 - `-o / --output`：输出 FloXML 文件；如果不写，默认输出为 `原文件名_with_regions.xml`
+- `--create-template PATH`：生成 Excel 模板文件
 
-例如：
+例如用 JSON 配置：
 
 ```powershell
-python floxml_add_volume_regions.py .\demo.xml --config .\floxml_volume_regions.example.json -o .\demo_with_regions.xml
+python -m floxml_tools.floxml_add_volume_regions .\demo.xml --config .\config.json -o .\demo_with_regions.xml
+```
+
+用 Excel 配置：
+
+```powershell
+python -m floxml_tools.floxml_add_volume_regions .\demo.xml --config .\config.xlsx -o .\demo_with_regions.xml
+```
+
+生成 Excel 模板：
+
+```powershell
+python -m floxml_tools.floxml_add_volume_regions --create-template template.xlsx
 ```
 
 ## JSON 结构
@@ -66,6 +79,75 @@ python floxml_add_volume_regions.py .\demo.xml --config .\floxml_volume_regions.
 ```
 
 `regions` 是一个数组，每个元素对应一个要插入的 `<region>`。
+
+## Excel 配置
+
+除了 JSON，也支持用 Excel（`.xlsx`）做配置，适合不熟悉 JSON 的用户。
+
+### 生成模板
+
+```powershell
+python -m floxml_tools.floxml_add_volume_regions --create-template volume_regions_template.xlsx
+```
+
+仓库里也有一份现成模板：`examples/FloXML/Spreadsheets/volume_regions_template.xlsx`
+
+### 使用 Excel 配置
+
+```powershell
+python -m floxml_tools.floxml_add_volume_regions input.xml --config config.xlsx -o output.xml
+```
+
+`--config` 参数会自动根据后缀识别 JSON 还是 Excel。
+
+### Excel 结构（3 个 Sheet）
+
+#### Sheet 1: `grid_constraints`
+
+定义 grid constraint，每行一个：
+
+| name | enable_min_cell_size | min_cell_size | number_cells_control | min_number | high_inflation_type | high_inflation_size | high_inflation_number_cells_control | high_inflation_min_number |
+|------|---------------------|---------------|---------------------|------------|--------------------|--------------------|------------------------------------|--------------------------|
+| Grid Constraint 1 | true | 0.001 | min_number | 43 | size | 0.005 | min_number | 23 |
+
+- `high_inflation_*` 列可选，留空表示不设膨胀层
+- 和 `grid_config.py` 的 `grid_constraints` sheet 格式一致
+
+#### Sheet 2: `object_constraints`
+
+给已有几何对象直接挂 grid constraint：
+
+| target_names | target_patterns | target_tags | scope_assembly | x_grid_constraint | y_grid_constraint | z_grid_constraint | all_grid_constraint | localized_grid |
+|-------------|----------------|-------------|---------------|-------------------|-------------------|-------------------|--------------------|----------------|
+| PCB | | cuboid | | | | | Grid Constraint 1 | false |
+
+- `target_names` 和 `target_patterns` 用逗号分隔多个值（如 `PCB,CPU`）
+- 留空的列表示不设该项
+
+#### Sheet 3: `regions`
+
+定义 volume region，每行一个：
+
+| name | parent_assembly | position_x | position_y | position_z | size_x | size_y | size_z | bbox_include_names | bbox_include_patterns | bbox_include_tags | bbox_scope_assembly | bbox_padding | active | hidden | localized_grid | x_grid_constraint | y_grid_constraint | z_grid_constraint | all_grid_constraint |
+|------|----------------|-----------|-----------|-----------|-------|-------|-------|-------------------|---------------------|-----------------|--------------------|------------|--------|--------|---------------|-------------------|-------------------|-------------------|--------------------|
+
+两种模式互斥，优先使用 bbox（如果 bbox 字段有值）：
+
+**显式模式** — 填 `position_x/y/z` + `size_x/y/z`：
+
+| name | ... | position_x | position_y | position_z | size_x | size_y | size_z | bbox_* | ... |
+|------|-----|-----------|-----------|-----------|-------|-------|-------|--------|-----|
+| Explicit Volume Region | | -0.01 | -0.01 | -0.002 | 0.12 | 0.08 | 0.01 | *(留空)* | |
+
+**bbox 模式** — 填 `bbox_include_names` 或 `bbox_include_patterns`：
+
+| name | ... | position/size | bbox_include_names | bbox_include_patterns | bbox_padding | ... |
+|------|-----|--------------|-------------------|---------------------|-------------|-----|
+| BBox Region Around PCB | DemoBoard_Assembly | *(留空)* | PCB | U* | 0.001,0.001,0.0005 | |
+
+- `bbox_padding` 支持单个数字或 `0.001,0.001,0.0005`（逗号分隔 3 值）
+- `bbox_include_names` 和 `bbox_include_patterns` 用逗号分隔多个值
+- 3 个 Sheet 都是可选的，缺少的 Sheet 会被跳过
 
 `grid_constraints` 是可选数组，每个元素对应一个 `grid_constraint_att`。如果同名约束已经存在，脚本会更新；如果不存在，就会新建。
 
@@ -532,9 +614,10 @@ bbox 计算逻辑（多几何体联合包围盒）：
 
 ## 示例配置文件
 
-仓库里提供了一个示例：
+仓库里提供了示例：
 
-- [floxml_volume_regions.example.json](/D:/Program%20Files/Siemens/SimcenterFlotherm/2504/flotherm-automation/floxml_volume_regions.example.json)
+- JSON 示例：`floxml_volume_regions.example.json`
+- Excel 模板：`examples/FloXML/Spreadsheets/volume_regions_template.xlsx`
 
 你可以直接复制一份再改。
 
@@ -543,13 +626,19 @@ bbox 计算逻辑（多几何体联合包围盒）：
 只加一个手工 region：
 
 ```powershell
-python floxml_add_volume_regions.py .\model.xml --config .\my_regions.json -o .\model_with_regions.xml
+python -m floxml_tools.floxml_add_volume_regions .\model.xml --config .\my_regions.json -o .\model_with_regions.xml
+```
+
+用 Excel 配置：
+
+```powershell
+python -m floxml_tools.floxml_add_volume_regions .\model.xml --config .\regions.xlsx -o .\model_with_regions.xml
 ```
 
 同时新增 grid constraint 和 region：
 
 ```powershell
-python floxml_add_volume_regions.py .\model.xml --config .\floxml_volume_regions.example.json -o .\model_with_regions.xml
+python -m floxml_tools.floxml_add_volume_regions .\model.xml --config .\floxml_volume_regions.example.json -o .\model_with_regions.xml
 ```
 
 给已有 PCB 直接挂 grid constraint：
