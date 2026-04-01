@@ -381,23 +381,19 @@ def _resolve_region_geometry(
     return position, size  # type: ignore[return-value]
 
 
-def _compute_coverage_2d(items: List[GeometryItem]) -> float:
-    """Compute how much of the items' bbox is covered on the dominant 2D plane (0 to 1)."""
-    if len(items) <= 1:
-        return 1.0
+def _bbox_volume(items: List[GeometryItem]) -> float:
+    """Compute bbox volume of a group of items."""
     lower, upper = _compute_bbox(items)
-    spans = [upper[i] - lower[i] for i in range(3)]
-    # Use the two axes with the most spread
-    axes = sorted(range(3), key=lambda i: spans[i], reverse=True)[:2]
-    bbox_area = spans[axes[0]] * spans[axes[1]]
-    if bbox_area <= 0:
-        return 1.0
-    item_area = sum(
-        item.global_size[axes[0]] * item.global_size[axes[1]]
+    return (upper[0] - lower[0]) * (upper[1] - lower[1]) * (upper[2] - lower[2])
+
+
+def _item_volume_sum(items: List[GeometryItem]) -> float:
+    """Sum of individual item volumes."""
+    return sum(
+        s[0] * s[1] * s[2]
         for item in items
-        if item.global_size
+        if (s := item.global_size)
     )
-    return min(item_area / bbox_area, 1.0)
 
 
 def _decompose_selected_items(
@@ -405,23 +401,25 @@ def _decompose_selected_items(
     root_geometry: ET.Element,
 ) -> List[List[GeometryItem]]:
     """
-    Recursively decompose selected items into rectangular groups based on
-    spatial arrangement (L/U/T-shape decomposition).
+    Recursively decompose selected items into rectangular groups that
+    minimize total region volume (L/U/T-shape decomposition).
 
     Algorithm:
-    1. If items form a tight rectangle (coverage > 95%) → single group
+    1. If bbox volume ≈ sum of item volumes → tight fit, single group
     2. Try splitting along each axis at item boundaries
-    3. Pick the split that maximizes total coverage ratio
+    3. Pick the split that minimizes total bbox volume (greedy)
     4. Recurse on each sub-group
 
-    This produces the minimum number of rectangular regions that cover all
-    selected items. For example, 3 items in an L-shape → 2 regions.
+    Produces at most N regions for N items. For example:
+    3 items in L-shape → 2 regions (total volume < single big bbox).
     """
     if len(selected_items) <= 1:
         return [selected_items] if selected_items else []
 
-    # If items already form a tight rectangle, no split needed
-    if _compute_coverage_2d(selected_items) > 0.95:
+    # If bbox volume is close to item volume sum, items form a tight rectangle
+    bbox_vol = _bbox_volume(selected_items)
+    item_vol = _item_volume_sum(selected_items)
+    if item_vol > 0 and bbox_vol / item_vol < 1.05:
         return [selected_items]
 
     lower, upper = _compute_bbox(selected_items)
@@ -460,14 +458,15 @@ def _decompose_selected_items(
             if len(group_a) == len(selected_items) or len(group_b) == len(selected_items):
                 continue
 
-            # Score: prefer splits that maximize total coverage ratio
-            score = _compute_coverage_2d(group_a) + _compute_coverage_2d(group_b)
+            # Score: total bbox volume after split (lower is better)
+            score = _bbox_volume(group_a) + _bbox_volume(group_b)
 
-            if best is None or score > best[0]:
+            if best is None or score < best[0]:
                 best = (score, group_a, group_b)
 
-    if best is None:
-        return [[item] for item in selected_items]
+    # If best split doesn't improve over single bbox, keep single group
+    if best is None or best[0] >= bbox_vol:
+        return [selected_items]
 
     _, group_a, group_b = best
     results: List[List[GeometryItem]] = []
