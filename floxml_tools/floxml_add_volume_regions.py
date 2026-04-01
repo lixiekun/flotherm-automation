@@ -399,19 +399,25 @@ def _item_volume_sum(items: List[GeometryItem]) -> float:
 def _decompose_selected_items(
     selected_items: List[GeometryItem],
     root_geometry: ET.Element,
+    min_volume_reduction: float = 0.2,
 ) -> List[List[GeometryItem]]:
     """
     Recursively decompose selected items into rectangular groups that
-    minimize total region volume (L/U/T-shape decomposition).
+    minimize total region volume, balanced against region count.
 
     Algorithm:
     1. If bbox volume ≈ sum of item volumes → tight fit, single group
     2. Try splitting along each axis at item boundaries
     3. Pick the split that minimizes total bbox volume (greedy)
-    4. Recurse on each sub-group
+    4. Only split if volume reduction > min_volume_reduction (default 20%)
+    5. Recurse on each sub-group
+
+    min_volume_reduction: fraction (0-1). Split only when it reduces total
+    volume by at least this fraction. Higher = fewer regions, lower = less
+    wasted volume. Default 0.2 (20%).
 
     Produces at most N regions for N items. For example:
-    3 items in L-shape → 2 regions (total volume < single big bbox).
+    3 items in L-shape → volume drops 25% > 20% threshold → 2 regions.
     """
     if len(selected_items) <= 1:
         return [selected_items] if selected_items else []
@@ -464,14 +470,18 @@ def _decompose_selected_items(
             if best is None or score < best[0]:
                 best = (score, group_a, group_b)
 
-    # If best split doesn't improve over single bbox, keep single group
-    if best is None or best[0] >= bbox_vol:
+    # Check if best split reduces volume enough to justify an extra region
+    if best is None or bbox_vol <= 0:
+        return [selected_items]
+
+    reduction = (bbox_vol - best[0]) / bbox_vol
+    if reduction < min_volume_reduction:
         return [selected_items]
 
     _, group_a, group_b = best
     results: List[List[GeometryItem]] = []
-    results.extend(_decompose_selected_items(group_a, root_geometry))
-    results.extend(_decompose_selected_items(group_b, root_geometry))
+    results.extend(_decompose_selected_items(group_a, root_geometry, min_volume_reduction))
+    results.extend(_decompose_selected_items(group_b, root_geometry, min_volume_reduction))
     return results
 
 
@@ -548,7 +558,10 @@ def add_regions(root: ET.Element, config: Dict) -> ET.Element:
                     f"Matched: {[f'{m.tag}/{m.name}' for m in matches]}"
                 )
 
-            groups = _decompose_selected_items(usable, geometry)
+            groups = _decompose_selected_items(
+                usable, geometry,
+                min_volume_reduction=bbox_cfg.get("min_volume_reduction", 0.2),
+            )
             padding = _normalize_padding(bbox_cfg.get("padding", 0.0))
 
             for i, group in enumerate(groups):
@@ -790,10 +803,13 @@ def _read_regions_sheet(ws) -> List[Dict]:
                 elif len(parts) == 3:
                     bbox["padding"] = [float(p) for p in parts]
 
-            # split_regions: auto-split to avoid non-selected items
+            # split_regions: auto-split to minimize region volume
             v = _parse_bool(rd.get("split_regions"))
             if v:
                 bbox["split_regions"] = True
+                mvr = _parse_number(rd.get("split_min_reduction"))
+                if mvr is not None:
+                    bbox["min_volume_reduction"] = float(mvr)
 
             entry["bbox_from"] = bbox
         else:
@@ -927,7 +943,7 @@ def create_template_excel(output_path: str) -> None:
         "name", "parent_assembly",
         "position_x", "position_y", "position_z", "size_x", "size_y", "size_z",
         "bbox_include_names", "bbox_include_patterns", "bbox_include_tags",
-        "bbox_scope_assembly", "bbox_padding", "split_regions",
+        "bbox_scope_assembly", "bbox_padding", "split_regions", "split_min_reduction",
         "active", "hidden", "localized_grid",
         "x_grid_constraint", "y_grid_constraint", "z_grid_constraint", "all_grid_constraint",
     ])
@@ -939,12 +955,17 @@ def create_template_excel(output_path: str) -> None:
         # bbox 模式示例
         ["BBox Region Around PCB", "DemoBoard_Assembly",
          "", "", "", "", "", "",
-         "PCB", "U*", "cuboid", "", "0.001,0.001,0.0005", "",
+         "PCB", "U*", "cuboid", "", "0.001,0.001,0.0005", "", "",
          "", "", "true", "", "", "", "Grid Constraint 1"],
         # bbox + split_regions 模式示例
         ["Split Region L-Shape", "",
          "", "", "", "", "", "",
-         "C1,C2,C3,C4,C7", "", "", "", "0.05", "true",
+         "C1,C2,C3,C4,C7", "", "", "", "0.05", "true", "",
+         "", "true", "", "", "", "Grid Constraint 1"],
+        # bbox + split_regions + 自定义阈值 (10%)
+        ["Split Region Custom", "",
+         "", "", "", "", "", "",
+         "S1,S2,S3", "", "", "", "0.05", "true", "0.1",
          "", "true", "", "", "", "Grid Constraint 1"],
     ]
     for r, row_data in enumerate(example3, 2):
