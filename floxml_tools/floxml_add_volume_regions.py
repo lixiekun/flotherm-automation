@@ -30,6 +30,7 @@ import fnmatch
 import json
 from dataclasses import dataclass
 from pathlib import Path
+import sys
 from typing import Dict, Iterable, List, Optional, Tuple
 import xml.etree.ElementTree as ET
 
@@ -222,7 +223,11 @@ def _compute_bbox(items: List[GeometryItem]) -> Tuple[Vector3, Vector3]:
             maxs[axis] = max(maxs[axis], item.global_position[axis] + item.global_size[axis])
 
     if mins[0] == float("inf"):
-        raise ValueError("Matching items did not have usable size data for bbox_from")
+        no_size = [f"{item.tag}/{item.name}" for item in items if item.global_size is None]
+        raise ValueError(
+            f"Matching items did not have usable size data for bbox_from. "
+            f"Items without size: {no_size}"
+        )
 
     return (tuple(mins), tuple(maxs))  # type: ignore[arg-type]
 
@@ -533,10 +538,27 @@ def add_regions(root: ET.Element, config: Dict) -> ET.Element:
                     f"names={include_names}, patterns={include_patterns}, tags={include_tags}"
                 )
 
-            groups = _decompose_selected_items(matches, geometry)
+            # Filter out items without usable size data
+            usable = [m for m in matches if m.global_size is not None]
+            skipped = [m for m in matches if m.global_size is None]
+            if skipped:
+                print(
+                    f"Warning: region '{name}' skipped {len(skipped)} item(s) without size: "
+                    f"{[f'{m.tag}/{m.name}' for m in skipped]}",
+                    file=sys.stderr,
+                )
+            if not usable:
+                raise ValueError(
+                    f"bbox_from for region '{name}' matched {len(matches)} item(s) but none have size data. "
+                    f"Matched: {[f'{m.tag}/{m.name}' for m in matches]}"
+                )
+
+            groups = _decompose_selected_items(usable, geometry)
             padding = _normalize_padding(bbox_cfg.get("padding", 0.0))
 
             for i, group in enumerate(groups):
+                if not group:
+                    continue
                 sub_name = f"{name}_{i+1}" if len(groups) > 1 else name
                 lower, upper = _compute_bbox(group)
                 global_position = tuple(lower[j] - padding[j] for j in range(3))
