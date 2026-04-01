@@ -381,15 +381,23 @@ def _resolve_region_geometry(
     return position, size  # type: ignore[return-value]
 
 
-def _item_overlaps_bbox(item: GeometryItem, lower: Vector3, upper: Vector3) -> bool:
-    """Check if a geometry item's bbox overlaps with the given bbox."""
-    if item.global_size is None:
-        return False
-    for i in range(3):
-        item_hi = item.global_position[i] + item.global_size[i]
-        if item.global_position[i] >= upper[i] or item_hi <= lower[i]:
-            return False
-    return True
+def _compute_coverage_2d(items: List[GeometryItem]) -> float:
+    """Compute how much of the items' bbox is covered on the dominant 2D plane (0 to 1)."""
+    if len(items) <= 1:
+        return 1.0
+    lower, upper = _compute_bbox(items)
+    spans = [upper[i] - lower[i] for i in range(3)]
+    # Use the two axes with the most spread
+    axes = sorted(range(3), key=lambda i: spans[i], reverse=True)[:2]
+    bbox_area = spans[axes[0]] * spans[axes[1]]
+    if bbox_area <= 0:
+        return 1.0
+    item_area = sum(
+        item.global_size[axes[0]] * item.global_size[axes[1]]
+        for item in items
+        if item.global_size
+    )
+    return min(item_area / bbox_area, 1.0)
 
 
 def _decompose_selected_items(
@@ -397,41 +405,35 @@ def _decompose_selected_items(
     root_geometry: ET.Element,
 ) -> List[List[GeometryItem]]:
     """
-    Recursively decompose selected items into rectangular groups that
-    don't include non-selected geometry items within each group's bbox.
+    Recursively decompose selected items into rectangular groups based on
+    spatial arrangement (L/U/T-shape decomposition).
 
     Algorithm:
-    1. Compute overall bbox of selected items
-    2. Find obstacles (non-selected items within the bbox)
-    3. If no obstacles → single group
-    4. Try splitting along each axis at item boundaries
-    5. Pick the split that minimizes remaining obstacles
-    6. Recurse on each sub-group
+    1. If items form a tight rectangle (coverage > 95%) → single group
+    2. Try splitting along each axis at item boundaries
+    3. Pick the split that maximizes total coverage ratio
+    4. Recurse on each sub-group
+
+    This produces the minimum number of rectangular regions that cover all
+    selected items. For example, 3 items in an L-shape → 2 regions.
     """
     if len(selected_items) <= 1:
         return [selected_items] if selected_items else []
 
-    lower, upper = _compute_bbox(selected_items)
-
-    # Find obstacles: non-selected items within the overall bbox
-    selected_ids = {id(item.element) for item in selected_items}
-    obstacles: List[GeometryItem] = []
-    for item in _iter_all_geometry_items(root_geometry):
-        if id(item.element) in selected_ids:
-            continue
-        if item.global_size is None:
-            continue
-        if _item_overlaps_bbox(item, lower, upper):
-            obstacles.append(item)
-
-    if not obstacles:
+    # If items already form a tight rectangle, no split needed
+    if _compute_coverage_2d(selected_items) > 0.95:
         return [selected_items]
 
-    # Find the best split across all axes
+    lower, upper = _compute_bbox(selected_items)
+
     best = None
     tol = 1e-9
 
     for axis in range(3):
+        span = upper[axis] - lower[axis]
+        if span < tol:
+            continue
+
         # Collect boundary positions of all items on this axis
         boundaries = set()
         for item in selected_items:
@@ -455,26 +457,20 @@ def _decompose_selected_items(
 
             if not group_a or not group_b:
                 continue
+            if len(group_a) == len(selected_items) or len(group_b) == len(selected_items):
+                continue
 
-            # Score: fewer obstacles in sub-bboxes is better
-            score = 0
-            for group in (group_a, group_b):
-                if len(group) == len(selected_items):
-                    # Split didn't actually divide anything
-                    score = float("inf")
-                    break
-                gl, gu = _compute_bbox(group)
-                score += sum(1 for o in obstacles if _item_overlaps_bbox(o, gl, gu))
+            # Score: prefer splits that maximize total coverage ratio
+            score = _compute_coverage_2d(group_a) + _compute_coverage_2d(group_b)
 
-            if score < (best[0] if best else float("inf")):
+            if best is None or score > best[0]:
                 best = (score, group_a, group_b)
 
     if best is None:
-        # Can't split, return individual items
         return [[item] for item in selected_items]
 
     _, group_a, group_b = best
-    results = []
+    results: List[List[GeometryItem]] = []
     results.extend(_decompose_selected_items(group_a, root_geometry))
     results.extend(_decompose_selected_items(group_b, root_geometry))
     return results
