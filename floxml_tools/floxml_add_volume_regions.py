@@ -420,32 +420,27 @@ def _count_obstacles_in_bbox(
     return sum(1 for obs in obstacles if _bbox_overlaps_item(lower, upper, obs))
 
 
-def _items_form_strip(items: List[GeometryItem], tol: float = 1e-9) -> bool:
-    """Check if items form a strip: overlap on 2 out of 3 axes."""
-    if len(items) <= 1:
-        return False
-    for strip_axis in range(3):
-        other_axes = [a for a in range(3) if a != strip_axis]
-        all_overlap = True
-        for axis in other_axes:
-            ranges = []
-            for item in items:
-                if item.global_size is None:
-                    all_overlap = False
-                    break
-                lo = item.global_position[axis]
-                hi = lo + item.global_size[axis]
-                ranges.append((lo, hi))
-            if not all_overlap:
-                break
-            max_lo = max(r[0] for r in ranges)
-            min_hi = min(r[1] for r in ranges)
-            if max_lo >= min_hi - tol:
-                all_overlap = False
-                break
-        if all_overlap:
-            return True
-    return False
+def _groups_are_adjacent(
+    group_a: List[GeometryItem],
+    group_b: List[GeometryItem],
+    max_gap: float,
+    tol: float = 1e-9,
+) -> bool:
+    """Check if two groups are adjacent: overlap on 2+ axes, small gap on the rest."""
+    lo_a, hi_a = _compute_bbox(group_a)
+    lo_b, hi_b = _compute_bbox(group_b)
+
+    overlap_count = 0
+    for axis in range(3):
+        overlap = min(hi_a[axis], hi_b[axis]) - max(lo_a[axis], lo_b[axis])
+        if overlap > tol:
+            overlap_count += 1
+        else:
+            gap = max(lo_a[axis], lo_b[axis]) - min(hi_a[axis], hi_b[axis])
+            if gap > max_gap:
+                return False
+
+    return overlap_count >= 2
 
 
 def _decompose_selected_items(
@@ -455,22 +450,15 @@ def _decompose_selected_items(
     obstacles: Optional[List[GeometryItem]] = None,
 ) -> List[List[GeometryItem]]:
     """
-    Recursively decompose selected items into rectangular groups that
-    minimize total region volume, with obstacle awareness.
+    Greedy region merging: start with 1 region per item, then merge adjacent
+    groups along x/y/z if obstacle-free. Minimize total region count.
 
-    Algorithm:
-    1. If bbox volume ≈ sum of item volumes → tight fit, single group
-       (unless obstacles are inside the bbox)
-    2. If items form a strip (overlap on 2 axes) with no obstacles → single group
-    3. Try splitting along each axis at item boundaries
-    4. Score each split by (obstacle_count, total_volume) — fewer obstacles
-       wins, then less volume wins
-    5. If split reduces obstacle count → always split (obstacle avoidance
-       overrides volume threshold)
-    6. Otherwise, only split if volume reduction > min_volume_reduction
-    7. Recurse on each sub-group
+    Two groups are adjacent when their bboxes overlap on 2+ axes and the gap
+    on the remaining axis is within max_adj_gap (computed from the smallest
+    item dimension). This prevents non-adjacent merges (e.g. 9-grid items
+    1 and 7 cannot merge because the gap is too large).
 
-    obstacles: non-selected geometry items that regions should avoid wrapping.
+    Obstacles: non-selected geometry that merged regions must not wrap.
     """
     if not obstacles:
         obstacles = []
@@ -478,90 +466,47 @@ def _decompose_selected_items(
     if len(selected_items) <= 1:
         return [selected_items] if selected_items else []
 
-    # If bbox volume is close to item volume sum, items form a tight rectangle
-    bbox_vol = _bbox_volume(selected_items)
-    item_vol = _item_volume_sum(selected_items)
-    obs_before = _count_obstacles_in_bbox(selected_items, obstacles)
-    if item_vol > 0 and bbox_vol / item_vol < 1.05:
-        if obs_before == 0:
-            return [selected_items]
-        # Tight fit but obstacles exist — continue to try splitting
+    # Compute max adjacency gap from smallest item dimension across all axes.
+    # Items with gaps smaller than this are considered adjacent; larger gaps
+    # mean the items are too far apart (non-adjacent, like 9-grid 1 and 7).
+    min_dim = float("inf")
+    for item in selected_items:
+        if item.global_size is not None:
+            for axis in range(3):
+                d = item.global_size[axis]
+                if d > 1e-9 and d < min_dim:
+                    min_dim = d
+    max_adj_gap = min_dim if min_dim < float("inf") else 0.0
 
-    # If items form a strip (overlap on 2 axes) → single group
-    # Strip items are inherently a clean rectangle; obstacles beside the strip
-    # (e.g. items in adjacent columns) should not prevent merging.
-    if _items_form_strip(selected_items):
-        return [selected_items]
+    # Start with each item as its own group
+    groups: List[List[GeometryItem]] = [[item] for item in selected_items]
 
-    lower, upper = _compute_bbox(selected_items)
+    # Greedy merging: repeatedly find and apply the best valid merge
+    changed = True
+    while changed:
+        changed = False
+        best = None  # (merged_volume, i, j)
 
-    best = None  # (score_tuple, group_a, group_b)
-    best_vol = 0.0
-    tol = 1e-9
+        for i in range(len(groups)):
+            for j in range(i + 1, len(groups)):
+                if not _groups_are_adjacent(groups[i], groups[j], max_adj_gap):
+                    continue
 
-    for axis in range(3):
-        span = upper[axis] - lower[axis]
-        if span < tol:
-            continue
+                merged = groups[i] + groups[j]
+                if _count_obstacles_in_bbox(merged, obstacles) > 0:
+                    continue
 
-        # Collect boundary positions of all items on this axis
-        boundaries = set()
-        for item in selected_items:
-            lo = item.global_position[axis]
-            hi = lo + (item.global_size[axis] if item.global_size else 0)
-            boundaries.add(lo)
-            boundaries.add(hi)
+                vol = _bbox_volume(merged)
+                if best is None or vol < best[0]:
+                    best = (vol, i, j)
 
-        for split_val in sorted(boundaries):
-            if split_val <= lower[axis] + tol or split_val >= upper[axis] - tol:
-                continue
+        if best is not None:
+            _, i, j = best
+            groups[i] = groups[i] + groups[j]
+            groups.pop(j)
+            changed = True
 
-            group_a = [
-                item for item in selected_items
-                if item.global_position[axis] + (item.global_size[axis] if item.global_size else 0) <= split_val + tol
-            ]
-            group_b = [
-                item for item in selected_items
-                if item.global_position[axis] >= split_val - tol
-            ]
-
-            if not group_a or not group_b:
-                continue
-            if len(group_a) == len(selected_items) or len(group_b) == len(selected_items):
-                continue
-
-            # Score: (obstacle_count, total_volume) — tuple comparison
-            obs_a = _count_obstacles_in_bbox(group_a, obstacles)
-            obs_b = _count_obstacles_in_bbox(group_b, obstacles)
-            vol_after = _bbox_volume(group_a) + _bbox_volume(group_b)
-            score = (obs_a + obs_b, vol_after)
-
-            if best is None or score < best[0]:
-                best = (score, group_a, group_b)
-                best_vol = vol_after
-
-    if best is None or bbox_vol <= 0:
-        return [selected_items]
-
-    (best_obs, _), group_a, group_b = best
-
-    # Decision: obstacle reduction overrides volume threshold
-    if obs_before > 0 and best_obs < obs_before:
-        pass  # Always split to reduce obstacles
-    else:
-        # No obstacle improvement — apply volume threshold
-        reduction = (bbox_vol - best_vol) / bbox_vol
-        if reduction < min_volume_reduction:
-            return [selected_items]
-
-    results: List[List[GeometryItem]] = []
-    results.extend(_decompose_selected_items(
-        group_a, root_geometry, min_volume_reduction, obstacles=obstacles,
-    ))
-    results.extend(_decompose_selected_items(
-        group_b, root_geometry, min_volume_reduction, obstacles=obstacles,
-    ))
-    return results
+    return groups
 
 
 def _target_geometry(root_geometry: ET.Element, region_cfg: Dict) -> Tuple[ET.Element, Vector3]:
