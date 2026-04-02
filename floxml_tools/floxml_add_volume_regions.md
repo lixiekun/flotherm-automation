@@ -149,11 +149,27 @@ python floxml_add_volume_regions.py input.xml --config config.xlsx -o output.xml
 - `bbox_include_names` 和 `bbox_include_patterns` 用逗号分隔多个值
 - 3 个 Sheet 都是可选的，缺少的 Sheet 会被跳过
 
-### `split_regions` — 贪心合并减少 region 数量
+### `split_regions` — 方向线合并减少 region 数量
 
-开启 `split_regions` 后，脚本采用**贪心合并**算法：初始每个 cuboid 单独一个 region，然后沿 x/y/z 方向逐步合并相邻的 region，使 region 数量最少，同时确保合并后的 region 内没有障碍物（未选中的几何体）。
+开启 `split_regions` 后，脚本采用**方向线合并**算法：初始每个 item 单独一个 region，然后依次沿 x/y/z 三个方向寻找共线的 region 对进行合并，使 region 数量最少，同时确保合并后的 region 内没有障碍物（未选中的几何体）。
 
-**相邻判定**：两个 region 在 3 个轴中有 2 个轴重叠（overlap），且第 3 个轴的间隙 ≤ 最小 item 尺寸。间隙过大的不算相邻，无法合并。
+**算法步骤**：
+
+1. **Phase 1 — 重叠合并**：占据相同 3D 空间的 item（如 die + source 在同一位置）自动合并为一组
+2. **Phase 2 — 方向线合并**：依次沿 x、y、z 三个方向，寻找满足条件的 region 对进行合并：
+   - **共线**：在合并轴的另外 2 个轴上投影重叠（即两 region 在同一条线上）
+   - **相邻**：合并轴方向间隙 ≤ 中位数 region 尺寸（距离太远的不算相邻）
+   - **无障碍**：合并后的 bbox 内没有未选中的几何体（3D AABB 检测）
+3. 每个方向反复合并直到无法继续，然后切换到下一个方向
+
+**共线判定示例**（沿 x 方向合并）：
+
+```
+S1 和 S2 共线（y 重叠、z 重叠）→ 可合并
+S1 和 S3 不共线（y 不重叠）→ 无法合并
+```
+
+**障碍物检测使用 3D AABB 重叠**：只阻挡与选中 item 在同一 Z 层级的几何体。PCB 等在不同 Z 层的物体不会阻挡合并，但同一 Z 层的未选中 source/cuboid 会阻挡。
 
 例如 3×3 九宫格中选中 1,2,3,4,7（L 形）：
 
@@ -169,7 +185,9 @@ python floxml_add_volume_regions.py input.xml --config config.xlsx -o output.xml
 
 结果：2 个 region（R1=顶行, R2=左列）
 
-**不能跳过合并**：选中 1 和 7（不选 4）时，因为 1 和 7 之间间隙过大（超过一个 item 尺寸），不会被合并，各自独立成 region。
+**不能跳过合并**：选中 1 和 7（不选 4）时，因为 1 和 7 在 x 方向间隙过大（超过一个 region 尺寸），不会被合并，各自独立成 region。
+
+**对角线无法合并**：选中 1 和 4（对角）时，两个 region 在 x 和 y 方向都不共线，无法合并。
 
 **3D 同样适用**：上下堆叠、整层合并、3D L 形等立体场景均可正确处理。
 
@@ -198,10 +216,13 @@ Excel 配置（regions sheet 加列 `split_regions`）：
 
 **合并规则**：
 
-- 每个 cuboid 初始独立一个 region
-- 沿 x/y/z 方向寻找相邻的 region 对
-- 相邻条件：2 个轴重叠，第 3 个轴间隙 ≤ 最小 item 尺寸
-- 合并条件：合并后的 bbox 内没有未选中的几何体（障碍物）
+- 每个 item 初始独立一个 region
+- Phase 1: 占据相同 3D 空间的 item 自动合并（如 die + source）
+- Phase 2: 依次沿 x、y、z 方向寻找共线且相邻的 region 对
+- 共线条件：在合并轴的另外 2 个轴投影重叠
+- 相邻条件：合并轴方向间隙 ≤ 中位数 region 尺寸
+- 合并条件：合并后 bbox 内没有同 Z 层的未选中几何体（障碍物）
+- 每次选择产生最小合并体积的 pair 优先合并
 - 重复合并直到无法继续，目标是最小化 region 总数
 - 合并后的 region 命名为 `{name}_1`、`{name}_2` 等（如果只产生 1 个 region，保留原名）
 - 每个子 region 独立应用 `padding` 和 grid constraint 设置

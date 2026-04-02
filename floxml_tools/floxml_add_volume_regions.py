@@ -387,62 +387,6 @@ def _bbox_volume(items: List[GeometryItem]) -> float:
     return (upper[0] - lower[0]) * (upper[1] - lower[1]) * (upper[2] - lower[2])
 
 
-def _item_volume_sum(items: List[GeometryItem]) -> float:
-    """Sum of individual item volumes."""
-    return sum(
-        s[0] * s[1] * s[2]
-        for item in items
-        if (s := item.global_size)
-    )
-
-
-def _bbox_overlaps_item(
-    lower: Vector3, upper: Vector3, item: GeometryItem
-) -> bool:
-    """Check if an item's global bbox overlaps with a given bbox (AABB test)."""
-    if item.global_size is None:
-        return False
-    for axis in range(3):
-        item_lo = item.global_position[axis]
-        item_hi = item_lo + item.global_size[axis]
-        if item_hi <= lower[axis] or item_lo >= upper[axis]:
-            return False
-    return True
-
-
-def _count_obstacles_in_bbox(
-    items: List[GeometryItem], obstacles: List[GeometryItem]
-) -> int:
-    """Count how many obstacles overlap the bbox of the given items."""
-    if not obstacles or not items:
-        return 0
-    lower, upper = _compute_bbox(items)
-    return sum(1 for obs in obstacles if _bbox_overlaps_item(lower, upper, obs))
-
-
-def _groups_are_adjacent(
-    group_a: List[GeometryItem],
-    group_b: List[GeometryItem],
-    max_gaps: Vector3,
-    tol: float = 1e-9,
-) -> bool:
-    """Check if two groups are adjacent: overlap on 2+ axes, small gap on the rest."""
-    lo_a, hi_a = _compute_bbox(group_a)
-    lo_b, hi_b = _compute_bbox(group_b)
-
-    overlap_count = 0
-    for axis in range(3):
-        overlap = min(hi_a[axis], hi_b[axis]) - max(lo_a[axis], lo_b[axis])
-        if overlap > tol:
-            overlap_count += 1
-        else:
-            gap = max(lo_a[axis], lo_b[axis]) - min(hi_a[axis], hi_b[axis])
-            if gap > max_gaps[axis]:
-                return False
-
-    return overlap_count >= 2
-
-
 def _decompose_selected_items(
     selected_items: List[GeometryItem],
     root_geometry: ET.Element,
@@ -450,25 +394,31 @@ def _decompose_selected_items(
     obstacles: Optional[List[GeometryItem]] = None,
 ) -> List[List[GeometryItem]]:
     """
-    Greedy region merging with invariant: region count <= selected component count.
+    Line-first directional merge: minimize region count without wrapping obstacles.
 
-    Phase 1 — group by assembly_path: all cuboids within the same parent assembly
-    are merged into one group unconditionally. This guarantees the output region
-    count never exceeds the number of user-selected materials.
+    Algorithm overview:
+        1. n matched items → n initial regions (each item's bbox + padding)
+        2. Phase 1 – overlap merge: items occupying the same 3D space
+           (e.g. die + source on die) are merged into one group.
+        3. Phase 2 – directional line merge: for each axis (x → y → z),
+           find pairs of regions that are collinear (overlap on the other 2 axes)
+           and adjacent (small gap on this axis). Merge if no obstacles in the
+           combined bbox. Repeat until no more merges are possible.
+        4. Result: minimum number of rectangular regions that cover all selected
+           items without including any non-selected geometry (obstacles).
 
-    Phase 2 — cross-component greedy merge: merge adjacent component groups if
-    the merged bbox is obstacle-free, until no more merges are possible.
-
-    Obstacle check is done directly from the geometry tree at each merge attempt
-    (not from a pre-computed list) to ensure robustness.
+    Obstacle check uses XY projection (2D) because sources are very thin in Z
+    and a 3D overlap check would miss XY-plane conflicts.
     """
     if len(selected_items) <= 1:
         return [selected_items] if selected_items else []
 
-    # Build usable_set: exclude ALL geometry in the same assemblies as selected
-    # items from obstacles. When user selects a source from a chip, the entire
-    # chip (substrate, die, mold, etc.) should be treated as "selected territory"
-    # — not obstacles. Only geometry from OTHER assemblies counts as obstacles.
+    # ------------------------------------------------------------------
+    # Build obstacle context
+    # ------------------------------------------------------------------
+    # usable_set: ALL geometry in the same assemblies as selected items is
+    # excluded from obstacles. When user selects a source from a chip, the
+    # entire chip (substrate, die, mold, etc.) is "selected territory".
     all_geometry_items = list(_iter_geometry_items(root_geometry))
     selected_paths = {item.assembly_path for item in selected_items}
     usable_set: Set[int] = set()
@@ -476,17 +426,16 @@ def _decompose_selected_items(
         if gitem.assembly_path in selected_paths:
             usable_set.add(id(gitem.element))
 
-    # Phase 1: group items that physically overlap in 3D space.
-    # Items within the same component (e.g. die + source on die) overlap
-    # spatially and form one group. Items in different positions (e.g. two
-    # separate sources on a PCB) do NOT overlap and stay as separate groups.
-    # This ensures the initial group count matches the number of physically
-    # distinct objects, NOT the number of assemblies.
+    # ------------------------------------------------------------------
+    # Phase 1: merge items that physically overlap in 3D space
+    # ------------------------------------------------------------------
+    # Items in the same component (e.g. die + source) occupy the same space
+    # and must form one group. Spatially separated items stay separate.
     tol = 1e-9
     groups: List[List[GeometryItem]] = [[item] for item in selected_items]
 
     def _items_overlap_3d(a: List[GeometryItem], b: List[GeometryItem]) -> bool:
-        """Check if two groups physically overlap on ALL 3 axes."""
+        """Check if two groups overlap on ALL 3 axes (AABB intersection)."""
         lo_a, hi_a = _compute_bbox(a)
         lo_b, hi_b = _compute_bbox(b)
         for axis in range(3):
@@ -495,7 +444,7 @@ def _decompose_selected_items(
                 return False
         return True
 
-    # Greedy merge: keep merging groups that physically overlap
+    # Keep merging overlapping pairs until stable
     changed = True
     while changed:
         changed = False
@@ -512,14 +461,15 @@ def _decompose_selected_items(
     if len(groups) <= 1:
         return groups
 
+    # ------------------------------------------------------------------
+    # Obstacle helper (XY projection)
+    # ------------------------------------------------------------------
     def _has_obstacles(items: List[GeometryItem]) -> bool:
         """Check if the bbox of items contains any non-selected geometry.
 
-        Uses XY projection (2D): if the merged region's XY footprint overlaps
-        with non-selected geometry, the merge is blocked. Z is not checked
-        because sources are very thin and may not overlap in Z with nearby
-        geometry, but the resulting region would still affect the grid in
-        the overlapped XY area.
+        Uses full 3D AABB overlap test (all 3 axes). Items at different Z
+        levels (e.g. a PCB below thin sources) won't block merges, while
+        items at the same level (e.g. other sources) will.
         """
         lower, upper = _compute_bbox(items)
         for gitem in all_geometry_items:
@@ -527,57 +477,98 @@ def _decompose_selected_items(
                 continue
             if id(gitem.element) in usable_set:
                 continue
-            # XY projection check only (axes 0 and 1)
+            # 3D overlap check (all axes)
             blocked = True
-            for axis in (0, 1):
+            for axis in range(3):
                 item_lo = gitem.global_position[axis]
                 item_hi = item_lo + gitem.global_size[axis]
-                if item_hi <= lower[axis] or item_lo >= upper[axis]:
+                overlap = min(item_hi, upper[axis]) - max(item_lo, lower[axis])
+                if overlap <= tol:
                     blocked = False
                     break
             if blocked:
                 return True
         return False
 
-    # Phase 2: compute per-axis adjacency threshold from median group size
-    max_gaps: Vector3 = (0.0, 0.0, 0.0)
-    for axis in range(3):
-        sizes = sorted(
-            hi[axis] - lo[axis]
-            for group in groups
-            for lo, hi in [_compute_bbox(group)]
+    # ------------------------------------------------------------------
+    # Phase 2: directional line merge along each axis
+    # ------------------------------------------------------------------
+    # For each axis, repeatedly find pairs of groups that are:
+    #   - Collinear: overlap on the other 2 axes (perpendicular to merge axis)
+    #   - Adjacent: gap on the merge axis is within tolerance
+    #   - Obstacle-free: merged bbox doesn't contain non-selected geometry
+    # Merge the pair that produces the smallest combined bbox volume,
+    # then repeat until no more merges are possible for that axis.
+
+    def _axes_overlap(a: List[GeometryItem], b: List[GeometryItem],
+                      axes: Tuple[int, ...]) -> bool:
+        """Check if two groups overlap on the specified axes."""
+        lo_a, hi_a = _compute_bbox(a)
+        lo_b, hi_b = _compute_bbox(b)
+        for axis in axes:
+            overlap = min(hi_a[axis], hi_b[axis]) - max(lo_a[axis], lo_b[axis])
+            if overlap <= tol:
+                return False
+        return True
+
+    def _axis_gap(a: List[GeometryItem], b: List[GeometryItem],
+                  axis: int) -> float:
+        """Compute the gap between two groups along a given axis.
+
+        Positive = separated, zero = touching, negative = overlapping.
+        """
+        lo_a, hi_a = _compute_bbox(a)
+        lo_b, hi_b = _compute_bbox(b)
+        return max(lo_a[axis], lo_b[axis]) - min(hi_a[axis], hi_b[axis])
+
+    # Process each axis: x(0), y(1), z(2)
+    for merge_axis in range(3):
+        # Perpendicular axes: the 2 axes that must overlap for collinearity
+        perp_axes = tuple(a for a in range(3) if a != merge_axis)
+
+        # Adjacency threshold: median group extent along the merge axis.
+        # This allows merging regions whose gap is at most the typical region
+        # size — far-apart regions (like item 1 and item 7 in a 3x3 grid)
+        # have gaps much larger than this and won't be considered adjacent.
+        extents = sorted(
+            hi[merge_axis] - lo[merge_axis]
+            for g in groups
+            for lo, hi in [_compute_bbox(g)]
         )
-        if sizes:
-            max_gaps = (
-                sizes[len(sizes) // 2] if axis == 0 else max_gaps[0],
-                sizes[len(sizes) // 2] if axis == 1 else max_gaps[1],
-                sizes[len(sizes) // 2] if axis == 2 else max_gaps[2],
-            )
+        max_gap = extents[len(extents) // 2] if extents else 0.0
 
-    # Greedy merging: repeatedly find and apply the best valid merge
-    changed = True
-    while changed:
-        changed = False
-        best = None  # (merged_volume, i, j)
+        # Repeatedly find and apply the best valid merge for this axis
+        changed = True
+        while changed:
+            changed = False
+            best = None  # (merged_volume, i, j)
 
-        for i in range(len(groups)):
-            for j in range(i + 1, len(groups)):
-                if not _groups_are_adjacent(groups[i], groups[j], max_gaps):
-                    continue
+            for i in range(len(groups)):
+                for j in range(i + 1, len(groups)):
+                    # Must be collinear: overlap on both perpendicular axes
+                    if not _axes_overlap(groups[i], groups[j], perp_axes):
+                        continue
 
-                merged = groups[i] + groups[j]
-                if _has_obstacles(merged):
-                    continue
+                    # Must be adjacent: gap on merge axis within threshold
+                    gap = _axis_gap(groups[i], groups[j], merge_axis)
+                    if gap > max_gap:
+                        continue
 
-                vol = _bbox_volume(merged)
-                if best is None or vol < best[0]:
-                    best = (vol, i, j)
+                    # Must be obstacle-free
+                    merged = groups[i] + groups[j]
+                    if _has_obstacles(merged):
+                        continue
 
-        if best is not None:
-            _, i, j = best
-            groups[i] = groups[i] + groups[j]
-            groups.pop(j)
-            changed = True
+                    # Pick the merge that produces the smallest volume
+                    vol = _bbox_volume(merged)
+                    if best is None or vol < best[0]:
+                        best = (vol, i, j)
+
+            if best is not None:
+                _, i, j = best
+                groups[i] = groups[i] + groups[j]
+                groups.pop(j)
+                changed = True
 
     print(f"[DEBUG] result: {len(groups)} regions", file=sys.stderr)
     return groups
