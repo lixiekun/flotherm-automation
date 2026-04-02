@@ -483,6 +483,13 @@ def _decompose_selected_items(
                 max_gaps[2] if axis != 2 else sizes[len(sizes) // 2],
             )
 
+    print(f"[DEBUG] merge: {len(selected_items)} items, max_gaps={max_gaps}", file=sys.stderr)
+    print(f"[DEBUG] items:", file=sys.stderr)
+    for item in selected_items:
+        p = item.global_position
+        s = item.global_size
+        print(f"  {item.tag}/{item.name}: pos=({p[0]:.4f},{p[1]:.4f},{p[2]:.4f}) size=({s[0]:.4f},{s[1]:.4f},{s[2]:.4f})" if s else f"  {item.tag}/{item.name}: no size", file=sys.stderr)
+
     # Start with each item as its own group
     groups: List[List[GeometryItem]] = [[item] for item in selected_items]
 
@@ -491,14 +498,26 @@ def _decompose_selected_items(
     while changed:
         changed = False
         best = None  # (merged_volume, i, j)
+        skip_reasons = {"adjacency": 0, "obstacles": 0}
 
         for i in range(len(groups)):
             for j in range(i + 1, len(groups)):
                 if not _groups_are_adjacent(groups[i], groups[j], max_gaps):
+                    if best is None and not changed:
+                        # Only log on first pass (before any merge)
+                        lo_a, hi_a = _compute_bbox(groups[i])
+                        lo_b, hi_b = _compute_bbox(groups[j])
+                        gaps = []
+                        for axis in range(3):
+                            g = max(lo_a[axis], lo_b[axis]) - min(hi_a[axis], hi_b[axis])
+                            gaps.append(max(0, g))
+                        print(f"  [DEBUG] NOT adjacent: {groups[i][0].name} vs {groups[j][0].name} gaps=({gaps[0]:.4f},{gaps[1]:.4f},{gaps[2]:.4f}) max_gaps=({max_gaps[0]:.4f},{max_gaps[1]:.4f},{max_gaps[2]:.4f})", file=sys.stderr)
+                    skip_reasons["adjacency"] += 1
                     continue
 
                 merged = groups[i] + groups[j]
                 if _count_obstacles_in_bbox(merged, obstacles) > 0:
+                    skip_reasons["obstacles"] += 1
                     continue
 
                 vol = _bbox_volume(merged)
