@@ -423,7 +423,7 @@ def _count_obstacles_in_bbox(
 def _groups_are_adjacent(
     group_a: List[GeometryItem],
     group_b: List[GeometryItem],
-    max_gap: float,
+    max_gaps: Vector3,
     tol: float = 1e-9,
 ) -> bool:
     """Check if two groups are adjacent: overlap on 2+ axes, small gap on the rest."""
@@ -437,7 +437,7 @@ def _groups_are_adjacent(
             overlap_count += 1
         else:
             gap = max(lo_a[axis], lo_b[axis]) - min(hi_a[axis], hi_b[axis])
-            if gap > max_gap:
+            if gap > max_gaps[axis]:
                 return False
 
     return overlap_count >= 2
@@ -454,9 +454,9 @@ def _decompose_selected_items(
     groups along x/y/z if obstacle-free. Minimize total region count.
 
     Two groups are adjacent when their bboxes overlap on 2+ axes and the gap
-    on the remaining axis is within max_adj_gap (computed from the smallest
-    item dimension). This prevents non-adjacent merges (e.g. 9-grid items
-    1 and 7 cannot merge because the gap is too large).
+    on the remaining axis is within the per-axis threshold (median item size).
+    This prevents non-adjacent merges (e.g. 9-grid items 1 and 7 cannot merge
+    because the gap is too large).
 
     Obstacles: non-selected geometry that merged regions must not wrap.
     """
@@ -466,17 +466,22 @@ def _decompose_selected_items(
     if len(selected_items) <= 1:
         return [selected_items] if selected_items else []
 
-    # Compute max adjacency gap from smallest item dimension across all axes.
-    # Items with gaps smaller than this are considered adjacent; larger gaps
-    # mean the items are too far apart (non-adjacent, like 9-grid 1 and 7).
-    min_dim = float("inf")
-    for item in selected_items:
-        if item.global_size is not None:
-            for axis in range(3):
-                d = item.global_size[axis]
-                if d > 1e-9 and d < min_dim:
-                    min_dim = d
-    max_adj_gap = min_dim if min_dim < float("inf") else 0.0
+    # Compute per-axis max adjacency gap from median item size on each axis.
+    # Using median (not min) avoids thin items (e.g. 0.1mm die) making the
+    # threshold too strict for normal gaps between cuboids in a component.
+    max_gaps: Vector3 = (0.0, 0.0, 0.0)
+    for axis in range(3):
+        sizes = sorted(
+            item.global_size[axis]
+            for item in selected_items
+            if item.global_size is not None and item.global_size[axis] > 1e-9
+        )
+        if sizes:
+            max_gaps = (
+                max_gaps[0] if axis else sizes[len(sizes) // 2],
+                max_gaps[1] if axis != 1 else sizes[len(sizes) // 2],
+                max_gaps[2] if axis != 2 else sizes[len(sizes) // 2],
+            )
 
     # Start with each item as its own group
     groups: List[List[GeometryItem]] = [[item] for item in selected_items]
@@ -489,7 +494,7 @@ def _decompose_selected_items(
 
         for i in range(len(groups)):
             for j in range(i + 1, len(groups)):
-                if not _groups_are_adjacent(groups[i], groups[j], max_adj_gap):
+                if not _groups_are_adjacent(groups[i], groups[j], max_gaps):
                     continue
 
                 merged = groups[i] + groups[j]
