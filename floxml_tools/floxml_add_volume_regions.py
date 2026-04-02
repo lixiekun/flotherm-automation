@@ -465,17 +465,16 @@ def _decompose_selected_items(
     if len(selected_items) <= 1:
         return [selected_items] if selected_items else []
 
-    # Build usable_set from selected items (element IDs to exclude from obstacles)
-    usable_set = {id(item.element) for item in selected_items}
-
-    # Also exclude parent assemblies of selected items — they don't count as obstacles
-    # because they're containers, not physical geometry
-    for item in selected_items:
-        elem = item.element
-        while elem is not None:
-            parent = elem  # walk up via parent map if available
-            elem = None  # ET doesn't have parent refs, skip for now
-            break
+    # Build usable_set: exclude ALL geometry in the same assemblies as selected
+    # items from obstacles. When user selects a source from a chip, the entire
+    # chip (substrate, die, mold, etc.) should be treated as "selected territory"
+    # — not obstacles. Only geometry from OTHER assemblies counts as obstacles.
+    all_geometry_items = list(_iter_geometry_items(root_geometry))
+    selected_paths = {item.assembly_path for item in selected_items}
+    usable_set: Set[int] = set()
+    for gitem in all_geometry_items:
+        if gitem.assembly_path in selected_paths:
+            usable_set.add(id(gitem.element))
 
     # Phase 1: group cuboids by parent assembly (same assembly_path)
     assembly_map: Dict[Tuple[str, ...], List[GeometryItem]] = {}
@@ -495,14 +494,29 @@ def _decompose_selected_items(
     all_geometry_items = list(_iter_geometry_items(root_geometry))
 
     def _has_obstacles(items: List[GeometryItem]) -> bool:
-        """Check if the bbox of items contains any non-selected geometry."""
+        """Check if the bbox of items contains any non-selected geometry.
+
+        Uses XY projection (2D): if the merged region's XY footprint overlaps
+        with non-selected geometry, the merge is blocked. Z is not checked
+        because sources are very thin and may not overlap in Z with nearby
+        geometry, but the resulting region would still affect the grid in
+        the overlapped XY area.
+        """
         lower, upper = _compute_bbox(items)
         for gitem in all_geometry_items:
             if gitem.global_size is None:
                 continue
             if id(gitem.element) in usable_set:
                 continue
-            if _bbox_overlaps_item(lower, upper, gitem):
+            # XY projection check only (axes 0 and 1)
+            blocked = True
+            for axis in (0, 1):
+                item_lo = gitem.global_position[axis]
+                item_hi = item_lo + gitem.global_size[axis]
+                if item_hi <= lower[axis] or item_lo >= upper[axis]:
+                    blocked = False
+                    break
+            if blocked:
                 return True
         return False
 
