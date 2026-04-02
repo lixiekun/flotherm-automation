@@ -487,8 +487,10 @@ def _decompose_selected_items(
             return [selected_items]
         # Tight fit but obstacles exist — continue to try splitting
 
-    # If items form a strip (overlap on 2 axes) with no obstacles → single group
-    if obs_before == 0 and _items_form_strip(selected_items):
+    # If items form a strip (overlap on 2 axes) → single group
+    # Strip items are inherently a clean rectangle; obstacles beside the strip
+    # (e.g. items in adjacent columns) should not prevent merging.
+    if _items_form_strip(selected_items):
         return [selected_items]
 
     lower, upper = _compute_bbox(selected_items)
