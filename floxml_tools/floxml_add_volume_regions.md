@@ -128,8 +128,8 @@ python floxml_add_volume_regions.py input.xml --config config.xlsx -o output.xml
 
 定义 volume region，每行一个：
 
-| name | parent_assembly | position_x | position_y | position_z | size_x | size_y | size_z | bbox_include_names | bbox_include_patterns | bbox_include_tags | bbox_scope_assembly | bbox_padding | split_regions | split_min_reduction | active | hidden | localized_grid | x_grid_constraint | y_grid_constraint | z_grid_constraint | all_grid_constraint |
-|------|----------------|-----------|-----------|-----------|-------|-------|-------|-------------------|---------------------|-----------------|--------------------|------------|--------|--------|---------------|-------------------|-------------------|-------------------|--------------------|
+| name | parent_assembly | position_x | position_y | position_z | size_x | size_y | size_z | bbox_include_names | bbox_include_patterns | bbox_include_tags | bbox_scope_assembly | bbox_padding | split_regions | active | hidden | localized_grid | x_grid_constraint | y_grid_constraint | z_grid_constraint | all_grid_constraint |
+|------|----------------|-----------|-----------|-----------|-------|-------|-------|-------------------|---------------------|-----------------|--------------------|------------|--------|--------|---------------|-------------------|-------------------|--------------------|
 
 两种模式互斥，优先使用 bbox（如果 bbox 字段有值）：
 
@@ -149,11 +149,13 @@ python floxml_add_volume_regions.py input.xml --config config.xlsx -o output.xml
 - `bbox_include_names` 和 `bbox_include_patterns` 用逗号分隔多个值
 - 3 个 Sheet 都是可选的，缺少的 Sheet 会被跳过
 
-### `split_regions` — 自动拆分减少 region 体积
+### `split_regions` — 贪心合并减少 region 数量
 
-开启 `split_regions` 后，脚本会递归地把选中对象拆分成多个矩形 region，以减少总体积浪费。拆分与否由 `min_volume_reduction` 阈值控制，在 region 数量和体积效率之间取得平衡。
+开启 `split_regions` 后，脚本采用**贪心合并**算法：初始每个 cuboid 单独一个 region，然后沿 x/y/z 方向逐步合并相邻的 region，使 region 数量最少，同时确保合并后的 region 内没有障碍物（未选中的几何体）。
 
-例如 3×3 九宫格中选中 1,2,3,4,7（L 形），体积减少 25% > 20% 阈值，拆分为 2 个 region：
+**相邻判定**：两个 region 在 3 个轴中有 2 个轴重叠（overlap），且第 3 个轴的间隙 ≤ 最小 item 尺寸。间隙过大的不算相邻，无法合并。
+
+例如 3×3 九宫格中选中 1,2,3,4,7（L 形）：
 
 ```
 ┌───┬───┬───┐       ┌───┬───┬───┐
@@ -167,6 +169,10 @@ python floxml_add_volume_regions.py input.xml --config config.xlsx -o output.xml
 
 结果：2 个 region（R1=顶行, R2=左列）
 
+**不能跳过合并**：选中 1 和 7（不选 4）时，因为 1 和 7 之间间隙过大（超过一个 item 尺寸），不会被合并，各自独立成 region。
+
+**3D 同样适用**：上下堆叠、整层合并、3D L 形等立体场景均可正确处理。
+
 JSON 配置：
 
 ```json
@@ -177,7 +183,6 @@ JSON 配置：
       "bbox_from": {
         "include_names": ["C1", "C2", "C3", "C4", "C7"],
         "split_regions": true,
-        "min_volume_reduction": 0.2,
         "padding": 0.05
       }
     }
@@ -185,27 +190,21 @@ JSON 配置：
 }
 ```
 
-Excel 配置（regions sheet 加列 `split_regions` 和 `split_min_reduction`）：
+Excel 配置（regions sheet 加列 `split_regions`）：
 
-| name | ... | bbox_include_names | bbox_padding | split_regions | split_min_reduction | ... |
-|------|-----|-------------------|-------------|--------------|--------------------|-----|
-| LShape | | C1,C2,C3,C4,C7 | 0.05 | true | | |
-| Conservative | | S1,S2,S3 | 0.05 | true | 0.1 | |
+| name | ... | bbox_include_names | bbox_padding | split_regions | ... |
+|------|-----|-------------------|-------------|--------------|-----|
+| LShape | | C1,C2,C3,C4,C7 | 0.05 | true | |
 
-**拆分规则**：
+**合并规则**：
 
-- 递归地沿 x/y/z 轴尝试切分选中对象
-- 优先选择使子区域总体积最小的切分
-- 只有当体积减少比例超过 `min_volume_reduction` 时才拆分，否则保留单个 region
-- 如果无法切分，退化为单个对象各自的 region
-- 拆分后的 region 命名为 `{name}_1`、`{name}_2` 等（如果只产生 1 个 region，保留原名）
+- 每个 cuboid 初始独立一个 region
+- 沿 x/y/z 方向寻找相邻的 region 对
+- 相邻条件：2 个轴重叠，第 3 个轴间隙 ≤ 最小 item 尺寸
+- 合并条件：合并后的 bbox 内没有未选中的几何体（障碍物）
+- 重复合并直到无法继续，目标是最小化 region 总数
+- 合并后的 region 命名为 `{name}_1`、`{name}_2` 等（如果只产生 1 个 region，保留原名）
 - 每个子 region 独立应用 `padding` 和 grid constraint 设置
-
-**`min_volume_reduction`**：分数（0-1），默认 `0.2`（20%）。拆分只在体积减少超过此阈值时发生：
-
-- 较高值（如 0.3）= 更少 region，体积浪费稍多
-- 较低值（如 0.1）= 更多 region，体积更紧凑
-- 设为 0 = 无条件拆分（最大化体积效率，region 数量最多）
 
 `grid_constraints` 是可选数组，每个元素对应一个 `grid_constraint_att`。如果同名约束已经存在，脚本会更新；如果不存在，就会新建。
 
