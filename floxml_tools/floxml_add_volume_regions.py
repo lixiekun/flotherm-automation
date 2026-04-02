@@ -458,12 +458,24 @@ def _decompose_selected_items(
 
     Phase 2 — cross-component greedy merge: merge adjacent component groups if
     the merged bbox is obstacle-free, until no more merges are possible.
-    """
-    if not obstacles:
-        obstacles = []
 
+    Obstacle check is done directly from the geometry tree at each merge attempt
+    (not from a pre-computed list) to ensure robustness.
+    """
     if len(selected_items) <= 1:
         return [selected_items] if selected_items else []
+
+    # Build usable_set from selected items (element IDs to exclude from obstacles)
+    usable_set = {id(item.element) for item in selected_items}
+
+    # Also exclude parent assemblies of selected items — they don't count as obstacles
+    # because they're containers, not physical geometry
+    for item in selected_items:
+        elem = item.element
+        while elem is not None:
+            parent = elem  # walk up via parent map if available
+            elem = None  # ET doesn't have parent refs, skip for now
+            break
 
     # Phase 1: group cuboids by parent assembly (same assembly_path)
     assembly_map: Dict[Tuple[str, ...], List[GeometryItem]] = {}
@@ -474,13 +486,25 @@ def _decompose_selected_items(
         assembly_map[key].append(item)
 
     groups: List[List[GeometryItem]] = list(assembly_map.values())
-    print(f"[DEBUG] phase1: {len(selected_items)} cuboids -> {len(groups)} assembly groups", file=sys.stderr)
-    for g in groups:
-        lo, hi = _compute_bbox(g)
-        print(f"  [DEBUG] group ({len(g)} items): {g[0].name} bbox=({lo[0]:.3f},{lo[1]:.3f},{lo[2]:.3f})-({hi[0]:.3f},{hi[1]:.3f},{hi[2]:.3f})", file=sys.stderr)
 
     if len(groups) <= 1:
         return groups
+
+    # Pre-scan all geometry from root for obstacle detection.
+    # This uses the recursive _iter_geometry_items to find ALL items at ALL levels.
+    all_geometry_items = list(_iter_geometry_items(root_geometry))
+
+    def _has_obstacles(items: List[GeometryItem]) -> bool:
+        """Check if the bbox of items contains any non-selected geometry."""
+        lower, upper = _compute_bbox(items)
+        for gitem in all_geometry_items:
+            if gitem.global_size is None:
+                continue
+            if id(gitem.element) in usable_set:
+                continue
+            if _bbox_overlaps_item(lower, upper, gitem):
+                return True
+        return False
 
     # Phase 2: compute per-axis adjacency threshold from median group size
     max_gaps: Vector3 = (0.0, 0.0, 0.0)
@@ -496,7 +520,6 @@ def _decompose_selected_items(
                 sizes[len(sizes) // 2] if axis == 1 else max_gaps[1],
                 sizes[len(sizes) // 2] if axis == 2 else max_gaps[2],
             )
-    print(f"[DEBUG] phase2: max_gaps=({max_gaps[0]:.3f},{max_gaps[1]:.3f},{max_gaps[2]:.3f})", file=sys.stderr)
 
     # Greedy merging: repeatedly find and apply the best valid merge
     changed = True
@@ -510,7 +533,7 @@ def _decompose_selected_items(
                     continue
 
                 merged = groups[i] + groups[j]
-                if _count_obstacles_in_bbox(merged, obstacles) > 0:
+                if _has_obstacles(merged):
                     continue
 
                 vol = _bbox_volume(merged)
