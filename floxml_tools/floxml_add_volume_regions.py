@@ -476,22 +476,41 @@ def _decompose_selected_items(
         if gitem.assembly_path in selected_paths:
             usable_set.add(id(gitem.element))
 
-    # Phase 1: group cuboids by parent assembly (same assembly_path)
-    assembly_map: Dict[Tuple[str, ...], List[GeometryItem]] = {}
-    for item in selected_items:
-        key = item.assembly_path
-        if key not in assembly_map:
-            assembly_map[key] = []
-        assembly_map[key].append(item)
+    # Phase 1: group items that physically overlap in 3D space.
+    # Items within the same component (e.g. die + source on die) overlap
+    # spatially and form one group. Items in different positions (e.g. two
+    # separate sources on a PCB) do NOT overlap and stay as separate groups.
+    # This ensures the initial group count matches the number of physically
+    # distinct objects, NOT the number of assemblies.
+    tol = 1e-9
+    groups: List[List[GeometryItem]] = [[item] for item in selected_items]
 
-    groups: List[List[GeometryItem]] = list(assembly_map.values())
+    def _items_overlap_3d(a: List[GeometryItem], b: List[GeometryItem]) -> bool:
+        """Check if two groups physically overlap on ALL 3 axes."""
+        lo_a, hi_a = _compute_bbox(a)
+        lo_b, hi_b = _compute_bbox(b)
+        for axis in range(3):
+            overlap = min(hi_a[axis], hi_b[axis]) - max(lo_a[axis], lo_b[axis])
+            if overlap <= tol:
+                return False
+        return True
+
+    # Greedy merge: keep merging groups that physically overlap
+    changed = True
+    while changed:
+        changed = False
+        for i in range(len(groups)):
+            for j in range(i + 1, len(groups)):
+                if _items_overlap_3d(groups[i], groups[j]):
+                    groups[i] = groups[i] + groups[j]
+                    groups.pop(j)
+                    changed = True
+                    break
+            if changed:
+                break
 
     if len(groups) <= 1:
         return groups
-
-    # Pre-scan all geometry from root for obstacle detection.
-    # This uses the recursive _iter_geometry_items to find ALL items at ALL levels.
-    all_geometry_items = list(_iter_geometry_items(root_geometry))
 
     def _has_obstacles(items: List[GeometryItem]) -> bool:
         """Check if the bbox of items contains any non-selected geometry.
