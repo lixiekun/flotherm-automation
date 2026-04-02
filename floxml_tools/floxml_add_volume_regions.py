@@ -450,15 +450,14 @@ def _decompose_selected_items(
     obstacles: Optional[List[GeometryItem]] = None,
 ) -> List[List[GeometryItem]]:
     """
-    Greedy region merging: start with 1 region per item, then merge adjacent
-    groups along x/y/z if obstacle-free. Minimize total region count.
+    Greedy region merging with invariant: region count <= selected component count.
 
-    Two groups are adjacent when their bboxes overlap on 2+ axes and the gap
-    on the remaining axis is within the per-axis threshold (median item size).
-    This prevents non-adjacent merges (e.g. 9-grid items 1 and 7 cannot merge
-    because the gap is too large).
+    Phase 1 — group by assembly_path: all cuboids within the same parent assembly
+    are merged into one group unconditionally. This guarantees the output region
+    count never exceeds the number of user-selected materials.
 
-    Obstacles: non-selected geometry that merged regions must not wrap.
+    Phase 2 — cross-component greedy merge: merge adjacent component groups if
+    the merged bbox is obstacle-free, until no more merges are possible.
     """
     if not obstacles:
         obstacles = []
@@ -466,58 +465,52 @@ def _decompose_selected_items(
     if len(selected_items) <= 1:
         return [selected_items] if selected_items else []
 
-    # Compute per-axis max adjacency gap from median item size on each axis.
-    # Using median (not min) avoids thin items (e.g. 0.1mm die) making the
-    # threshold too strict for normal gaps between cuboids in a component.
+    # Phase 1: group cuboids by parent assembly (same assembly_path)
+    assembly_map: Dict[Tuple[str, ...], List[GeometryItem]] = {}
+    for item in selected_items:
+        key = item.assembly_path
+        if key not in assembly_map:
+            assembly_map[key] = []
+        assembly_map[key].append(item)
+
+    groups: List[List[GeometryItem]] = list(assembly_map.values())
+    print(f"[DEBUG] phase1: {len(selected_items)} cuboids -> {len(groups)} assembly groups", file=sys.stderr)
+    for g in groups:
+        lo, hi = _compute_bbox(g)
+        print(f"  [DEBUG] group ({len(g)} items): {g[0].name} bbox=({lo[0]:.3f},{lo[1]:.3f},{lo[2]:.3f})-({hi[0]:.3f},{hi[1]:.3f},{hi[2]:.3f})", file=sys.stderr)
+
+    if len(groups) <= 1:
+        return groups
+
+    # Phase 2: compute per-axis adjacency threshold from median group size
     max_gaps: Vector3 = (0.0, 0.0, 0.0)
     for axis in range(3):
         sizes = sorted(
-            item.global_size[axis]
-            for item in selected_items
-            if item.global_size is not None and item.global_size[axis] > 1e-9
+            hi[axis] - lo[axis]
+            for group in groups
+            for lo, hi in [_compute_bbox(group)]
         )
         if sizes:
             max_gaps = (
-                max_gaps[0] if axis else sizes[len(sizes) // 2],
-                max_gaps[1] if axis != 1 else sizes[len(sizes) // 2],
-                max_gaps[2] if axis != 2 else sizes[len(sizes) // 2],
+                sizes[len(sizes) // 2] if axis == 0 else max_gaps[0],
+                sizes[len(sizes) // 2] if axis == 1 else max_gaps[1],
+                sizes[len(sizes) // 2] if axis == 2 else max_gaps[2],
             )
-
-    print(f"[DEBUG] merge: {len(selected_items)} items, max_gaps={max_gaps}", file=sys.stderr)
-    print(f"[DEBUG] items:", file=sys.stderr)
-    for item in selected_items:
-        p = item.global_position
-        s = item.global_size
-        print(f"  {item.tag}/{item.name}: pos=({p[0]:.4f},{p[1]:.4f},{p[2]:.4f}) size=({s[0]:.4f},{s[1]:.4f},{s[2]:.4f})" if s else f"  {item.tag}/{item.name}: no size", file=sys.stderr)
-
-    # Start with each item as its own group
-    groups: List[List[GeometryItem]] = [[item] for item in selected_items]
+    print(f"[DEBUG] phase2: max_gaps=({max_gaps[0]:.3f},{max_gaps[1]:.3f},{max_gaps[2]:.3f})", file=sys.stderr)
 
     # Greedy merging: repeatedly find and apply the best valid merge
     changed = True
     while changed:
         changed = False
         best = None  # (merged_volume, i, j)
-        skip_reasons = {"adjacency": 0, "obstacles": 0}
 
         for i in range(len(groups)):
             for j in range(i + 1, len(groups)):
                 if not _groups_are_adjacent(groups[i], groups[j], max_gaps):
-                    if best is None and not changed:
-                        # Only log on first pass (before any merge)
-                        lo_a, hi_a = _compute_bbox(groups[i])
-                        lo_b, hi_b = _compute_bbox(groups[j])
-                        gaps = []
-                        for axis in range(3):
-                            g = max(lo_a[axis], lo_b[axis]) - min(hi_a[axis], hi_b[axis])
-                            gaps.append(max(0, g))
-                        print(f"  [DEBUG] NOT adjacent: {groups[i][0].name} vs {groups[j][0].name} gaps=({gaps[0]:.4f},{gaps[1]:.4f},{gaps[2]:.4f}) max_gaps=({max_gaps[0]:.4f},{max_gaps[1]:.4f},{max_gaps[2]:.4f})", file=sys.stderr)
-                    skip_reasons["adjacency"] += 1
                     continue
 
                 merged = groups[i] + groups[j]
                 if _count_obstacles_in_bbox(merged, obstacles) > 0:
-                    skip_reasons["obstacles"] += 1
                     continue
 
                 vol = _bbox_volume(merged)
@@ -530,6 +523,7 @@ def _decompose_selected_items(
             groups.pop(j)
             changed = True
 
+    print(f"[DEBUG] result: {len(groups)} regions", file=sys.stderr)
     return groups
 
 
