@@ -14,44 +14,43 @@
 | 文件 | 说明 |
 |------|------|
 | `apktool.jar` + `apktool.bat` | APK 解包/打包工具 |
-| `aapt.exe` | 查看 APK 信息 |
+| `aapt.exe` | 查看 APK 信息（可选） |
 | `apksigner.jar` + `apksigner.bat` | APK 签名工具 |
 
 ## 使用方法
 
-将本目录加入 PATH，或用完整路径执行。以下假设在 CMD 中操作：
+在 CMD 中操作，用完整路径或将本目录加入 PATH。
 
-### 1. 解码 APK
+### 第 1 步：解码 APK
 
 ```cmd
 apktool.bat d Touch-Point-1-1-APKPure.apk -o Touch-Point-decoded
 ```
 
-### 2. 修改 targetSdkVersion
+### 第 2 步：修改 targetSdkVersion
 
-编辑 `Touch-Point-decoded\apktool.yml`：
+用记事本编辑 `Touch-Point-decoded\apktool.yml`，把 `targetSdkVersion` 改为 `24`：
 
 ```yaml
 targetSdkVersion: '24'
 ```
 
-### 3. 重新打包
+### 第 3 步：打包并签名
 
 ```cmd
+:: 重新打包
 apktool.bat b Touch-Point-decoded -o Touch-Point-modified.apk
-```
 
-### 4. 签名
-
-```cmd
-:: 生成 debug 密钥（只需执行一次）
+:: 生成 debug 密钥（只需执行一次，已有则跳过）
 keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000
 
-:: 签名
+:: 签名（未签名的 APK 无法安装）
 apksigner.bat sign --ks debug.keystore --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out Touch-Point-signed.apk Touch-Point-modified.apk
 ```
 
-### 5. 验证
+最终产物是 `Touch-Point-signed.apk`，直接安装即可。
+
+### （可选）验证
 
 ```cmd
 apksigner.bat verify Touch-Point-signed.apk
