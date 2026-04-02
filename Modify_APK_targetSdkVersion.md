@@ -1,60 +1,60 @@
-# Modify APK targetSdkVersion Guide
+# 修改 APK targetSdkVersion 操作步骤
 
-Steps to modify an APK's `targetSdkVersion` for Android compatibility using `apktool`.
+使用 `apktool` 修改 APK 的 `targetSdkVersion`，解决 Android 高版本兼容性问题。
 
-## Prerequisites
+## 前置条件
 
 ```bash
 brew install apktool
 ```
 
-Android SDK with `apksigner` and debug keystore (`~/.android/debug.keystore`).
+需要 Android SDK 中的 `apksigner`，以及 debug 签名密钥 (`~/.android/debug.keystore`)。
 
-## Steps
+## 操作步骤
 
-### 1. Decode APK
+### 1. 解码 APK
 
 ```bash
 apktool d Touch-Point-1-1-APKPure.apk -o Touch-Point-decoded
 ```
 
-### 2. Modify targetSdkVersion
+### 2. 修改 targetSdkVersion
 
-Edit `Touch-Point-decoded/apktool.yml`:
+编辑 `Touch-Point-decoded/apktool.yml`：
 
 ```yaml
-# Before
+# 修改前
 targetSdkVersion: '18'
 
-# After
+# 修改后
 targetSdkVersion: '24'
 ```
 
-### 3. Rebuild APK
+### 3. 重新打包
 
 ```bash
 apktool b Touch-Point-decoded -o Touch-Point-modified.apk
 ```
 
-### 4. Sign APK with debug key
+### 4. 用 debug 密钥签名
 
 ```bash
-# Generate debug keystore if not exists
+# 如果没有 debug 密钥，先生成一个
 keytool -genkey -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000
 
-# Sign
+# 签名
 apksigner sign --ks ~/.android/debug.keystore --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out Touch-Point-1-1-APKPure.apk Touch-Point-modified.apk
 ```
 
-### 5. Verify
+### 5. 验证
 
 ```bash
 apksigner verify Touch-Point-1-1-APKPure.apk
 aapt dump badging Touch-Point-1-1-APKPure.apk | grep sdkVersion
 ```
 
-## Notes
+## 注意事项
 
-- `targetSdkVersion: 24` (Android 7.0) is required for Android 16+ compatibility
-- Debug-signed APK must be uninstalled before installing a different-signed version
-- Original APK should be backed up before modification
+- `targetSdkVersion: 24`（Android 7.0）是 Android 16+ 正常运行的最低要求
+- debug 签名的 APK 与原版签名不同，安装前需要先卸载旧版本
+- 修改前请备份原始 APK
