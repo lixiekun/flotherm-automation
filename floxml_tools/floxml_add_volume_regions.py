@@ -420,6 +420,34 @@ def _count_obstacles_in_bbox(
     return sum(1 for obs in obstacles if _bbox_overlaps_item(lower, upper, obs))
 
 
+def _items_form_strip(items: List[GeometryItem], tol: float = 1e-9) -> bool:
+    """Check if items form a strip: overlap on 2 out of 3 axes."""
+    if len(items) <= 1:
+        return False
+    for strip_axis in range(3):
+        other_axes = [a for a in range(3) if a != strip_axis]
+        all_overlap = True
+        for axis in other_axes:
+            ranges = []
+            for item in items:
+                if item.global_size is None:
+                    all_overlap = False
+                    break
+                lo = item.global_position[axis]
+                hi = lo + item.global_size[axis]
+                ranges.append((lo, hi))
+            if not all_overlap:
+                break
+            max_lo = max(r[0] for r in ranges)
+            min_hi = min(r[1] for r in ranges)
+            if max_lo >= min_hi - tol:
+                all_overlap = False
+                break
+        if all_overlap:
+            return True
+    return False
+
+
 def _decompose_selected_items(
     selected_items: List[GeometryItem],
     root_geometry: ET.Element,
@@ -433,13 +461,14 @@ def _decompose_selected_items(
     Algorithm:
     1. If bbox volume ≈ sum of item volumes → tight fit, single group
        (unless obstacles are inside the bbox)
-    2. Try splitting along each axis at item boundaries
-    3. Score each split by (obstacle_count, total_volume) — fewer obstacles
+    2. If items form a strip (overlap on 2 axes) with no obstacles → single group
+    3. Try splitting along each axis at item boundaries
+    4. Score each split by (obstacle_count, total_volume) — fewer obstacles
        wins, then less volume wins
-    4. If split reduces obstacle count → always split (obstacle avoidance
+    5. If split reduces obstacle count → always split (obstacle avoidance
        overrides volume threshold)
-    5. Otherwise, only split if volume reduction > min_volume_reduction
-    6. Recurse on each sub-group
+    6. Otherwise, only split if volume reduction > min_volume_reduction
+    7. Recurse on each sub-group
 
     obstacles: non-selected geometry items that regions should avoid wrapping.
     """
@@ -457,6 +486,10 @@ def _decompose_selected_items(
         if obs_before == 0:
             return [selected_items]
         # Tight fit but obstacles exist — continue to try splitting
+
+    # If items form a strip (overlap on 2 axes) with no obstacles → single group
+    if obs_before == 0 and _items_form_strip(selected_items):
+        return [selected_items]
 
     lower, upper = _compute_bbox(selected_items)
 
