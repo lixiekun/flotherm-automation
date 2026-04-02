@@ -128,7 +128,7 @@ python floxml_add_volume_regions.py input.xml --config config.xlsx -o output.xml
 
 定义 volume region，每行一个：
 
-| name | parent_assembly | position_x | position_y | position_z | size_x | size_y | size_z | bbox_include_names | bbox_include_patterns | bbox_include_tags | bbox_scope_assembly | bbox_padding | active | hidden | localized_grid | x_grid_constraint | y_grid_constraint | z_grid_constraint | all_grid_constraint |
+| name | parent_assembly | position_x | position_y | position_z | size_x | size_y | size_z | bbox_include_names | bbox_include_patterns | bbox_include_tags | bbox_scope_assembly | bbox_padding | split_regions | split_min_reduction | active | hidden | localized_grid | x_grid_constraint | y_grid_constraint | z_grid_constraint | all_grid_constraint |
 |------|----------------|-----------|-----------|-----------|-------|-------|-------|-------------------|---------------------|-----------------|--------------------|------------|--------|--------|---------------|-------------------|-------------------|-------------------|--------------------|
 
 两种模式互斥，优先使用 bbox（如果 bbox 字段有值）：
@@ -149,11 +149,11 @@ python floxml_add_volume_regions.py input.xml --config config.xlsx -o output.xml
 - `bbox_include_names` 和 `bbox_include_patterns` 用逗号分隔多个值
 - 3 个 Sheet 都是可选的，缺少的 Sheet 会被跳过
 
-### `split_regions` — 自动拆分避开未选中对象
+### `split_regions` — 自动拆分减少 region 体积
 
-当 `bbox_from` 选中的几何体之间有未选中的对象时，单个矩形 region 会把未选中对象也包进去。开启 `split_regions` 后，脚本会自动把选中对象拆分成多个矩形 region，每个 region 都不会包含未选中的对象。
+开启 `split_regions` 后，脚本会递归地把选中对象拆分成多个矩形 region，以减少总体积浪费。拆分与否由 `min_volume_reduction` 阈值控制，在 region 数量和体积效率之间取得平衡。
 
-例如 3×3 九宫格中选中 1,2,3,4,7（L 形）：
+例如 3×3 九宫格中选中 1,2,3,4,7（L 形），体积减少 25% > 20% 阈值，拆分为 2 个 region：
 
 ```
 ┌───┬───┬───┐       ┌───┬───┬───┐
@@ -177,6 +177,7 @@ JSON 配置：
       "bbox_from": {
         "include_names": ["C1", "C2", "C3", "C4", "C7"],
         "split_regions": true,
+        "min_volume_reduction": 0.2,
         "padding": 0.05
       }
     }
@@ -184,19 +185,27 @@ JSON 配置：
 }
 ```
 
-Excel 配置（regions sheet 加列 `split_regions`）：
+Excel 配置（regions sheet 加列 `split_regions` 和 `split_min_reduction`）：
 
-| name | ... | bbox_include_names | bbox_padding | split_regions | ... |
-|------|-----|-------------------|-------------|--------------|-----|
-| LShape | | C1,C2,C3,C4,C7 | 0.05 | true | |
+| name | ... | bbox_include_names | bbox_padding | split_regions | split_min_reduction | ... |
+|------|-----|-------------------|-------------|--------------|--------------------|-----|
+| LShape | | C1,C2,C3,C4,C7 | 0.05 | true | | |
+| Conservative | | S1,S2,S3 | 0.05 | true | 0.1 | |
 
 **拆分规则**：
 
 - 递归地沿 x/y/z 轴尝试切分选中对象
-- 优先选择使子区域中障碍物最少的切分
+- 优先选择使子区域总体积最小的切分
+- 只有当体积减少比例超过 `min_volume_reduction` 时才拆分，否则保留单个 region
 - 如果无法切分，退化为单个对象各自的 region
 - 拆分后的 region 命名为 `{name}_1`、`{name}_2` 等（如果只产生 1 个 region，保留原名）
 - 每个子 region 独立应用 `padding` 和 grid constraint 设置
+
+**`min_volume_reduction`**：分数（0-1），默认 `0.2`（20%）。拆分只在体积减少超过此阈值时发生：
+
+- 较高值（如 0.3）= 更少 region，体积浪费稍多
+- 较低值（如 0.1）= 更多 region，体积更紧凑
+- 设为 0 = 无条件拆分（最大化体积效率，region 数量最多）
 
 `grid_constraints` 是可选数组，每个元素对应一个 `grid_constraint_att`。如果同名约束已经存在，脚本会更新；如果不存在，就会新建。
 

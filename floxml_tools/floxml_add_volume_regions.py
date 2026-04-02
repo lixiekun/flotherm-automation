@@ -396,41 +396,72 @@ def _item_volume_sum(items: List[GeometryItem]) -> float:
     )
 
 
+def _bbox_overlaps_item(
+    lower: Vector3, upper: Vector3, item: GeometryItem
+) -> bool:
+    """Check if an item's global bbox overlaps with a given bbox (AABB test)."""
+    if item.global_size is None:
+        return False
+    for axis in range(3):
+        item_lo = item.global_position[axis]
+        item_hi = item_lo + item.global_size[axis]
+        if item_hi <= lower[axis] or item_lo >= upper[axis]:
+            return False
+    return True
+
+
+def _count_obstacles_in_bbox(
+    items: List[GeometryItem], obstacles: List[GeometryItem]
+) -> int:
+    """Count how many obstacles overlap the bbox of the given items."""
+    if not obstacles or not items:
+        return 0
+    lower, upper = _compute_bbox(items)
+    return sum(1 for obs in obstacles if _bbox_overlaps_item(lower, upper, obs))
+
+
 def _decompose_selected_items(
     selected_items: List[GeometryItem],
     root_geometry: ET.Element,
     min_volume_reduction: float = 0.2,
+    obstacles: Optional[List[GeometryItem]] = None,
 ) -> List[List[GeometryItem]]:
     """
     Recursively decompose selected items into rectangular groups that
-    minimize total region volume, balanced against region count.
+    minimize total region volume, with obstacle awareness.
 
     Algorithm:
     1. If bbox volume ≈ sum of item volumes → tight fit, single group
+       (unless obstacles are inside the bbox)
     2. Try splitting along each axis at item boundaries
-    3. Pick the split that minimizes total bbox volume (greedy)
-    4. Only split if volume reduction > min_volume_reduction (default 20%)
-    5. Recurse on each sub-group
+    3. Score each split by (obstacle_count, total_volume) — fewer obstacles
+       wins, then less volume wins
+    4. If split reduces obstacle count → always split (obstacle avoidance
+       overrides volume threshold)
+    5. Otherwise, only split if volume reduction > min_volume_reduction
+    6. Recurse on each sub-group
 
-    min_volume_reduction: fraction (0-1). Split only when it reduces total
-    volume by at least this fraction. Higher = fewer regions, lower = less
-    wasted volume. Default 0.2 (20%).
-
-    Produces at most N regions for N items. For example:
-    3 items in L-shape → volume drops 25% > 20% threshold → 2 regions.
+    obstacles: non-selected geometry items that regions should avoid wrapping.
     """
+    if not obstacles:
+        obstacles = []
+
     if len(selected_items) <= 1:
         return [selected_items] if selected_items else []
 
     # If bbox volume is close to item volume sum, items form a tight rectangle
     bbox_vol = _bbox_volume(selected_items)
     item_vol = _item_volume_sum(selected_items)
+    obs_before = _count_obstacles_in_bbox(selected_items, obstacles)
     if item_vol > 0 and bbox_vol / item_vol < 1.05:
-        return [selected_items]
+        if obs_before == 0:
+            return [selected_items]
+        # Tight fit but obstacles exist — continue to try splitting
 
     lower, upper = _compute_bbox(selected_items)
 
-    best = None
+    best = None  # (score_tuple, group_a, group_b)
+    best_vol = 0.0
     tol = 1e-9
 
     for axis in range(3):
@@ -464,24 +495,37 @@ def _decompose_selected_items(
             if len(group_a) == len(selected_items) or len(group_b) == len(selected_items):
                 continue
 
-            # Score: total bbox volume after split (lower is better)
-            score = _bbox_volume(group_a) + _bbox_volume(group_b)
+            # Score: (obstacle_count, total_volume) — tuple comparison
+            obs_a = _count_obstacles_in_bbox(group_a, obstacles)
+            obs_b = _count_obstacles_in_bbox(group_b, obstacles)
+            vol_after = _bbox_volume(group_a) + _bbox_volume(group_b)
+            score = (obs_a + obs_b, vol_after)
 
             if best is None or score < best[0]:
                 best = (score, group_a, group_b)
+                best_vol = vol_after
 
-    # Check if best split reduces volume enough to justify an extra region
     if best is None or bbox_vol <= 0:
         return [selected_items]
 
-    reduction = (bbox_vol - best[0]) / bbox_vol
-    if reduction < min_volume_reduction:
-        return [selected_items]
+    (best_obs, _), group_a, group_b = best
 
-    _, group_a, group_b = best
+    # Decision: obstacle reduction overrides volume threshold
+    if obs_before > 0 and best_obs < obs_before:
+        pass  # Always split to reduce obstacles
+    else:
+        # No obstacle improvement — apply volume threshold
+        reduction = (bbox_vol - best_vol) / bbox_vol
+        if reduction < min_volume_reduction:
+            return [selected_items]
+
     results: List[List[GeometryItem]] = []
-    results.extend(_decompose_selected_items(group_a, root_geometry, min_volume_reduction))
-    results.extend(_decompose_selected_items(group_b, root_geometry, min_volume_reduction))
+    results.extend(_decompose_selected_items(
+        group_a, root_geometry, min_volume_reduction, obstacles=obstacles,
+    ))
+    results.extend(_decompose_selected_items(
+        group_b, root_geometry, min_volume_reduction, obstacles=obstacles,
+    ))
     return results
 
 
@@ -558,9 +602,18 @@ def add_regions(root: ET.Element, config: Dict) -> ET.Element:
                     f"Matched: {[f'{m.tag}/{m.name}' for m in matches]}"
                 )
 
+            # Compute obstacles: all geometry items not in the selected set
+            usable_set = {id(m.element) for m in usable}
+            obstacles = [
+                item for item in _iter_all_geometry_items(geometry)
+                if item.global_size is not None
+                and id(item.element) not in usable_set
+            ]
+
             groups = _decompose_selected_items(
                 usable, geometry,
                 min_volume_reduction=bbox_cfg.get("min_volume_reduction", 0.2),
+                obstacles=obstacles,
             )
             padding = _normalize_padding(bbox_cfg.get("padding", 0.0))
 
