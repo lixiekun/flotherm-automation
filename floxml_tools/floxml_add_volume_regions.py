@@ -478,16 +478,23 @@ def _decompose_selected_items(
             if id(gitem.element) in usable_set:
                 continue
             # 3D overlap check (all axes)
+            # Special case: if both the region bbox and the obstacle have
+            # zero extent on an axis and are at the same position, treat
+            # as overlapping (handles thin/zero-thickness sources).
             blocked = True
-            fail_axis = -1
             for axis in range(3):
                 item_lo = gitem.global_position[axis]
                 item_hi = item_lo + gitem.global_size[axis]
                 overlap = min(item_hi, upper[axis]) - max(item_lo, lower[axis])
-                if overlap <= tol:
-                    blocked = False
-                    fail_axis = axis
-                    break
+                if overlap > tol:
+                    continue
+                # Zero-extent special case
+                extent_item = item_hi - item_lo
+                extent_bbox = upper[axis] - lower[axis]
+                if extent_item <= tol and extent_bbox <= tol and abs(item_lo - lower[axis]) <= tol:
+                    continue
+                blocked = False
+                break
             if blocked:
                 if return_blocker:
                     return gitem.name or gitem.tag
@@ -508,13 +515,26 @@ def _decompose_selected_items(
 
     def _axes_overlap(a: List[GeometryItem], b: List[GeometryItem],
                       axes: Tuple[int, ...]) -> bool:
-        """Check if two groups overlap on the specified axes."""
+        """Check if two groups overlap on the specified axes.
+
+        Special case: if both groups have zero or near-zero extent on an
+        axis (e.g. thin sources with z size = 0) and are at the same
+        position on that axis, they are considered overlapping. This
+        prevents zero-thickness items from failing collinearity checks.
+        """
         lo_a, hi_a = _compute_bbox(a)
         lo_b, hi_b = _compute_bbox(b)
         for axis in axes:
             overlap = min(hi_a[axis], hi_b[axis]) - max(lo_a[axis], lo_b[axis])
-            if overlap <= tol:
-                return False
+            if overlap > tol:
+                continue
+            # Zero-extent special case: both groups are degenerate on this
+            # axis and at the same position → treat as overlapping
+            extent_a = hi_a[axis] - lo_a[axis]
+            extent_b = hi_b[axis] - lo_b[axis]
+            if extent_a <= tol and extent_b <= tol and abs(lo_a[axis] - lo_b[axis]) <= tol:
+                continue
+            return False
         return True
 
     def _axis_gap(a: List[GeometryItem], b: List[GeometryItem],
