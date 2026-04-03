@@ -555,6 +555,30 @@ def _decompose_selected_items(
             return False
         return True
 
+    def _axes_range_match(a: List[GeometryItem], b: List[GeometryItem],
+                          axes: Tuple[int, ...]) -> bool:
+        """Check if two groups have matching range on the given axes.
+
+        For merging along axis A, perpendicular axes must have aligned
+        ranges so the merged bbox doesn't cover empty space.  E.g. a
+        2-wide horizontal strip should not merge with a 1-wide item
+        below it, but two 2-wide strips can merge.
+        """
+        lo_a, hi_a = _compute_bbox(a)
+        lo_b, hi_b = _compute_bbox(b)
+        for axis in axes:
+            extent_a = hi_a[axis] - lo_a[axis]
+            extent_b = hi_b[axis] - lo_b[axis]
+            # Both zero-extent: positions must match
+            if extent_a <= tol and extent_b <= tol:
+                if abs(lo_a[axis] - lo_b[axis]) > tol:
+                    return False
+                continue
+            # At least one has real extent: ranges must match
+            if abs(lo_a[axis] - lo_b[axis]) > tol or abs(hi_a[axis] - hi_b[axis]) > tol:
+                return False
+        return True
+
     def _axis_gap(a: List[GeometryItem], b: List[GeometryItem],
                   axis: int) -> float:
         """Compute the gap between two groups along a given axis.
@@ -585,6 +609,11 @@ def _decompose_selected_items(
                 for j in range(i + 1, len(groups)):
                     # Must be collinear: overlap on both perpendicular axes
                     if not _axes_overlap(groups[i], groups[j], perp_axes):
+                        continue
+
+                    # Must have matching range on perpendicular axes to
+                    # avoid creating regions that cover empty space.
+                    if not _axes_range_match(groups[i], groups[j], perp_axes):
                         continue
 
                     # Must be obstacle-free (obstacle check prevents
