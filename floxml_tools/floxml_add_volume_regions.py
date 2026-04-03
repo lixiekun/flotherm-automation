@@ -392,6 +392,7 @@ def _decompose_selected_items(
     root_geometry: ET.Element,
     min_volume_reduction: float = 0.2,
     obstacles: Optional[List[GeometryItem]] = None,
+    ignore_obstacles: bool = False,
 ) -> List[List[GeometryItem]]:
     """
     Line-first directional merge: minimize region count without wrapping obstacles.
@@ -425,6 +426,13 @@ def _decompose_selected_items(
     for gitem in all_geometry_items:
         if gitem.assembly_path in selected_paths:
             usable_set.add(id(gitem.element))
+            continue
+        # Hierarchy: ancestor containers (path is prefix of a selected path)
+        # are not obstacles — they enclose the selected items.
+        for sp in selected_paths:
+            if sp[:len(gitem.assembly_path)] == gitem.assembly_path:
+                usable_set.add(id(gitem.element))
+                break
 
     # ------------------------------------------------------------------
     # Phase 1: merge items that physically overlap in 3D space
@@ -476,6 +484,16 @@ def _decompose_selected_items(
             if gitem.global_size is None:
                 continue
             if id(gitem.element) in usable_set:
+                continue
+            # Spatial: if this item fully contains the merged bbox, it's a
+            # container — not an obstacle.  The volume region sits inside it.
+            item_lo = gitem.global_position
+            item_hi = _vector_add(item_lo, gitem.global_size)
+            contains = all(
+                item_lo[axis] - tol <= lower[axis] and upper[axis] <= item_hi[axis] + tol
+                for axis in range(3)
+            )
+            if contains:
                 continue
             # 3D overlap check (all axes)
             # Special case: if both the region bbox and the obstacle have
@@ -572,15 +590,16 @@ def _decompose_selected_items(
                     # Must be obstacle-free (obstacle check prevents
                     # merging regions that would wrap non-selected geometry)
                     merged = groups[i] + groups[j]
-                    blocked_by = _has_obstacles(merged, return_blocker=True)
-                    if blocked_by:
-                        n_i = groups[i][0].name
-                        n_j = groups[j][0].name
-                        print(
-                            f"[D] {'xyz'[merge_axis]}: {n_i}+{n_j} <- {blocked_by}",
-                            file=sys.stderr,
-                        )
-                        continue
+                    if not ignore_obstacles:
+                        blocked_by = _has_obstacles(merged, return_blocker=True)
+                        if blocked_by:
+                            n_i = groups[i][0].name
+                            n_j = groups[j][0].name
+                            print(
+                                f"[D] {'xyz'[merge_axis]}: {n_i}+{n_j} <- {blocked_by}",
+                                file=sys.stderr,
+                            )
+                            continue
 
                     # Pick the merge that produces the smallest volume
                     vol = _bbox_volume(merged)
@@ -682,6 +701,7 @@ def add_regions(root: ET.Element, config: Dict) -> ET.Element:
                 usable, geometry,
                 min_volume_reduction=bbox_cfg.get("min_volume_reduction", 0.2),
                 obstacles=obstacles,
+                ignore_obstacles=bbox_cfg.get("ignore_obstacles", False),
             )
             padding = _normalize_padding(bbox_cfg.get("padding", 0.0))
 
