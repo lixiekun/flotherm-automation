@@ -574,12 +574,10 @@ def _decompose_selected_items(
                     merged = groups[i] + groups[j]
                     blocked_by = _has_obstacles(merged, return_blocker=True)
                     if blocked_by:
-                        names_i = "+".join(item.name for item in groups[i][:3])
-                        names_j = "+".join(item.name for item in groups[j][:3])
+                        n_i = groups[i][0].name
+                        n_j = groups[j][0].name
                         print(
-                            f"[DEBUG] axis={'xyz'[merge_axis]}: "
-                            f"merge [{names_i}]+[{names_j}] "
-                            f"blocked by '{blocked_by}'",
+                            f"[D] {'xyz'[merge_axis]}: {n_i}+{n_j} <- {blocked_by}",
                             file=sys.stderr,
                         )
                         continue
@@ -595,7 +593,7 @@ def _decompose_selected_items(
                 groups.pop(j)
                 changed = True
 
-    print(f"[DEBUG] result: {len(groups)} regions", file=sys.stderr)
+    print(f"[D] {len(groups)} regions", file=sys.stderr)
     return groups
 
 
