@@ -616,6 +616,23 @@ def _decompose_selected_items(
                     if not _axes_range_match(groups[i], groups[j], perp_axes):
                         continue
 
+                    # Volume efficiency: merged bbox shouldn't be mostly empty.
+                    # Per-axis ratio: (extent_a + extent_b) / extent_merged,
+                    # skip axes where both are zero-thickness. Product gives
+                    # overall fill ratio.
+                    lo_a, hi_a = _compute_bbox(groups[i])
+                    lo_b, hi_b = _compute_bbox(groups[j])
+                    efficiency = 1.0
+                    for ax in range(3):
+                        ext_a = hi_a[ax] - lo_a[ax]
+                        ext_b = hi_b[ax] - lo_b[ax]
+                        ext_m = max(hi_a[ax], hi_b[ax]) - min(lo_a[ax], lo_b[ax])
+                        if ext_m <= tol:
+                            continue  # zero-extent axis, irrelevant
+                        efficiency *= min((ext_a + ext_b) / ext_m, 1.0)
+                    if efficiency < 0.2:
+                        continue
+
                     # Must be obstacle-free (obstacle check prevents
                     # merging regions that would wrap non-selected geometry)
                     merged = groups[i] + groups[j]
