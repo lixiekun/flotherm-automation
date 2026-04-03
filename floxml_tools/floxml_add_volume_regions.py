@@ -464,7 +464,7 @@ def _decompose_selected_items(
     # ------------------------------------------------------------------
     # Obstacle helper (XY projection)
     # ------------------------------------------------------------------
-    def _has_obstacles(items: List[GeometryItem]) -> bool:
+    def _has_obstacles(items: List[GeometryItem], return_blocker: bool = False):
         """Check if the bbox of items contains any non-selected geometry.
 
         Uses full 3D AABB overlap test (all 3 axes). Items at different Z
@@ -479,15 +479,21 @@ def _decompose_selected_items(
                 continue
             # 3D overlap check (all axes)
             blocked = True
+            fail_axis = -1
             for axis in range(3):
                 item_lo = gitem.global_position[axis]
                 item_hi = item_lo + gitem.global_size[axis]
                 overlap = min(item_hi, upper[axis]) - max(item_lo, lower[axis])
                 if overlap <= tol:
                     blocked = False
+                    fail_axis = axis
                     break
             if blocked:
+                if return_blocker:
+                    return gitem.name or gitem.tag
                 return True
+        if return_blocker:
+            return None
         return False
 
     # ------------------------------------------------------------------
@@ -522,20 +528,14 @@ def _decompose_selected_items(
         return max(lo_a[axis], lo_b[axis]) - min(hi_a[axis], hi_b[axis])
 
     # Process each axis: x(0), y(1), z(2)
+    # No gap threshold — rely purely on collinearity + obstacle check.
+    # If two regions are collinear and the merged bbox has no obstacles,
+    # they can merge regardless of the gap between them. This handles
+    # the common case of small sources spread apart on a PCB where the
+    # gap far exceeds the source size.
     for merge_axis in range(3):
         # Perpendicular axes: the 2 axes that must overlap for collinearity
         perp_axes = tuple(a for a in range(3) if a != merge_axis)
-
-        # Adjacency threshold: median group extent along the merge axis.
-        # This allows merging regions whose gap is at most the typical region
-        # size — far-apart regions (like item 1 and item 7 in a 3x3 grid)
-        # have gaps much larger than this and won't be considered adjacent.
-        extents = sorted(
-            hi[merge_axis] - lo[merge_axis]
-            for g in groups
-            for lo, hi in [_compute_bbox(g)]
-        )
-        max_gap = extents[len(extents) // 2] if extents else 0.0
 
         # Repeatedly find and apply the best valid merge for this axis
         changed = True
@@ -549,14 +549,19 @@ def _decompose_selected_items(
                     if not _axes_overlap(groups[i], groups[j], perp_axes):
                         continue
 
-                    # Must be adjacent: gap on merge axis within threshold
-                    gap = _axis_gap(groups[i], groups[j], merge_axis)
-                    if gap > max_gap:
-                        continue
-
-                    # Must be obstacle-free
+                    # Must be obstacle-free (obstacle check prevents
+                    # merging regions that would wrap non-selected geometry)
                     merged = groups[i] + groups[j]
-                    if _has_obstacles(merged):
+                    blocked_by = _has_obstacles(merged, return_blocker=True)
+                    if blocked_by:
+                        names_i = "+".join(item.name for item in groups[i][:3])
+                        names_j = "+".join(item.name for item in groups[j][:3])
+                        print(
+                            f"[DEBUG] axis={'xyz'[merge_axis]}: "
+                            f"merge [{names_i}]+[{names_j}] "
+                            f"blocked by '{blocked_by}'",
+                            file=sys.stderr,
+                        )
                         continue
 
                     # Pick the merge that produces the smallest volume
