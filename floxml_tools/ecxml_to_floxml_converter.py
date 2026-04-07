@@ -136,56 +136,83 @@ class ConversionConfig:
     floxml_source: Optional[str] = None  # 源 FloXML/PDML 文件路径（用于提取网格设置）
     config_file: Optional[str] = None  # 统一 JSON 配置文件路径（注入属性/分配）
 
-    # --- Model settings ---
-    solution: str = "flow_heat"
-    radiation: str = "off"
-    dimensionality: str = "3d"
-    transient: bool = False
-    turbulence_type: str = "turbulent"
-    turbulence_model: str = "auto_algebraic"
-    gravity_direction: str = "neg_y"
-    gravity_value: float = 9.81
-    datum_pressure: float = 101325.0
+    # --- Model settings (None = not written, FloTHERM uses internal defaults) ---
+    solution: Optional[str] = None
+    radiation: Optional[str] = None
+    dimensionality: Optional[str] = None
+    transient: Optional[bool] = None
+    turbulence_type: Optional[str] = None
+    turbulence_model: Optional[str] = None
+    gravity_direction: Optional[str] = None
+    gravity_value: Optional[float] = None
+    datum_pressure: Optional[float] = None
 
     # --- Solve settings ---
-    solver_option: str = "multi_grid"
-    fan_relaxation: float = 1.0
-    estimated_free_convection_velocity: float = 0.2
-    use_double_precision: bool = False
-    freeze_flow: bool = False
-    active_plate_conduction: bool = False
-    network_assembly_block_correction: bool = False
-    store_error_field: bool = False
+    solver_option: Optional[str] = None
+    fan_relaxation: Optional[float] = None
+    estimated_free_convection_velocity: Optional[float] = None
+    use_double_precision: Optional[bool] = None
+    freeze_flow: Optional[bool] = None
+    active_plate_conduction: Optional[bool] = None
+    network_assembly_block_correction: Optional[bool] = None
+    store_error_field: Optional[bool] = None
 
     # --- Fluid properties ---
-    fluid_conductivity: float = 0.0261
-    fluid_viscosity: float = 0.0000184
-    fluid_density: float = 1.16
-    fluid_specific_heat: float = 1008.0
-    fluid_expansivity: float = 0.003
+    fluid_conductivity: Optional[float] = None
+    fluid_viscosity: Optional[float] = None
+    fluid_density: Optional[float] = None
+    fluid_specific_heat: Optional[float] = None
+    fluid_expansivity: Optional[float] = None
 
     # --- Grid defaults ---
-    grid_smoothing_type: str = "v3"
-    grid_smoothing_value: int = 12
-    grid_min_divisor: float = 100.0
-    grid_max_divisor: float = 12.0
+    grid_smoothing_type: Optional[str] = None
+    grid_smoothing_value: Optional[int] = None
+    grid_min_divisor: Optional[float] = None
+    grid_max_divisor: Optional[float] = None
 
     # --- Source defaults ---
-    source_applies_to: str = "temperature"
-    source_type: str = "total"
-    source_linear_coefficient: float = 0.0
+    source_applies_to: Optional[str] = None
+    source_type: Optional[str] = None
+    source_linear_coefficient: Optional[float] = None
 
     # --- Store flags ---
-    store_mass_flux: bool = False
-    store_heat_flux: bool = False
-    store_surface_temp: bool = False
-    store_grad_t: bool = False
-    store_bn_sc: bool = False
-    store_power_density: bool = False
-    store_mean_radiant_temperature: bool = False
-    compute_capture_index: bool = False
-    user_defined_subgroups: bool = False
-    store_lma: bool = False
+    store_mass_flux: Optional[bool] = None
+    store_heat_flux: Optional[bool] = None
+    store_surface_temp: Optional[bool] = None
+    store_grad_t: Optional[bool] = None
+    store_bn_sc: Optional[bool] = None
+    store_power_density: Optional[bool] = None
+    store_mean_radiant_temperature: Optional[bool] = None
+    compute_capture_index: Optional[bool] = None
+    user_defined_subgroups: Optional[bool] = None
+    store_lma: Optional[bool] = None
+
+    # FloTHERM defaults — used by apply_defaults() for backward compat
+    _DEFAULTS: Dict[str, object] = field(default_factory=lambda: dict(
+        solution="flow_heat", radiation="off", dimensionality="3d",
+        transient=False, turbulence_type="turbulent", turbulence_model="auto_algebraic",
+        gravity_direction="neg_y", gravity_value=9.81, datum_pressure=101325.0,
+        solver_option="multi_grid", fan_relaxation=1.0,
+        estimated_free_convection_velocity=0.2,
+        use_double_precision=False, freeze_flow=False,
+        active_plate_conduction=False, network_assembly_block_correction=False,
+        store_error_field=False,
+        fluid_conductivity=0.0261, fluid_viscosity=0.0000184,
+        fluid_density=1.16, fluid_specific_heat=1008.0, fluid_expansivity=0.003,
+        grid_smoothing_type="v3", grid_smoothing_value=12,
+        grid_min_divisor=100.0, grid_max_divisor=12.0,
+        source_applies_to="temperature", source_type="total", source_linear_coefficient=0.0,
+        store_mass_flux=False, store_heat_flux=False, store_surface_temp=False,
+        store_grad_t=False, store_bn_sc=False, store_power_density=False,
+        store_mean_radiant_temperature=False, compute_capture_index=False,
+        user_defined_subgroups=False, store_lma=False,
+    ))
+
+    def apply_defaults(self) -> None:
+        """Fill None fields with FloTHERM defaults. Called when not using --settings."""
+        for field_name, default_value in self._DEFAULTS.items():
+            if getattr(self, field_name) is None:
+                setattr(self, field_name, default_value)
 
     @classmethod
     def from_template(cls, filepath: str) -> 'ConversionConfig':
@@ -584,6 +611,17 @@ class FloXMLBuilder:
         elem.text = text
         return elem
 
+    def _write_field(self, parent: ET.Element, tag: str, value) -> None:
+        """Write child element; skip entirely when value is None."""
+        if value is None:
+            return
+        if isinstance(value, bool):
+            self._append_text(parent, tag, str(value).lower())
+        elif isinstance(value, float):
+            self._append_text(parent, tag, f"{value:.6g}")
+        else:
+            self._append_text(parent, tag, str(value))
+
     def build_project(self, ecxml_data: ECXMLData) -> ET.Element:
         """构建完整的 FloXML 项目"""
         # 使用模板（如果可用）
@@ -719,14 +757,18 @@ class FloXMLBuilder:
         fluids = ET.SubElement(attributes, "fluids")
         fluid = ET.SubElement(fluids, "fluid_att")
         self._append_text(fluid, "name", self.config.fluid_name)
-        self._append_text(fluid, "conductivity_type", "constant")
-        self._append_text(fluid, "conductivity", f"{self.config.fluid_conductivity:.6g}")
-        self._append_text(fluid, "viscosity_type", "constant")
-        self._append_text(fluid, "viscosity", f"{self.config.fluid_viscosity:.6g}")
-        self._append_text(fluid, "density_type", "constant")
-        self._append_text(fluid, "density", f"{self.config.fluid_density:.6g}")
-        self._append_text(fluid, "specific_heat", f"{self.config.fluid_specific_heat:.6g}")
-        self._append_text(fluid, "expansivity", f"{self.config.fluid_expansivity:.6g}")
+        cfg = self.config
+        if cfg.fluid_conductivity is not None:
+            self._append_text(fluid, "conductivity_type", "constant")
+            self._write_field(fluid, "conductivity", cfg.fluid_conductivity)
+        if cfg.fluid_viscosity is not None:
+            self._append_text(fluid, "viscosity_type", "constant")
+            self._write_field(fluid, "viscosity", cfg.fluid_viscosity)
+        if cfg.fluid_density is not None:
+            self._append_text(fluid, "density_type", "constant")
+            self._write_field(fluid, "density", cfg.fluid_density)
+        self._write_field(fluid, "specific_heat", cfg.fluid_specific_heat)
+        self._write_field(fluid, "expansivity", cfg.fluid_expansivity)
         self._append_text(fluid, "diffusivity", "0")
 
         if self._grid_config and self._grid_config.constraints:
@@ -742,11 +784,11 @@ class FloXMLBuilder:
         self._append_text(src, "name", name)
         source_options = ET.SubElement(src, "source_options")
         option = ET.SubElement(source_options, "option")
-        self._append_text(option, "applies_to", self.config.source_applies_to)
-        self._append_text(option, "type", self.config.source_type)
+        self._write_field(option, "applies_to", self.config.source_applies_to)
+        self._write_field(option, "type", self.config.source_type)
         self._append_text(option, "value", "0")
         self._append_text(option, "power", f"{power:.6g}")
-        self._append_text(option, "linear_coefficient", f"{self.config.source_linear_coefficient:.6g}")
+        self._write_field(option, "linear_coefficient", self.config.source_linear_coefficient)
 
     def _build_geometry(self, ecxml_data: ECXMLData) -> ET.Element:
         """构建 geometry 节"""
@@ -906,51 +948,49 @@ class FloXMLBuilder:
         model = ET.Element("model")
         cfg = self.config
 
-        # modeling
+        # modeling — only write fields that are not None
         modeling = ET.SubElement(model, "modeling")
         for tag, val in (
             ("solution", cfg.solution),
             ("radiation", cfg.radiation),
             ("dimensionality", cfg.dimensionality),
-            ("transient", str(cfg.transient).lower()),
-            ("store_mass_flux", str(cfg.store_mass_flux).lower()),
-            ("store_heat_flux", str(cfg.store_heat_flux).lower()),
-            ("store_surface_temp", str(cfg.store_surface_temp).lower()),
-            ("store_grad_t", str(cfg.store_grad_t).lower()),
-            ("store_bn_sc", str(cfg.store_bn_sc).lower()),
-            ("store_power_density", str(cfg.store_power_density).lower()),
-            ("store_mean_radiant_temperature", str(cfg.store_mean_radiant_temperature).lower()),
-            ("compute_capture_index", str(cfg.compute_capture_index).lower()),
-            ("user_defined_subgroups", str(cfg.user_defined_subgroups).lower()),
-            ("store_lma", str(cfg.store_lma).lower()),
+            ("transient", cfg.transient),
+            ("store_mass_flux", cfg.store_mass_flux),
+            ("store_heat_flux", cfg.store_heat_flux),
+            ("store_surface_temp", cfg.store_surface_temp),
+            ("store_grad_t", cfg.store_grad_t),
+            ("store_bn_sc", cfg.store_bn_sc),
+            ("store_power_density", cfg.store_power_density),
+            ("store_mean_radiant_temperature", cfg.store_mean_radiant_temperature),
+            ("compute_capture_index", cfg.compute_capture_index),
+            ("user_defined_subgroups", cfg.user_defined_subgroups),
+            ("store_lma", cfg.store_lma),
         ):
-            self._append_text(modeling, tag, val)
+            self._write_field(modeling, tag, val)
 
         # turbulence
-        turbulence = ET.SubElement(model, "turbulence")
-        self._append_text(turbulence, "type", cfg.turbulence_type)
-        self._append_text(turbulence, "turbulence_type", cfg.turbulence_model)
+        if cfg.turbulence_type is not None or cfg.turbulence_model is not None:
+            turbulence = ET.SubElement(model, "turbulence")
+            self._write_field(turbulence, "type", cfg.turbulence_type)
+            self._write_field(turbulence, "turbulence_type", cfg.turbulence_model)
 
         # gravity
-        gravity = ET.SubElement(model, "gravity")
-        self._append_text(gravity, "type", "normal")
-        self._append_text(gravity, "normal_direction", cfg.gravity_direction)
-        self._append_text(gravity, "value_type", "user")
-        self._append_text(gravity, "gravity_value", f"{cfg.gravity_value:.6g}")
+        if cfg.gravity_direction is not None or cfg.gravity_value is not None:
+            gravity = ET.SubElement(model, "gravity")
+            self._write_field(gravity, "type", "normal")
+            self._write_field(gravity, "normal_direction", cfg.gravity_direction)
+            self._write_field(gravity, "value_type", "user")
+            self._write_field(gravity, "gravity_value", cfg.gravity_value)
 
         # global
-        global_settings = ET.SubElement(model, "global")
-        for tag, val in (
-            ("datum_pressure", f"{cfg.datum_pressure:.6g}"),
-            ("radiant_temperature", str(cfg.ambient_temp)),
-            ("ambient_temperature", str(cfg.ambient_temp)),
-            ("concentration_1", "0"),
-            ("concentration_2", "0"),
-            ("concentration_3", "0"),
-            ("concentration_4", "0"),
-            ("concentration_5", "0"),
-        ):
-            self._append_text(global_settings, tag, val)
+        if any(v is not None for v in (
+            cfg.datum_pressure, cfg.ambient_temp,
+        )):
+            global_settings = ET.SubElement(model, "global")
+            self._write_field(global_settings, "datum_pressure", cfg.datum_pressure)
+            if cfg.ambient_temp is not None:
+                self._append_text(global_settings, "radiant_temperature", str(cfg.ambient_temp))
+                self._append_text(global_settings, "ambient_temperature", str(cfg.ambient_temp))
 
         return model
 
@@ -961,17 +1001,17 @@ class FloXMLBuilder:
         cfg = self.config
 
         for tag, val in (
-            ("outer_iterations", str(cfg.outer_iterations)),
-            ("fan_relaxation", f"{cfg.fan_relaxation:.6g}"),
-            ("estimated_free_convection_velocity", f"{cfg.estimated_free_convection_velocity:.6g}"),
+            ("outer_iterations", cfg.outer_iterations),
+            ("fan_relaxation", cfg.fan_relaxation),
+            ("estimated_free_convection_velocity", cfg.estimated_free_convection_velocity),
             ("solver_option", cfg.solver_option),
-            ("active_plate_conduction", str(cfg.active_plate_conduction).lower()),
-            ("use_double_precision", str(cfg.use_double_precision).lower()),
-            ("network_assembly_block_correction", str(cfg.network_assembly_block_correction).lower()),
-            ("freeze_flow", str(cfg.freeze_flow).lower()),
-            ("store_error_field", str(cfg.store_error_field).lower()),
+            ("active_plate_conduction", cfg.active_plate_conduction),
+            ("use_double_precision", cfg.use_double_precision),
+            ("network_assembly_block_correction", cfg.network_assembly_block_correction),
+            ("freeze_flow", cfg.freeze_flow),
+            ("store_error_field", cfg.store_error_field),
         ):
-            self._append_text(overall, tag, val)
+            self._write_field(overall, tag, val)
 
         return solve
 
@@ -1008,17 +1048,21 @@ class FloXMLBuilder:
         system_grid = ET.SubElement(grid, "system_grid")
 
         self._append_text(system_grid, "smoothing", "true")
-        self._append_text(system_grid, "smoothing_type", cfg.grid_smoothing_type)
+        self._write_field(system_grid, "smoothing_type", cfg.grid_smoothing_type)
         self._append_text(system_grid, "dynamic_update", "true")
+
+        # Grid axis divisors default to None — fall back only when building axis
+        min_div = cfg.grid_min_divisor if cfg.grid_min_divisor is not None else 100.0
+        max_div = cfg.grid_max_divisor if cfg.grid_max_divisor is not None else 12.0
 
         def grid_axis(parent: ET.Element, tag: str, size: float):
             axis = ET.SubElement(parent, tag)
-            min_sz = min(max(size / cfg.grid_min_divisor, 1e-4), 0.001)
-            max_sz = max(size / cfg.grid_max_divisor, 0.001)
+            min_sz = min(max(size / min_div, 1e-4), 0.001)
+            max_sz = max(size / max_div, 0.001)
             self._append_text(axis, "min_size", f"{min_sz:.6g}")
             self._append_text(axis, "grid_type", "max_size")
             self._append_text(axis, "max_size", f"{max_sz:.6g}")
-            self._append_text(axis, "smoothing_value", str(cfg.grid_smoothing_value))
+            self._write_field(axis, "smoothing_value", cfg.grid_smoothing_value)
 
         grid_axis(system_grid, "x_grid", x_size)
         grid_axis(system_grid, "y_grid", y_size)
@@ -1467,42 +1511,42 @@ def build_parser() -> argparse.ArgumentParser:
 
     # 模型设置
     model_group = parser.add_argument_group("model", "模型设置")
-    model_group.add_argument("--radiation", choices=["off", "on"], default="off",
-                             help="辐射模型 (默认: off)")
+    model_group.add_argument("--radiation", choices=["off", "on"], default=None,
+                             help="辐射模型")
     model_group.add_argument("--turbulence-model",
                              choices=["auto_algebraic", "k_epsilon", "zero_equation", "laminar"],
-                             default="auto_algebraic",
-                             help="湍流模型 (默认: auto_algebraic)")
+                             default=None,
+                             help="湍流模型")
     model_group.add_argument("--gravity-direction",
                              choices=["neg_y", "pos_y", "neg_z", "pos_z", "neg_x", "pos_x"],
-                             default="neg_y",
-                             help="重力方向 (默认: neg_y)")
-    model_group.add_argument("--gravity-value", type=float, default=9.81,
-                             help="重力加速度 m/s² (默认: 9.81)")
-    model_group.add_argument("--datum-pressure", type=float, default=101325.0,
-                             help="大气压 Pa (默认: 101325)")
+                             default=None,
+                             help="重力方向")
+    model_group.add_argument("--gravity-value", type=float, default=None,
+                             help="重力加速度 m/s²")
+    model_group.add_argument("--datum-pressure", type=float, default=None,
+                             help="大气压 Pa")
 
     # 求解器设置
     solve_group = parser.add_argument_group("solve", "求解器设置")
     solve_group.add_argument("--solver-option",
                              choices=["multi_grid", "simple", "conjugate_gradient"],
-                             default="multi_grid",
-                             help="求解器选项 (默认: multi_grid)")
-    solve_group.add_argument("--use-double-precision", action="store_true",
+                             default=None,
+                             help="求解器选项")
+    solve_group.add_argument("--use-double-precision", action="store_true", default=None,
                              help="使用双精度求解")
 
     # 流体属性
     fluid_group = parser.add_argument_group("fluid", "流体属性")
-    fluid_group.add_argument("--fluid-conductivity", type=float, default=0.0261,
-                             help="流体热导率 W/(m·K) (默认: 0.0261)")
-    fluid_group.add_argument("--fluid-viscosity", type=float, default=0.0000184,
-                             help="流体动力粘度 Pa·s (默认: 1.84e-5)")
-    fluid_group.add_argument("--fluid-density", type=float, default=1.16,
-                             help="流体密度 kg/m³ (默认: 1.16)")
-    fluid_group.add_argument("--fluid-specific-heat", type=float, default=1008.0,
-                             help="流体比热 J/(kg·K) (默认: 1008)")
-    fluid_group.add_argument("--fluid-expansivity", type=float, default=0.003,
-                             help="流体膨胀系数 1/K (默认: 0.003)")
+    fluid_group.add_argument("--fluid-conductivity", type=float, default=None,
+                             help="流体热导率 W/(m·K)")
+    fluid_group.add_argument("--fluid-viscosity", type=float, default=None,
+                             help="流体动力粘度 Pa·s")
+    fluid_group.add_argument("--fluid-density", type=float, default=None,
+                             help="流体密度 kg/m³")
+    fluid_group.add_argument("--fluid-specific-heat", type=float, default=None,
+                             help="流体比热 J/(kg·K)")
+    fluid_group.add_argument("--fluid-expansivity", type=float, default=None,
+                             help="流体膨胀系数 1/K")
 
     # 网格配置
     parser.add_argument("--grid-config", type=str,
@@ -1535,7 +1579,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    # 构建配置：JSON settings → CLI args（CLI 可覆盖 JSON）
+    # 构建配置：--settings JSON → CLI args 覆盖 → apply_defaults 兜底
     if args.template:
         config = ConversionConfig.from_template(args.template)
         if args.verbose:
@@ -1543,40 +1587,20 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     elif args.settings:
         config = ConversionConfig.from_json(args.settings)
         if args.verbose:
-            print(f"[INFO] 使用设置文件: {args.settings}")
-    else:
-        config = ConversionConfig()
-
-    # JSON 基础上再用 CLI 参数覆盖（只覆盖非默认值的参数）
-    if not args.template and args.settings:
-        # JSON 模式下也允许 CLI 参数覆盖
+            print(f"[INFO] 使用设置文件: {args.settings} (仅输出 JSON 中指定的字段)")
+        # CLI 参数可覆盖 JSON
         config.merge_cli_args(args)
-    elif not args.template:
-        # 无 JSON，直接从 CLI 构建
+    else:
+        # 无 JSON / 无 template — 用 CLI 参数构建，缺省填 FloTHERM 默认值
         config = ConversionConfig(
             padding_ratio=args.padding_ratio,
             minimum_padding=args.minimum_padding,
             ambient_temp=args.ambient_temp,
             outer_iterations=args.outer_iterations,
-            grid_config_file=args.grid_config,
-            floxml_source=args.pdml,
-            config_file=args.config,
-            # Model
-            radiation=args.radiation,
-            turbulence_model=args.turbulence_model,
-            gravity_direction=args.gravity_direction,
-            gravity_value=args.gravity_value,
-            datum_pressure=args.datum_pressure,
-            # Solve
-            solver_option=args.solver_option,
-            use_double_precision=args.use_double_precision,
-            # Fluid
-            fluid_conductivity=args.fluid_conductivity,
-            fluid_viscosity=args.fluid_viscosity,
-            fluid_density=args.fluid_density,
-            fluid_specific_heat=args.fluid_specific_heat,
-            fluid_expansivity=args.fluid_expansivity,
         )
+        config.apply_defaults()
+        # CLI 显式指定的参数覆盖 defaults
+        config.merge_cli_args(args)
 
     # 确保 external config sources 始终从 CLI 传入
     if args.grid_config:
