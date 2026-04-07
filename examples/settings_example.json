@@ -1,0 +1,46 @@
+{
+    "padding_ratio": 0.15,
+    "minimum_padding": 0.005,
+    "ambient_temp": 298.15,
+    "ambient_name": "Ambient",
+    "fluid_name": "Air",
+    "outer_iterations": 500,
+    "default_material": "Default",
+
+    "solution": "flow_heat",
+    "radiation": "off",
+    "dimensionality": "3d",
+    "transient": false,
+    "turbulence_type": "turbulent",
+    "turbulence_model": "auto_algebraic",
+    "gravity_direction": "neg_y",
+    "gravity_value": 9.81,
+    "datum_pressure": 101325.0,
+
+    "solver_option": "multi_grid",
+    "fan_relaxation": 1.0,
+    "estimated_free_convection_velocity": 0.2,
+    "use_double_precision": false,
+    "freeze_flow": false,
+    "active_plate_conduction": false,
+
+    "fluid_conductivity": 0.0261,
+    "fluid_viscosity": 1.84e-05,
+    "fluid_density": 1.16,
+    "fluid_specific_heat": 1008.0,
+    "fluid_expansivity": 0.003,
+
+    "grid_smoothing_type": "v3",
+    "grid_smoothing_value": 12,
+    "grid_min_divisor": 100.0,
+    "grid_max_divisor": 12.0,
+
+    "source_applies_to": "temperature",
+    "source_type": "total",
+    "source_linear_coefficient": 0.0,
+
+    "store_mass_flux": false,
+    "store_heat_flux": false,
+    "store_surface_temp": false,
+    "store_power_density": false
+}
