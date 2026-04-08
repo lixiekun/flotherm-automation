@@ -106,6 +106,20 @@ class PDMLAmbient:
 
 
 @dataclass
+class PDMLGridConstraint:
+    """PDML grid constraint definition"""
+    name: str = ""
+    enable_min_cell_size: bool = True
+    min_cell_size: float = 0.001
+    number_cells_control: str = "min_number"
+    min_number: int = 10
+    high_inflation_inflation_type: str = "size"
+    high_inflation_inflation_size: float = 0.005
+    high_inflation_number_cells_control: str = "min_number"
+    high_inflation_min_number: int = 5
+
+
+@dataclass
 class PDMLFluid:
     """PDML 流体定义"""
     name: str = "Air"
@@ -178,6 +192,7 @@ class PDMLData:
     sources: List[PDMLSource] = field(default_factory=list)
     ambients: List[PDMLAmbient] = field(default_factory=list)
     fluids: List[PDMLFluid] = field(default_factory=list)
+    grid_constraints: List[PDMLGridConstraint] = field(default_factory=list)
     attribute_sections: Dict[str, List[ET.Element]] = field(default_factory=dict)
     geometry: Optional[PDMLGeometryNode] = None
     solution_domain: PDMLSolutionDomain = field(default_factory=PDMLSolutionDomain)
@@ -934,22 +949,26 @@ class PDMLBinaryReader:
         return transient
 
     def _append_grid_constraint_attributes(self, data: PDMLData):
-        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
+        # Extract real values from PDML binary
+        constraints = self._extract_grid_constraints_from_binary()
+        if not constraints:
             return
-        if self._find_string_offset('Grid Constraint 1') is None:
-            return
-        constraint = ET.Element("grid_constraint_att")
-        ET.SubElement(constraint, "name").text = "Grid Constraint 1"
-        ET.SubElement(constraint, "enable_min_cell_size").text = "true"
-        ET.SubElement(constraint, "min_cell_size").text = "0.001"
-        ET.SubElement(constraint, "number_cells_control").text = "min_number"
-        ET.SubElement(constraint, "min_number").text = "43"
-        high_inflation = ET.SubElement(constraint, "high_inflation")
-        ET.SubElement(high_inflation, "inflation_type").text = "size"
-        ET.SubElement(high_inflation, "inflation_size").text = "0.005"
-        ET.SubElement(high_inflation, "number_cells_control").text = "min_number"
-        ET.SubElement(high_inflation, "min_number").text = "23"
-        self._append_attribute(data, 'grid_constraints', constraint)
+
+        for gc in constraints:
+            constraint = ET.Element("grid_constraint_att")
+            ET.SubElement(constraint, "name").text = gc.name
+            ET.SubElement(constraint, "enable_min_cell_size").text = "true" if gc.enable_min_cell_size else "false"
+            ET.SubElement(constraint, "min_cell_size").text = f"{gc.min_cell_size:.6g}"
+            ET.SubElement(constraint, "number_cells_control").text = gc.number_cells_control
+            ET.SubElement(constraint, "min_number").text = str(gc.min_number)
+            high_inflation = ET.SubElement(constraint, "high_inflation")
+            ET.SubElement(high_inflation, "inflation_type").text = gc.high_inflation_inflation_type
+            ET.SubElement(high_inflation, "inflation_size").text = f"{gc.high_inflation_inflation_size:.6g}"
+            ET.SubElement(high_inflation, "number_cells_control").text = gc.high_inflation_number_cells_control
+            ET.SubElement(high_inflation, "min_number").text = str(gc.high_inflation_min_number)
+            self._append_attribute(data, 'grid_constraints', constraint)
+
+        data.grid_constraints = constraints
 
     def _append_fluid_attributes(self, data: PDMLData):
         if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
@@ -1253,6 +1272,145 @@ class PDMLBinaryReader:
                 grid.x_grid.max_size = 0.001
                 grid.y_grid.max_size = 0.0011
                 grid.z_grid.max_size = 0.001
+
+    def _extract_grid_constraints_from_binary(self) -> List[PDMLGridConstraint]:
+        """Extract grid constraint parameters from PDML binary.
+
+        Binary field layout (after the 'Grid Constraint N' string):
+          Field markers: 0x0a 0x02 0x01 0x90 FIELD_INDEX
+          Values: 0x0c 0x03 TYPE_CODE VALUE_TYPE [value bytes]
+            VALUE_TYPE 0x02 + 0x06 + 8B double
+            VALUE_TYPE 0x01 + 1B flag
+          Trailers: 0x0c 0x03 0x03E0 0x01 SUB_BYTE + 4B int (count)
+
+        Field mapping:
+          [4] double → min_cell_size
+          [5] 0x0090 double → enable_min_cell_size (1.0=true)
+              trailer count → min_number
+          [6] 0x0AB0 double → high_inflation.inflation_size
+          [8] 0x0090 double → high_inflation enable
+              trailer count → high_inflation.min_number
+          [10] 0x06A0 → number_cells_control enum
+        """
+        constraints: List[PDMLGridConstraint] = []
+
+        # Find all 'Grid Constraint' strings via 0x07 0x02 pattern
+        gc_positions: List[Tuple[int, str]] = []
+        for record in self.tagged_strings:
+            if record['value'].startswith('Grid Constraint'):
+                gc_positions.append((record['offset'], record['value']))
+
+        for gc_offset, gc_name in gc_positions:
+            gc = PDMLGridConstraint(name=gc_name)
+            string_end = gc_offset + 10 + len(gc_name.encode('utf-8'))
+            scan_start = string_end
+            scan_end = min(scan_start + 600, len(self.data) - 20)
+
+            # Collect all field data
+            fields: Dict[int, Dict[str, Any]] = {}
+            i = scan_start
+            while i < scan_end:
+                if not (self.data[i] == 0x0a and i + 4 < scan_end
+                        and self.data[i + 1] == 0x02
+                        and self.data[i + 2] == 0x01
+                        and self.data[i + 3] == 0x90):
+                    i += 1
+                    continue
+
+                field_index = self.data[i + 4]
+                j = i + 5
+                field_data: Dict[str, Any] = {}
+
+                # Parse typed value
+                if j + 4 < scan_end and self.data[j] == 0x0c and self.data[j + 1] == 0x03:
+                    type_code = struct.unpack('>H', self.data[j + 2:j + 4])[0]
+                    value_type = self.data[j + 4]
+                    k = j + 5
+
+                    if value_type == 0x02 and k + 8 < scan_end and self.data[k] == 0x06:
+                        # Double value
+                        double_val = struct.unpack('>d', self.data[k + 1:k + 9])[0]
+                        field_data['type_code'] = type_code
+                        field_data['double'] = double_val
+                        k += 9
+
+                        # Check for 0x03E0 trailer (count/min_number)
+                        if (k + 9 < scan_end
+                                and self.data[k] == 0x0c and self.data[k + 1] == 0x03):
+                            trail_tc = struct.unpack('>H', self.data[k + 2:k + 4])[0]
+                            if trail_tc == 0x03E0 and self.data[k + 4] == 0x01:
+                                count_val = struct.unpack('>I', self.data[k + 6:k + 10])[0]
+                                field_data['count'] = count_val
+                                k += 10
+
+                    elif value_type == 0x01 and k < scan_end:
+                        field_data['type_code'] = type_code
+                        field_data['flag'] = self.data[k]
+                        k += 1
+                        # Skip to next field marker or end
+                        while k < scan_end:
+                            if (self.data[k] == 0x0a and k + 3 < scan_end
+                                    and self.data[k + 1] == 0x02):
+                                break
+                            k += 1
+                    else:
+                        k = j + 6
+
+                    fields[field_index] = field_data
+                    i = k
+                    continue
+
+                elif j + 8 < scan_end and self.data[j] == 0x06:
+                    # Direct double (no 0x0c 0x03 wrapper)
+                    double_val = struct.unpack('>d', self.data[j + 1:j + 9])[0]
+                    field_data['double'] = double_val
+                    k = j + 9
+
+                    # Check for 0x03E0 trailer
+                    if (k + 9 < scan_end
+                            and self.data[k] == 0x0c and self.data[k + 1] == 0x03):
+                        trail_tc = struct.unpack('>H', self.data[k + 2:k + 4])[0]
+                        if trail_tc == 0x03E0 and self.data[k + 4] == 0x01:
+                            count_val = struct.unpack('>I', self.data[k + 6:k + 10])[0]
+                            field_data['count'] = count_val
+                            k += 10
+
+                    fields[field_index] = field_data
+                    i = k
+                    continue
+
+                i += 1
+
+            # Map fields to PDMLGridConstraint
+            if 4 in fields and 'double' in fields[4]:
+                gc.min_cell_size = fields[4]['double']
+
+            if 5 in fields:
+                f5 = fields[5]
+                if 'double' in f5:
+                    gc.enable_min_cell_size = f5['double'] > 0.5
+                if 'count' in f5:
+                    gc.min_number = int(f5['count'])
+
+            if 6 in fields and 'double' in fields[6]:
+                gc.high_inflation_inflation_size = fields[6]['double']
+
+            if 8 in fields:
+                f8 = fields[8]
+                if 'count' in f8:
+                    gc.high_inflation_min_number = int(f8['count'])
+
+            if 10 in fields:
+                f10 = fields[10]
+                tc = f10.get('type_code', 0)
+                # 0x06A0 with value_type=0x02 → number_cells_control enum
+                if tc == 0x06A0 and 'flag' in f10:
+                    ncc_map = {1: 'min_number', 2: 'max_size', 3: 'growth_factor'}
+                    gc.number_cells_control = ncc_map.get(f10['flag'], 'min_number')
+
+            constraints.append(gc)
+
+        return constraints
 
     def _extract_attributes(self, data: PDMLData):
         """提取属性定义。
