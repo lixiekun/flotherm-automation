@@ -109,6 +109,7 @@ class ECXMLData:
     producer: str = ""
     materials: List[MaterialData] = field(default_factory=list)
     root_assembly: Optional[AssemblyData] = None
+    root_cuboids: List[CuboidData] = field(default_factory=list)
     sources: List[SourceData] = field(default_factory=list)
     monitor_points: List[MonitorPointData] = field(default_factory=list)
     solution_domain: Optional[SolutionDomainData] = None
@@ -553,16 +554,9 @@ class ECXMLExtractor:
                 # 如果有多个根 assembly，可以作为子 assembly 添加
 
             # 解析根 geometry 下的裸 cuboid（不在 assembly 内的）
-            root_cuboids = []
             for cuboid_elem in self._find_children(geometry_elem, 'solid3dblock'):
                 cuboid = self._parse_solid3d_block(cuboid_elem)
-                root_cuboids.append(cuboid)
-            if root_cuboids:
-                if data.root_assembly is None:
-                    # 没有 assembly，创建一个默认的来放 cuboid
-                    data.root_assembly = AssemblyData(name=f"{data.name}_Assembly")
-                data.root_assembly.cuboids.extend(root_cuboids)
-                data.root_assembly.geometry_items.extend(("cuboid", c) for c in root_cuboids)
+                data.root_cuboids.append(cuboid)
 
             # 解析独立热源
             for source_elem in self._find_children(
@@ -681,7 +675,7 @@ class FloXMLBuilder:
 
     def _collect_all_cuboids(self, ecxml_data: ECXMLData) -> List[CuboidData]:
         """收集所有 cuboid 数据"""
-        components = []
+        components = list(ecxml_data.root_cuboids)
 
         def collect_from_assembly(assembly: AssemblyData):
             components.extend(assembly.cuboids)
@@ -816,6 +810,10 @@ class FloXMLBuilder:
     def _build_geometry(self, ecxml_data: ECXMLData) -> ET.Element:
         """构建 geometry 节"""
         geometry = ET.Element("geometry")
+
+        # 根级裸 cuboid（不在 assembly 内的，直接放 geometry 下）
+        for cuboid in ecxml_data.root_cuboids:
+            self._build_cuboid_element(geometry, cuboid)
 
         # 构建根 assembly 及其子元素
         if ecxml_data.root_assembly:
