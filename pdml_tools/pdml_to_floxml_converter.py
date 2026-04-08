@@ -1273,14 +1273,16 @@ class PDMLBinaryReader:
                 grid.y_grid.max_size = 0.0011
                 grid.z_grid.max_size = 0.001
 
-    def _extract_region_grid_constraint(self, base_offset: int) -> Optional[str]:
-        """Extract grid constraint name reference from a region's binary data.
+    def _extract_region_grid_constraint(self, base_offset: int) -> Tuple[Optional[str], bool]:
+        """Extract grid constraint name reference and localized_grid from a region's binary data.
 
-        Scans the region's binary record for field [4] with type_code 0x06A0
-        and value_type 0x01. The value (1-based) is an index into the grid
-        constraint list.
+        Scans the region's binary record for:
+          - field [4] with type_code 0x06A0: grid constraint index (1-based)
+          - field [5] with type_code 0x06A0: localized_grid flag
+            vt=0x01 flag=1 → localized_grid=true
+            vt=0x02 → localized_grid=false
 
-        Returns the grid constraint name, or None if not found.
+        Returns (grid_constraint_name, localized_grid) tuple.
         """
         # Ensure grid constraints have been extracted first
         if not hasattr(self, '_gc_names_cache'):
@@ -1290,22 +1292,31 @@ class PDMLBinaryReader:
         scan_start = base_offset + 10  # skip past the string header
         scan_end = min(scan_start + 300, len(self.data) - 10)
 
+        gc_name = None
+        localized_grid = False
+
         for i in range(scan_start, scan_end):
             if (self.data[i] == 0x0a and self.data[i + 1] == 0x01
                     and self.data[i + 2] == 0x00 and self.data[i + 3] == 0x30):
                 field_index = self.data[i + 4]
-                if field_index == 4:
-                    j = i + 5
-                    if (j + 5 < scan_end
-                            and self.data[j] == 0x0c and self.data[j + 1] == 0x03):
-                        tc = struct.unpack('>H', self.data[j + 2:j + 4])[0]
-                        vt = self.data[j + 4]
-                        val = self.data[j + 5]
-                        if tc == 0x06A0 and vt == 0x01 and val > 0:
-                            idx = val - 1  # 1-based to 0-based
-                            if idx < len(self._gc_names_cache):
-                                return self._gc_names_cache[idx]
-        return None
+                j = i + 5
+                if (j + 5 < scan_end
+                        and self.data[j] == 0x0c and self.data[j + 1] == 0x03):
+                    tc = struct.unpack('>H', self.data[j + 2:j + 4])[0]
+                    vt = self.data[j + 4]
+                    if tc == 0x06A0:
+                        if field_index == 4 and vt == 0x01:
+                            val = self.data[j + 5]
+                            if val > 0:
+                                idx = val - 1
+                                if idx < len(self._gc_names_cache):
+                                    gc_name = self._gc_names_cache[idx]
+                        elif field_index == 5:
+                            # vt=0x01 flag=1 → localized_grid=true
+                            # vt=0x02 → localized_grid=false
+                            localized_grid = (vt == 0x01 and self.data[j + 5] == 1)
+
+        return gc_name, localized_grid
 
     def _extract_grid_constraints_from_binary(self) -> List[PDMLGridConstraint]:
         """Extract grid constraint parameters from PDML binary.
@@ -1389,16 +1400,32 @@ class PDMLBinaryReader:
                                 field_data['count'] = count_val
                                 k += 10
 
-                    elif value_type == 0x01 and k < scan_end:
+                    elif value_type in (0x01, 0x02) and k < scan_end:
+                        # vt=0x01: single flag
+                        # vt=0x02 with non-0x06 next byte: compound flags (e.g. number_cells_control)
                         field_data['type_code'] = type_code
                         field_data['flag'] = self.data[k]
-                        k += 1
-                        # Skip to next field marker or end
-                        while k < scan_end:
-                            if (self.data[k] == 0x0a and k + 3 < scan_end
-                                    and self.data[k + 1] == 0x02):
-                                break
+                        # For 0x06A0 compound fields, extract all sub-flags
+                        if type_code == 0x06A0 and value_type == 0x02:
+                            flags = [self.data[k]]
+                            pos = k + 1
+                            # Each sub-flag is followed by 4 bytes, then next flag
+                            while pos + 5 < scan_end:
+                                pos += 4  # skip padding
+                                if self.data[pos] == 0x0a:
+                                    break  # hit next field marker
+                                flags.append(self.data[pos])
+                                pos += 1
+                            field_data['flags'] = flags
+                            k = pos
+                        else:
                             k += 1
+                            # Skip to next field marker or end
+                            while k < scan_end:
+                                if (self.data[k] == 0x0a and k + 3 < scan_end
+                                        and self.data[k + 1] == 0x02):
+                                    break
+                                k += 1
                     else:
                         k = j + 6
 
@@ -1449,8 +1476,14 @@ class PDMLBinaryReader:
             if 10 in fields:
                 f10 = fields[10]
                 tc = f10.get('type_code', 0)
-                # 0x06A0 with value_type=0x02 → number_cells_control enum
-                if tc == 0x06A0 and 'flag' in f10:
+                # 0x06A0 → number_cells_control enum(s)
+                if tc == 0x06A0 and 'flags' in f10:
+                    # flags[0] = main ncc, flags[1] = high_inflation ncc, flags[2] = low_inflation ncc
+                    ncc_map = {0: 'max_size', 1: 'min_number'}
+                    gc.number_cells_control = ncc_map.get(f10['flags'][0], 'min_number')
+                    if len(f10['flags']) > 1:
+                        gc.high_inflation_number_cells_control = ncc_map.get(f10['flags'][1], 'min_number')
+                elif tc == 0x06A0 and 'flag' in f10:
                     ncc_map = {0: 'max_size', 1: 'min_number'}
                     gc.number_cells_control = ncc_map.get(f10['flag'], 'min_number')
 
@@ -1625,15 +1658,13 @@ class PDMLBinaryReader:
                 (0.0, 0.0, 1.0),
                 (0.0, 1.0, 0.0),
             )
-            # Extract grid constraint reference from binary
-            gc_ref = self._extract_region_grid_constraint(base_offset)
-            if gc_ref is not None:
+            # Extract grid constraint reference and localized_grid from binary
+            gc_ref, localized_grid = self._extract_region_grid_constraint(base_offset)
+            if gc_ref is not None and localized_grid:
                 node.post_elements.append(self._fragment("all_grid_constraint", gc_ref))
-                node.localized_grid = True
-            else:
-                node.localized_grid = False
-                if name.startswith('GR-'):
-                    node.hidden = True
+            node.localized_grid = localized_grid
+            if name.startswith('GR-'):
+                node.hidden = True
             return self._finalize_geometry_node(node)
 
         if node_type == 'monitor_point':
