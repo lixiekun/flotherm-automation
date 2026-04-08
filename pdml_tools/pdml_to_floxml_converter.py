@@ -1276,7 +1276,10 @@ class PDMLBinaryReader:
     def _extract_grid_constraints_from_binary(self) -> List[PDMLGridConstraint]:
         """Extract grid constraint parameters from PDML binary.
 
-        Binary field layout (after the 'Grid Constraint N' string):
+        Uses type_code 0x0190 strings as grid constraint name anchors, then
+        parses field markers (0x0a 0x02 0x01 0x90 INDEX) after each name.
+
+        Binary field layout:
           Field markers: 0x0a 0x02 0x01 0x90 FIELD_INDEX
           Values: 0x0c 0x03 TYPE_CODE VALUE_TYPE [value bytes]
             VALUE_TYPE 0x02 + 0x06 + 8B double
@@ -1294,11 +1297,20 @@ class PDMLBinaryReader:
         """
         constraints: List[PDMLGridConstraint] = []
 
-        # Find all 'Grid Constraint' strings via 0x07 0x02 pattern
+        # Find grid constraint name strings by type_code 0x0190.
+        # This type_code is used for grid constraint attribute names
+        # regardless of the actual name (e.g. "Grid Constraint 1",
+        # "SimpleGrid-XY", "busdiff.pcb", etc.)
         gc_positions: List[Tuple[int, str]] = []
         for record in self.tagged_strings:
-            if record['value'].startswith('Grid Constraint'):
+            if record['type_code'] == 0x0190:
                 gc_positions.append((record['offset'], record['value']))
+
+        # Also fall back to name-based search for backwards compatibility
+        if not gc_positions:
+            for record in self.tagged_strings:
+                if record['value'].startswith('Grid Constraint'):
+                    gc_positions.append((record['offset'], record['value']))
 
         for gc_offset, gc_name in gc_positions:
             gc = PDMLGridConstraint(name=gc_name)
