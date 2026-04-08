@@ -1451,7 +1451,7 @@ class PDMLBinaryReader:
                 tc = f10.get('type_code', 0)
                 # 0x06A0 with value_type=0x02 → number_cells_control enum
                 if tc == 0x06A0 and 'flag' in f10:
-                    ncc_map = {1: 'min_number', 2: 'max_size', 3: 'growth_factor'}
+                    ncc_map = {0: 'max_size', 1: 'min_number'}
                     gc.number_cells_control = ncc_map.get(f10['flag'], 'min_number')
 
             constraints.append(gc)
@@ -1630,11 +1630,10 @@ class PDMLBinaryReader:
             if gc_ref is not None:
                 node.post_elements.append(self._fragment("all_grid_constraint", gc_ref))
                 node.localized_grid = True
-            elif name.startswith('GR-'):
-                node.hidden = True
-                node.localized_grid = False
             else:
-                node.localized_grid = True
+                node.localized_grid = False
+                if name.startswith('GR-'):
+                    node.hidden = True
             return self._finalize_geometry_node(node)
 
         if node_type == 'monitor_point':
