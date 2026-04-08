@@ -1479,12 +1479,12 @@ class PDMLBinaryReader:
                 # 0x06A0 → number_cells_control enum(s)
                 if tc == 0x06A0 and 'flags' in f10:
                     # flags[0] = main ncc, flags[1] = high_inflation ncc, flags[2] = low_inflation ncc
-                    ncc_map = {0: 'max_size', 1: 'min_number'}
+                    ncc_map = {0: 'min_number', 1: 'max_size'}
                     gc.number_cells_control = ncc_map.get(f10['flags'][0], 'min_number')
                     if len(f10['flags']) > 1:
                         gc.high_inflation_number_cells_control = ncc_map.get(f10['flags'][1], 'min_number')
                 elif tc == 0x06A0 and 'flag' in f10:
-                    ncc_map = {0: 'max_size', 1: 'min_number'}
+                    ncc_map = {0: 'min_number', 1: 'max_size'}
                     gc.number_cells_control = ncc_map.get(f10['flag'], 'min_number')
 
             constraints.append(gc)
@@ -1660,7 +1660,7 @@ class PDMLBinaryReader:
             )
             # Extract grid constraint reference and localized_grid from binary
             gc_ref, localized_grid = self._extract_region_grid_constraint(base_offset)
-            if gc_ref is not None and localized_grid:
+            if gc_ref is not None:
                 node.post_elements.append(self._fragment("all_grid_constraint", gc_ref))
             node.localized_grid = localized_grid
             if name.startswith('GR-'):
