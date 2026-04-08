@@ -1273,6 +1273,40 @@ class PDMLBinaryReader:
                 grid.y_grid.max_size = 0.0011
                 grid.z_grid.max_size = 0.001
 
+    def _extract_region_grid_constraint(self, base_offset: int) -> Optional[str]:
+        """Extract grid constraint name reference from a region's binary data.
+
+        Scans the region's binary record for field [4] with type_code 0x06A0
+        and value_type 0x01. The value (1-based) is an index into the grid
+        constraint list.
+
+        Returns the grid constraint name, or None if not found.
+        """
+        # Ensure grid constraints have been extracted first
+        if not hasattr(self, '_gc_names_cache'):
+            gc_list = self._extract_grid_constraints_from_binary()
+            self._gc_names_cache = [gc.name for gc in gc_list]
+
+        scan_start = base_offset + 10  # skip past the string header
+        scan_end = min(scan_start + 300, len(self.data) - 10)
+
+        for i in range(scan_start, scan_end):
+            if (self.data[i] == 0x0a and self.data[i + 1] == 0x01
+                    and self.data[i + 2] == 0x00 and self.data[i + 3] == 0x30):
+                field_index = self.data[i + 4]
+                if field_index == 4:
+                    j = i + 5
+                    if (j + 5 < scan_end
+                            and self.data[j] == 0x0c and self.data[j + 1] == 0x03):
+                        tc = struct.unpack('>H', self.data[j + 2:j + 4])[0]
+                        vt = self.data[j + 4]
+                        val = self.data[j + 5]
+                        if tc == 0x06A0 and vt == 0x01 and val > 0:
+                            idx = val - 1  # 1-based to 0-based
+                            if idx < len(self._gc_names_cache):
+                                return self._gc_names_cache[idx]
+        return None
+
     def _extract_grid_constraints_from_binary(self) -> List[PDMLGridConstraint]:
         """Extract grid constraint parameters from PDML binary.
 
@@ -1591,11 +1625,15 @@ class PDMLBinaryReader:
                 (0.0, 0.0, 1.0),
                 (0.0, 1.0, 0.0),
             )
-            if name.startswith('GR-'):
+            # Extract grid constraint reference from binary
+            gc_ref = self._extract_region_grid_constraint(base_offset)
+            if gc_ref is not None:
+                node.post_elements.append(self._fragment("all_grid_constraint", gc_ref))
+                node.localized_grid = True
+            elif name.startswith('GR-'):
                 node.hidden = True
                 node.localized_grid = False
             else:
-                node.post_elements.append(self._fragment("x_grid_constraint", "Grid Constraint 1"))
                 node.localized_grid = True
             return self._finalize_geometry_node(node)
 
