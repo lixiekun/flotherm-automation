@@ -48,6 +48,72 @@ class PDMLModelSettings:
     datum_pressure: float = 101325.0
     ambient_temperature: float = 300.0
     radiant_temperature: float = 300.0
+    transient_settings: Optional[PDMLTransientSettings] = None
+    initial_variables: Optional[PDMLInitialVariables] = None
+
+
+@dataclass
+class PDMLConvergenceValues:
+    """PDML 收敛值"""
+    required_accuracy: float = 0.2
+    num_iterations: int = 45
+    residual_threshold: float = 200.0
+
+
+@dataclass
+class PDMLVariableControl:
+    """PDML 变量控制"""
+    variable: str = "x_velocity"
+    false_time_step: str = "user"
+    false_time_step_user_value: float = 1.5
+    terminal_residual: str = "automatic"
+    terminal_residual_auto_multiplier: float = 1.0
+    inner_iterations: int = 1
+
+
+@dataclass
+class PDMLSolverControl:
+    """PDML 求解器控制"""
+    variable: str = "pressure"
+    linear_relaxation: float = 0.3
+    error_compute_frequency: int = 0
+
+
+@dataclass
+class PDMLTimePatch:
+    """PDML 时间片"""
+    name: str = ""
+    start_time: float = 0.0
+    end_time: float = 30.0
+    step_control: str = "minimum_number"
+    minimum_number: int = 15
+    step_distribution: str = "increasing_power"
+    distribution_index: float = 1.4
+
+
+@dataclass
+class PDMLTransientSettings:
+    """PDML 瞬态设置"""
+    start_time: float = 0.0
+    end_time: float = 60.0
+    keypoint_tolerance: float = 0.0001
+    save_times: List[float] = field(default_factory=lambda: [0.0])
+    time_patches: List[PDMLTimePatch] = field(default_factory=list)
+
+
+@dataclass
+class PDMLInitialVariable:
+    """PDML 初始变量"""
+    variable: str = ""
+    type: str = "user_specified"
+    value: float = 0.0
+
+
+@dataclass
+class PDMLInitialVariables:
+    """PDML 初始变量集合"""
+    use_initial_for_all: bool = False
+    variables: List[PDMLInitialVariable] = field(default_factory=list)
 
 
 @dataclass
@@ -57,6 +123,15 @@ class PDMLSolveSettings:
     fan_relaxation: float = 0.9
     estimated_free_convection_velocity: float = 0.21
     solver_option: str = "multi_grid"
+    convergence_values: Optional[PDMLConvergenceValues] = None
+    monitor_convergence: bool = True
+    use_double_precision: bool = True
+    network_assembly_block_correction: bool = True
+    freeze_flow: bool = False
+    store_error_field: bool = True
+    error_field_variable: str = "pressure"
+    variable_controls: List[PDMLVariableControl] = field(default_factory=list)
+    solver_controls: List[PDMLSolverControl] = field(default_factory=list)
 
 
 @dataclass
@@ -347,6 +422,11 @@ class PDMLBinaryReader:
         # 提取各 section 数据
         self._extract_model_settings(result.model)
         self._extract_solve_settings(result.solve)
+        self._extract_variable_controls_from_binary(result.solve)
+        self._extract_solver_controls_from_binary(result.solve)
+        self._extract_transient_settings_from_binary(result.model)
+        self._extract_time_patches_from_binary(result.model)
+        self._extract_initial_variables_from_binary(result.model)
         self._extract_grid_settings(result.grid)
         self._extract_attributes(result)
         self._extract_geometry(result)
@@ -481,6 +561,93 @@ class PDMLBinaryReader:
                 results.append((p, val))
 
         return results
+
+    def _scan_typed_fields(self, scan_start: int, scan_end: int, type_code: int) -> Dict[int, Dict[str, Any]]:
+        """Scan binary region for typed fields matching the given type_code.
+
+        Field marker pattern:
+            0x0a 0x02 TYPE_HI TYPE_LO FIELD_INDEX
+        Value pattern (after field marker):
+            0x0c 0x03 VALUE_TYPE_CODE VALUE_TYPE [value bytes]
+              VALUE_TYPE 0x02 + 0x06 + 8B double
+              VALUE_TYPE 0x01 + 1B flag
+        Trailer pattern (count values):
+            0x0c 0x03 0x03E0 0x01 SUB_BYTE + 4B int
+
+        Returns dict mapping field_index -> {double: val, count: val, flag: val, ...}
+        """
+        type_hi = (type_code >> 8) & 0xFF
+        type_lo = type_code & 0xFF
+        fields: Dict[int, Dict[str, Any]] = {}
+
+        i = scan_start
+        while i < scan_end:
+            if not (self.data[i] == 0x0a and i + 4 < scan_end
+                    and self.data[i + 1] == 0x02
+                    and self.data[i + 2] == type_hi
+                    and self.data[i + 3] == type_lo):
+                i += 1
+                continue
+
+            field_index = self.data[i + 4]
+            j = i + 5
+            field_data: Dict[str, Any] = {}
+
+            # Parse typed value
+            if j + 4 < scan_end and self.data[j] == 0x0c and self.data[j + 1] == 0x03:
+                value_type_code = struct.unpack('>H', self.data[j + 2:j + 4])[0]
+                value_type = self.data[j + 4]
+                k = j + 5
+
+                if value_type == 0x02 and k + 8 < scan_end and self.data[k] == 0x06:
+                    # Double value
+                    double_val = struct.unpack('>d', self.data[k + 1:k + 9])[0]
+                    field_data['type_code'] = value_type_code
+                    field_data['double'] = double_val
+                    k += 9
+
+                    # Check for 0x03E0 trailer (count)
+                    if (k + 9 < scan_end
+                            and self.data[k] == 0x0c and self.data[k + 1] == 0x03):
+                        trail_tc = struct.unpack('>H', self.data[k + 2:k + 4])[0]
+                        if trail_tc == 0x03E0 and self.data[k + 4] == 0x01:
+                            count_val = struct.unpack('>I', self.data[k + 6:k + 10])[0]
+                            field_data['count'] = count_val
+                            k += 10
+
+                elif value_type in (0x01, 0x02):
+                    field_data['type_code'] = value_type_code
+                    field_data['flag'] = self.data[k]
+                    k += 1
+                else:
+                    k = j + 6
+
+                fields[field_index] = field_data
+                i = k
+                continue
+
+            elif j + 8 < scan_end and self.data[j] == 0x06:
+                # Direct double (no 0x0c 0x03 wrapper)
+                double_val = struct.unpack('>d', self.data[j + 1:j + 9])[0]
+                field_data['double'] = double_val
+                k = j + 9
+
+                # Check for 0x03E0 trailer
+                if (k + 9 < scan_end
+                        and self.data[k] == 0x0c and self.data[k + 1] == 0x03):
+                    trail_tc = struct.unpack('>H', self.data[k + 2:k + 4])[0]
+                    if trail_tc == 0x03E0 and self.data[k + 4] == 0x01:
+                        count_val = struct.unpack('>I', self.data[k + 6:k + 10])[0]
+                        field_data['count'] = count_val
+                        k += 10
+
+                fields[field_index] = field_data
+                i = k
+                continue
+
+            i += 1
+
+        return fields
 
     def _find_string_offset(self, target: str) -> Optional[int]:
         for offset, value in self.strings.items():
@@ -1219,14 +1386,251 @@ class PDMLBinaryReader:
     def _extract_solve_settings(self, solve: PDMLSolveSettings):
         """提取求解设置"""
         self._apply_sample_solve_defaults(solve)
-        if 'solve' in self.sections:
-            section_start = self.sections['solve']
-            # 查找 outer_iterations
-            doubles = self._find_double_near(section_start, 300)
+        if 'solve' not in self.sections:
+            return
+
+        section_start = self.sections['solve']
+
+        # Extract outer_iterations via double search (not stored as 0x00A0 field)
+        doubles = self._find_double_near(section_start, 300)
+        for pos, val in doubles:
+            if 100 < val < 5000 and val == int(val):
+                solve.outer_iterations = int(val)
+                break
+
+        # Scan 0x00A0 typed fields for overall_control parameters
+        scan_start = section_start
+        scan_end = min(scan_start + 800, len(self.data) - 20)
+        fields = self._scan_typed_fields(scan_start, scan_end, 0x00A0)
+
+        # Map fields by identifying doubles by value range
+        # Binary field layout (empirically determined):
+        #   [7]  double → estimated_free_convection_velocity (0.0-10.0)
+        #   [9]  double → fan_relaxation (0.0-1.0)
+        #   [12] double → required_accuracy (small positive)
+        #   [14] double → residual_threshold (larger positive)
+        #   [2],[3],[6]  flag → boolean settings
+        #   [4],[5],[11],[15-18] flag → other boolean settings
+
+        for idx, fdata in fields.items():
+            if 'double' not in fdata:
+                continue
+            val = fdata['double']
+            # estimated_free_convection_velocity: field [7], small positive (0.0-10.0)
+            if idx == 7 and 0.0 < val < 10.0:
+                solve.estimated_free_convection_velocity = val
+            # fan_relaxation: field [9], range 0.0-1.0
+            elif idx == 9 and 0.0 <= val <= 1.0:
+                solve.fan_relaxation = val
+            # convergence_values
+            elif idx == 12:
+                conv = solve.convergence_values or PDMLConvergenceValues()
+                conv.required_accuracy = val
+                solve.convergence_values = conv
+            elif idx == 14:
+                conv = solve.convergence_values or PDMLConvergenceValues()
+                conv.residual_threshold = val
+                solve.convergence_values = conv
+
+        # num_iterations is not in 0x00A0 fields - try integer search nearby
+        if solve.convergence_values is not None:
             for pos, val in doubles:
-                if 100 < val < 5000 and val == int(val):
-                    solve.outer_iterations = int(val)
+                if 5 < val < 200 and val == int(val) and val != solve.outer_iterations:
+                    solve.convergence_values.num_iterations = int(val)
                     break
+
+    def _extract_variable_controls_from_binary(self, solve: PDMLSolveSettings):
+        """Extract variable controls from PDML binary.
+
+        Note: Variable controls are not stored as simple typed fields.
+        Falls back to defaults if not found in binary.
+        """
+        pass
+
+    def _extract_solver_controls_from_binary(self, solve: PDMLSolveSettings):
+        """Extract solver controls from PDML binary using type_code 0x00D0."""
+        if 'solve' not in self.sections:
+            return
+
+        section_start = self.sections['solve']
+        scan_start = section_start
+        scan_end = min(scan_start + 2000, len(self.data) - 20)
+
+        fields = self._scan_typed_fields(scan_start, scan_end, 0x00D0)
+        if not fields:
+            return
+
+        # Variable ID mapping: {2:'x_velocity', 3:'y_velocity', 4:'z_velocity', 5:'temperature', 8:'pressure'}
+        VARIABLE_MAP = {2: 'x_velocity', 3: 'y_velocity', 4: 'z_velocity', 5: 'temperature', 8: 'pressure'}
+
+        solver_controls: List[PDMLSolverControl] = []
+        for field_idx, field_data in sorted(fields.items()):
+            if 'double' not in field_data:
+                continue
+            var_name = VARIABLE_MAP.get(field_idx, None)
+            if var_name is None:
+                continue
+            sc = PDMLSolverControl(variable=var_name)
+            val = field_data['double']
+            # linear_relaxation is typically 0.0-1.0
+            if 0.0 <= val <= 1.0:
+                sc.linear_relaxation = val
+            elif val == int(val) and val >= 0:
+                sc.error_compute_frequency = int(val)
+            solver_controls.append(sc)
+
+        if solver_controls:
+            solve.solver_controls = solver_controls
+
+    def _extract_transient_settings_from_binary(self, model: PDMLModelSettings):
+        """Extract transient settings from PDML binary.
+
+        Scans the model region for transient-related fields.
+        If not found, transient_settings remains None (builder will use defaults).
+        """
+        if 'model' not in self.sections:
+            return
+
+        section_start = self.sections['model']
+        section_end = self.sections.get('attributes', section_start + 5000)
+        scan_start = section_start
+        scan_end = min(section_end, len(self.data) - 20)
+
+        # Try 0x00F0 first
+        fields = self._scan_typed_fields(scan_start, scan_end, 0x00F0)
+        if fields:
+            ts = PDMLTransientSettings()
+            has_data = False
+            if 0 in fields and 'double' in fields[0]:
+                ts.start_time = fields[0]['double']
+                has_data = True
+            if 1 in fields and 'double' in fields[1]:
+                ts.end_time = fields[1]['double']
+                has_data = True
+            if 2 in fields and 'double' in fields[2]:
+                ts.keypoint_tolerance = fields[2]['double']
+                has_data = True
+            if has_data:
+                model.transient_settings = ts
+
+    def _extract_time_patches_from_binary(self, model: PDMLModelSettings):
+        """Extract time patches using tc=0x00E0 fields.
+
+        Time patch field layout (0x00E0 type):
+          [1] double → start_time
+          [2] double → end_time
+          [3] compound (0x0090) → step_control/minimum_number
+          [4] compound (0x00A0) → distribution info
+            vt=2 → increasing_power, distribution_index=1.4
+            vt=1 → uniform, distribution_index=1
+        """
+        if model.transient_settings is None:
+            model.transient_settings = PDMLTransientSettings()
+
+        # Find time patch name strings by type_code 0x00E0
+        tp_positions: List[Tuple[int, str]] = []
+        for record in self.tagged_strings:
+            if record['type_code'] == 0x00E0:
+                tp_positions.append((record['offset'], record['value']))
+
+        if not tp_positions:
+            return
+
+        time_patches: List[PDMLTimePatch] = []
+        for tp_offset, tp_name in tp_positions:
+            tp = PDMLTimePatch(name=tp_name)
+            string_end = tp_offset + 10 + len(tp_name.encode('utf-8'))
+            scan_start = string_end
+            scan_end = min(scan_start + 250, len(self.data) - 20)
+
+            # Use _scan_typed_fields with 0x00E0 to get structured fields
+            fields = self._scan_typed_fields(scan_start, scan_end, 0x00E0)
+
+            # Field [1] → start_time
+            if 1 in fields and 'double' in fields[1]:
+                tp.start_time = fields[1]['double']
+
+            # Field [2] → end_time
+            if 2 in fields and 'double' in fields[2]:
+                tp.end_time = fields[2]['double']
+
+            # Extract minimum_number from idx=3 compound field:
+            # 0a 02 00 e0 03 0c 03 00 90 02 03 BE_INT_4B
+            # After the 0x0090 typed value (vt=0x02), the 0x03 prefix precedes the int.
+            raw_bytes = self.data[scan_start:scan_end]
+            for k in range(len(raw_bytes) - 14):
+                if (raw_bytes[k] == 0x0a and raw_bytes[k+1] == 0x02
+                        and raw_bytes[k+2] == 0x00 and raw_bytes[k+3] == 0xE0
+                        and raw_bytes[k+4] == 3):
+                    # Found idx=3 marker, skip 0c 03 00 90 02 then read 03 + INT_4B
+                    j = k + 5
+                    if (j + 5 < len(raw_bytes) and raw_bytes[j] == 0x0c and raw_bytes[j+1] == 0x03
+                            and raw_bytes[j+4] == 0x02):
+                        # Skip to the 0x03 int prefix: 0c 03 00 90 02 [03 INT4B]
+                        m = j + 5
+                        if m + 5 < len(raw_bytes) and raw_bytes[m] == 0x03:
+                            min_num = struct.unpack('>I', raw_bytes[m+1:m+5])[0]
+                            if 1 <= min_num <= 10000:
+                                tp.minimum_number = min_num
+                    break
+
+            # Field [4] → distribution type
+            #   vt=2 + double → increasing_power with distribution_index
+            #   vt=1 + flag=6 → uniform, distribution_index=1
+            if 4 in fields:
+                f4 = fields[4]
+                for k in range(len(raw_bytes) - 8):
+                    if (raw_bytes[k] == 0x0a and raw_bytes[k+1] == 0x02
+                            and raw_bytes[k+2] == 0x00 and raw_bytes[k+3] == 0xE0
+                            and raw_bytes[k+4] == 4):
+                        j = k + 5
+                        if j + 4 < len(raw_bytes) and raw_bytes[j] == 0x0c and raw_bytes[j+1] == 0x03:
+                            vt = raw_bytes[j + 4]
+                            if vt == 0x01:
+                                tp.step_distribution = "uniform"
+                                tp.distribution_index = 1.0
+                            elif vt == 0x02:
+                                tp.step_distribution = "increasing_power"
+                                if 'double' in f4:
+                                    tp.distribution_index = f4['double']
+                        break
+
+            time_patches.append(tp)
+
+        model.transient_settings.time_patches = time_patches
+
+    def _extract_initial_variables_from_binary(self, model: PDMLModelSettings):
+        """Extract initial variables from PDML binary using type_code 0x0140."""
+        if 'model' not in self.sections:
+            return
+
+        section_start = self.sections['model']
+        scan_start = section_start
+        scan_end = min(scan_start + 3000, len(self.data) - 20)
+
+        fields = self._scan_typed_fields(scan_start, scan_end, 0x0140)
+        if not fields:
+            return
+
+        VARIABLE_MAP = {0: 'x_velocity', 1: 'y_velocity', 2: 'z_velocity',
+                        3: 'temperature', 4: 'pressure'}
+
+        iv = PDMLInitialVariables()
+        has_data = False
+
+        for field_idx, field_data in sorted(fields.items()):
+            var_name = VARIABLE_MAP.get(field_idx)
+            if var_name is None or 'double' not in field_data:
+                continue
+
+            iv.variables.append(PDMLInitialVariable(
+                variable=var_name,
+                value=field_data['double'],
+            ))
+            has_data = True
+
+        if has_data:
+            model.initial_variables = iv
 
     def _extract_grid_settings(self, grid: PDMLGridSettings):
         """提取网格设置
@@ -2558,85 +2962,127 @@ class FloXMLBuilder:
         concentration_1 = ET.SubElement(concentrations, "concentration_1")
         self._append_text(concentration_1, "fluid", "Air")
 
-    def _build_transient_model_section(self, parent: ET.Element):
+    def _build_transient_model_section(self, parent: ET.Element, model: PDMLModelSettings):
+        ts = model.transient_settings
         transient = ET.SubElement(parent, "transient")
         overall_transient = ET.SubElement(transient, "overall_transient")
+        start_time = ts.start_time if ts else 0.0
+        end_time = ts.end_time if ts else 60.0
+        keypoint_tol = ts.keypoint_tolerance if ts else 0.0001
         for tag, text in (
-            ("start_time", "0"),
-            ("end_time", "60"),
-            ("duration", "60"),
-            ("keypoint_tolerance", "0.0001"),
+            ("start_time", f"{start_time:.6g}"),
+            ("end_time", f"{end_time:.6g}"),
+            ("duration", f"{end_time - start_time:.6g}"),
+            ("keypoint_tolerance", f"{keypoint_tol:.6g}"),
         ):
             self._append_text(overall_transient, tag, text)
 
         save_times = ET.SubElement(transient, "transient_save_times")
-        self._append_text(save_times, "save_time", "0")
+        save_vals = ts.save_times if ts else [0.0]
+        for st in save_vals:
+            self._append_text(save_times, "save_time", f"{st:.6g}")
 
-        time_patches = ET.SubElement(transient, "time_patches")
-        for name, start_time, end_time, minimum_number, step_distribution, distribution_index in [
-            ("First", "0", "30", "15", "increasing_power", "1.4"),
-            ("Second", "30", "60", "12", "uniform", "1"),
-        ]:
-            time_patch = ET.SubElement(time_patches, "time_patch")
+        time_patches_elem = ET.SubElement(transient, "time_patches")
+        patches = ts.time_patches if ts and ts.time_patches else [
+            PDMLTimePatch(name="First", start_time=0, end_time=30, minimum_number=15,
+                          step_distribution="increasing_power", distribution_index=1.4),
+            PDMLTimePatch(name="Second", start_time=30, end_time=60, minimum_number=12,
+                          step_distribution="uniform", distribution_index=1),
+        ]
+        for tp in patches:
+            time_patch = ET.SubElement(time_patches_elem, "time_patch")
             for tag, text in (
-                ("name", name),
-                ("start_time", start_time),
-                ("end_time", end_time),
-                ("step_control", "minimum_number"),
-                ("minimum_number", minimum_number),
-                ("step_distribution", step_distribution),
-                ("distribution_index", distribution_index),
+                ("name", tp.name),
+                ("start_time", f"{tp.start_time:.6g}"),
+                ("end_time", f"{tp.end_time:.6g}"),
+                ("step_control", tp.step_control),
+                ("minimum_number", str(tp.minimum_number)),
+                ("step_distribution", tp.step_distribution),
+                ("distribution_index", f"{tp.distribution_index:.6g}"),
             ):
                 self._append_text(time_patch, tag, text)
 
-    def _build_initial_variables_section(self, parent: ET.Element):
+    def _build_initial_variables_section(self, parent: ET.Element, model: PDMLModelSettings):
+        iv = model.initial_variables
         initial_variables = ET.SubElement(parent, "initial_variables")
-        self._append_text(initial_variables, "use_initial_for_all", "false")
-        y_velocity = ET.SubElement(initial_variables, "y_velocity")
-        self._append_text(y_velocity, "type", "user_specified")
-        self._append_text(y_velocity, "value", "2.444")
+        self._append_text(initial_variables, "use_initial_for_all",
+                          "true" if iv and iv.use_initial_for_all else "false")
+        if iv and iv.variables:
+            for var in iv.variables:
+                var_elem = ET.SubElement(initial_variables, var.variable)
+                self._append_text(var_elem, "type", var.type)
+                self._append_text(var_elem, "value", f"{var.value:.6g}")
+        else:
+            # Default fallback
+            y_velocity = ET.SubElement(initial_variables, "y_velocity")
+            self._append_text(y_velocity, "type", "user_specified")
+            self._append_text(y_velocity, "value", "2.444")
 
     def _build_overall_control_section(self, parent: ET.Element, solve: PDMLSolveSettings):
         overall = ET.SubElement(parent, "overall_control")
         self._append_text(overall, "outer_iterations", str(solve.outer_iterations))
         self._append_text(overall, "fan_relaxation", f"{solve.fan_relaxation:.6g}")
         self._append_text(overall, "estimated_free_convection_velocity", f"{solve.estimated_free_convection_velocity:.6g}")
-        self._append_text(overall, "monitor_convergence", "true")
-        convergence = ET.SubElement(overall, "convergence_values")
-        for tag, text in (
-            ("required_accuracy", "0.2"),
-            ("num_iterations", "45"),
-            ("residual_threshold", "200"),
-        ):
-            self._append_text(convergence, tag, text)
+        self._append_text(overall, "monitor_convergence", str(solve.monitor_convergence).lower())
+        if solve.convergence_values:
+            cv = solve.convergence_values
+            convergence = ET.SubElement(overall, "convergence_values")
+            self._append_text(convergence, "required_accuracy", f"{cv.required_accuracy:.6g}")
+            self._append_text(convergence, "num_iterations", str(cv.num_iterations))
+            self._append_text(convergence, "residual_threshold", f"{cv.residual_threshold:.6g}")
+        else:
+            convergence = ET.SubElement(overall, "convergence_values")
+            for tag, text in (
+                ("required_accuracy", "0.2"),
+                ("num_iterations", "45"),
+                ("residual_threshold", "200"),
+            ):
+                self._append_text(convergence, tag, text)
         self._append_text(overall, "solver_option", solve.solver_option)
         self._append_text(overall, "active_plate_conduction", "false")
-        self._append_text(overall, "use_double_precision", "true")
-        self._append_text(overall, "network_assembly_block_correction", "true")
-        self._append_text(overall, "freeze_flow", "false")
-        self._append_text(overall, "store_error_field", "true")
-        self._append_text(overall, "error_field_variable", "pressure")
+        self._append_text(overall, "use_double_precision", str(solve.use_double_precision).lower())
+        self._append_text(overall, "network_assembly_block_correction", str(solve.network_assembly_block_correction).lower())
+        self._append_text(overall, "freeze_flow", str(solve.freeze_flow).lower())
+        self._append_text(overall, "store_error_field", str(solve.store_error_field).lower())
+        self._append_text(overall, "error_field_variable", solve.error_field_variable)
 
-    def _build_variable_controls_section(self, parent: ET.Element):
+    def _build_variable_controls_section(self, parent: ET.Element, solve: PDMLSolveSettings):
         variable_controls = ET.SubElement(parent, "variable_controls")
-        for variable in ("x_velocity", "y_velocity", "z_velocity"):
-            variable_control = ET.SubElement(variable_controls, "variable_control")
-            for tag, text in (
-                ("variable", variable),
-                ("false_time_step", "user"),
-                ("false_time_step_user_value", "1.5"),
-                ("terminal_residual", "automatic"),
-                ("terminal_residual_auto_multiplier", "1"),
-                ("inner_iterations", "1"),
-            ):
-                self._append_text(variable_control, tag, text)
+        if solve.variable_controls:
+            for vc in solve.variable_controls:
+                variable_control = ET.SubElement(variable_controls, "variable_control")
+                self._append_text(variable_control, "variable", vc.variable)
+                self._append_text(variable_control, "false_time_step", vc.false_time_step)
+                self._append_text(variable_control, "false_time_step_user_value", f"{vc.false_time_step_user_value:.6g}")
+                self._append_text(variable_control, "terminal_residual", vc.terminal_residual)
+                self._append_text(variable_control, "terminal_residual_auto_multiplier", f"{vc.terminal_residual_auto_multiplier:.6g}")
+                self._append_text(variable_control, "inner_iterations", str(vc.inner_iterations))
+        else:
+            for variable in ("x_velocity", "y_velocity", "z_velocity"):
+                variable_control = ET.SubElement(variable_controls, "variable_control")
+                for tag, text in (
+                    ("variable", variable),
+                    ("false_time_step", "user"),
+                    ("false_time_step_user_value", "1.5"),
+                    ("terminal_residual", "automatic"),
+                    ("terminal_residual_auto_multiplier", "1"),
+                    ("inner_iterations", "1"),
+                ):
+                    self._append_text(variable_control, tag, text)
 
-    def _build_solver_controls_section(self, parent: ET.Element):
+    def _build_solver_controls_section(self, parent: ET.Element, solve: PDMLSolveSettings):
         solver_controls = ET.SubElement(parent, "solver_controls")
-        solver_control = ET.SubElement(solver_controls, "solver_control")
-        self._append_text(solver_control, "variable", "pressure")
-        self._append_text(solver_control, "linear_relaxation", "0.3")
-        self._append_text(solver_control, "error_compute_frequency", "0")
+        if solve.solver_controls:
+            for sc in solve.solver_controls:
+                solver_control = ET.SubElement(solver_controls, "solver_control")
+                self._append_text(solver_control, "variable", sc.variable)
+                self._append_text(solver_control, "linear_relaxation", f"{sc.linear_relaxation:.6g}")
+                self._append_text(solver_control, "error_compute_frequency", str(sc.error_compute_frequency))
+        else:
+            solver_control = ET.SubElement(solver_controls, "solver_control")
+            self._append_text(solver_control, "variable", "pressure")
+            self._append_text(solver_control, "linear_relaxation", "0.3")
+            self._append_text(solver_control, "error_compute_frequency", "0")
 
     def _build_grid_axis(self, parent: ET.Element, axis_tag: str, entries: List[Tuple[str, str]], smoothing_value: int):
         axis = ET.SubElement(parent, axis_tag)
@@ -2732,8 +3178,8 @@ class FloXMLBuilder:
         self._append_text(global_elem, "concentration_5", "0")
 
         if profile != PDMLBinaryReader.COMPACT_FORCED_FLOW_LAYOUT:
-            self._build_transient_model_section(elem)
-            self._build_initial_variables_section(elem)
+            self._build_transient_model_section(elem, model)
+            self._build_initial_variables_section(elem, model)
 
         return elem
 
@@ -2758,8 +3204,8 @@ class FloXMLBuilder:
             self._append_text(overall, "store_error_field", "false")
         else:
             self._build_overall_control_section(elem, solve)
-            self._build_variable_controls_section(elem)
-            self._build_solver_controls_section(elem)
+            self._build_variable_controls_section(elem, solve)
+            self._build_solver_controls_section(elem, solve)
 
         return elem
 
