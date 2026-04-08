@@ -295,18 +295,29 @@ class ConversionConfig:
         "fluid_expansivity": "fluid_expansivity",
     }
 
-    def merge_cli_args(self, args) -> None:
+    # Parser defaults — populated by main() via _register_parser_defaults
+    _PARSER_DEFAULTS: Dict[str, object] = field(default_factory=dict)
+
+    @classmethod
+    def _register_parser_defaults(cls, parser) -> None:
+        """Extract parser defaults so merge_cli_args can detect explicit args."""
+        cls._PARSER_DEFAULTS = {a.dest: a.default for a in parser._actions}
+
+    def merge_cli_args(self, args, parser=None) -> None:
         """从 argparse Namespace 合并，只覆盖用户显式指定的参数。
 
-        通过比较 args 值与 parser 默认值来判断是否显式指定。
+        需要 parser 或已注册的 _PARSER_DEFAULTS 来判断默认值。
         """
-        import dataclasses
-        defaults = {a.dest: a.default for a in args.__dict__}
+        # Get parser defaults: {dest: default_value}
+        if parser is not None:
+            defaults = {a.dest: a.default for a in parser._actions}
+        else:
+            defaults = self._PARSER_DEFAULTS
 
         for cli_name, field_name in self._CLI_MAP.items():
             val = getattr(args, cli_name, None)
             default = defaults.get(cli_name)
-            # bool store_true 类型：default 是 False，显式传了就是 True
+            # bool store_true: default is None, val is True when set
             if isinstance(val, bool):
                 if val:
                     setattr(self, field_name, val)
@@ -1578,6 +1589,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Iterable[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+
+    # Register parser defaults so merge_cli_args can detect explicit args
+    ConversionConfig._register_parser_defaults(parser)
 
     # 构建配置：--settings JSON → CLI args 覆盖 → apply_defaults 兜底
     if args.template:
