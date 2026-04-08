@@ -119,9 +119,25 @@ class ECXMLData:
 ComponentData = CuboidData
 
 
+# Output unit → scale factor.  ECXML values are assumed to be in mm (JEDEC standard).
+# To keep mm output use --unit mm (scale=1, no conversion).
+# To convert to metres use --unit m (scale=0.001).
+_UNIT_SCALES = {
+    "mm": 1.0,
+    "cm": 0.1,
+    "m": 0.001,
+    "in": 1.0 / 25.4,
+    "mil": 1.0 / 1000.0,
+}
+
+
 @dataclass
 class ConversionConfig:
     """转换配置"""
+    # --- Unit ---
+    unit: str = "mm"  # Output unit: "mm" keeps original values, "m" converts to metres
+    unit_scale: float = 1.0  # computed from unit; 1.0 = no scaling
+
     # --- Domain & Environment ---
     padding_ratio: float = 0.1
     minimum_padding: float = 0.01
@@ -209,8 +225,19 @@ class ConversionConfig:
         user_defined_subgroups=False, store_lma=False,
     ))
 
+    def resolve_unit_scale(self) -> None:
+        """Compute unit_scale from unit string."""
+        scale = _UNIT_SCALES.get(self.unit.lower())
+        if scale is None:
+            raise ValueError(
+                f"Unsupported unit '{self.unit}'. "
+                f"Supported: {', '.join(_UNIT_SCALES.keys())}"
+            )
+        self.unit_scale = scale
+
     def apply_defaults(self) -> None:
         """Fill None fields with FloTHERM defaults. Called when not using --settings."""
+        self.resolve_unit_scale()
         for field_name, default_value in self._DEFAULTS.items():
             if getattr(self, field_name) is None:
                 setattr(self, field_name, default_value)
@@ -222,7 +249,7 @@ class ConversionConfig:
 
         template = load_template(filepath)
         # 从模板中提取简单配置
-        return cls(
+        cfg = cls(
             padding_ratio=template.solution_domain.padding_ratio,
             minimum_padding=template.solution_domain.minimum_padding,
             ambient_temp=template.attributes.ambients[0].temperature if template.attributes.ambients else 300.0,
@@ -233,6 +260,8 @@ class ConversionConfig:
             grid_config_file=None,
             template_file=filepath
         )
+        cfg.resolve_unit_scale()
+        return cfg
 
     @classmethod
     def from_json(cls, filepath: str) -> 'ConversionConfig':
@@ -257,7 +286,9 @@ class ConversionConfig:
         if unknown:
             print(f"[WARN] JSON 中有未识别的字段，已忽略: {unknown}")
 
-        return cls(**{k: v for k, v in data.items() if k in valid_names})
+        cfg = cls(**{k: v for k, v in data.items() if k in valid_names})
+        cfg.resolve_unit_scale()
+        return cfg
 
     def merge_json(self, filepath: str) -> None:
         """从 JSON 文件合并配置，覆盖已有字段。"""
@@ -611,6 +642,7 @@ class FloXMLBuilder:
 
     def __init__(self, config: ConversionConfig):
         self.config = config
+        self._scale = config.unit_scale
         self._grid_config = None
         self._template: Optional[FloXMLTemplate] = None
 
@@ -659,8 +691,9 @@ class FloXMLBuilder:
 
         if ecxml_data.solution_domain:
             sd = ecxml_data.solution_domain
-            domain_pos = (sd.x, sd.y, sd.z)
-            domain_size = (sd.width, sd.height, sd.depth)
+            s = self._scale
+            domain_pos = (sd.x * s, sd.y * s, sd.z * s)
+            domain_size = (sd.width * s, sd.height * s, sd.depth * s)
         else:
             components = self._collect_all_cuboids(ecxml_data)
             bounds = self._calculate_bounds(components)
@@ -837,9 +870,10 @@ class FloXMLBuilder:
         self._append_text(assembly_elem, "ignore", "false")
 
         position = ET.SubElement(assembly_elem, "position")
-        self._append_text(position, "x", f"{assembly.position_x:.6g}")
-        self._append_text(position, "y", f"{assembly.position_y:.6g}")
-        self._append_text(position, "z", f"{assembly.position_z:.6g}")
+        s = self._scale
+        self._append_text(position, "x", f"{assembly.position_x * s:.6g}")
+        self._append_text(position, "y", f"{assembly.position_y * s:.6g}")
+        self._append_text(position, "z", f"{assembly.position_z * s:.6g}")
 
         self._build_identity_orientation(assembly_elem)
         self._append_text(assembly_elem, "material", assembly.material or self.config.default_material)
@@ -872,19 +906,20 @@ class FloXMLBuilder:
 
     def _build_cuboid_element(self, parent: ET.Element, cuboid: CuboidData) -> ET.Element:
         """构建 cuboid 元素"""
+        s = self._scale
         cuboid_elem = ET.SubElement(parent, "cuboid")
         self._append_text(cuboid_elem, "name", cuboid.name)
         self._append_text(cuboid_elem, "active", "true" if cuboid.active else "false")
 
         position = ET.SubElement(cuboid_elem, "position")
-        self._append_text(position, "x", f"{cuboid.x:.6g}")
-        self._append_text(position, "y", f"{cuboid.y:.6g}")
-        self._append_text(position, "z", f"{cuboid.z:.6g}")
+        self._append_text(position, "x", f"{cuboid.x * s:.6g}")
+        self._append_text(position, "y", f"{cuboid.y * s:.6g}")
+        self._append_text(position, "z", f"{cuboid.z * s:.6g}")
 
         size = ET.SubElement(cuboid_elem, "size")
-        self._append_text(size, "x", f"{cuboid.width:.6g}")
-        self._append_text(size, "y", f"{cuboid.height:.6g}")
-        self._append_text(size, "z", f"{cuboid.depth:.6g}")
+        self._append_text(size, "x", f"{cuboid.width * s:.6g}")
+        self._append_text(size, "y", f"{cuboid.height * s:.6g}")
+        self._append_text(size, "z", f"{cuboid.depth * s:.6g}")
 
         self._build_identity_orientation(cuboid_elem)
         self._append_text(cuboid_elem, "localized_grid", "false")
@@ -899,19 +934,20 @@ class FloXMLBuilder:
 
     def _build_source_element(self, parent: ET.Element, source: SourceData) -> ET.Element:
         """构建 source 元素"""
+        s = self._scale
         source_elem = ET.SubElement(parent, "source")
         self._append_text(source_elem, "name", source.name)
         self._append_text(source_elem, "active", "true" if source.active else "false")
 
         position = ET.SubElement(source_elem, "position")
-        self._append_text(position, "x", f"{source.x:.6g}")
-        self._append_text(position, "y", f"{source.y:.6g}")
-        self._append_text(position, "z", f"{source.z:.6g}")
+        self._append_text(position, "x", f"{source.x * s:.6g}")
+        self._append_text(position, "y", f"{source.y * s:.6g}")
+        self._append_text(position, "z", f"{source.z * s:.6g}")
 
         size = ET.SubElement(source_elem, "size")
-        self._append_text(size, "x", f"{source.width:.6g}")
-        self._append_text(size, "y", f"{source.height:.6g}")
-        self._append_text(size, "z", f"{source.depth:.6g}")
+        self._append_text(size, "x", f"{source.width * s:.6g}")
+        self._append_text(size, "y", f"{source.height * s:.6g}")
+        self._append_text(size, "z", f"{source.depth * s:.6g}")
 
         self._build_identity_orientation(source_elem)
 
@@ -928,10 +964,11 @@ class FloXMLBuilder:
         self._append_text(mp_elem, "active", "true" if mp.active else "false")
 
         # 位置
+        s = self._scale
         position = ET.SubElement(mp_elem, "position")
-        self._append_text(position, "x", f"{mp.x:.6g}")
-        self._append_text(position, "y", f"{mp.y:.6g}")
-        self._append_text(position, "z", f"{mp.z:.6g}")
+        self._append_text(position, "x", f"{mp.x * s:.6g}")
+        self._append_text(position, "y", f"{mp.y * s:.6g}")
+        self._append_text(position, "z", f"{mp.z * s:.6g}")
 
         return mp_elem
 
@@ -1129,16 +1166,17 @@ class FloXMLBuilder:
                 break
 
     def _calculate_bounds(self, components: List[ComponentData]) -> Tuple[float, float, float, float, float, float]:
-        """计算组件边界框"""
+        """计算组件边界框（已含单位缩放）"""
         if not components:
             return (0.0, 0.0, 0.0, 0.1, 0.1, 0.1)
 
-        min_x = min(c.x for c in components)
-        min_y = min(c.y for c in components)
-        min_z = min(c.z for c in components)
-        max_x = max(c.x + c.width for c in components)
-        max_y = max(c.y + c.height for c in components)
-        max_z = max(c.z + c.depth for c in components)
+        s = self._scale
+        min_x = min(c.x * s for c in components)
+        min_y = min(c.y * s for c in components)
+        min_z = min(c.z * s for c in components)
+        max_x = max((c.x + c.width) * s for c in components)
+        max_y = max((c.y + c.height) * s for c in components)
+        max_z = max((c.z + c.depth) * s for c in components)
 
         return (min_x, min_y, min_z, max_x, max_y, max_z)
 
@@ -1503,12 +1541,15 @@ def build_parser() -> argparse.ArgumentParser:
   # 单文件转换
   python ecxml_to_floxml_converter.py input.ecxml -o output.xml
 
+  # ECXML 尺寸是 mm，转换时自动 ×0.001
+  python ecxml_to_floxml_converter.py input.ecxml -o output.xml --unit mm
+
   # 批量转换
   python ecxml_to_floxml_converter.py *.ecxml --output-dir ./floxml/
 
   # 自定义参数
   python ecxml_to_floxml_converter.py input.ecxml -o output.xml \\
-      --padding-ratio 0.15 --ambient-temp 308.15
+      --unit mm --padding-ratio 0.15 --ambient-temp 308.15
         """
     )
 
@@ -1521,6 +1562,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="输出目录 (批量模式)")
 
     # 转换参数
+    parser.add_argument("--unit", choices=["mm", "m", "cm", "in", "mil"], default="mm",
+                        help="输出尺寸单位 (默认: mm，保持原始值。m 时 ×0.001)")
     parser.add_argument("--padding-ratio", type=float, default=0.1,
                         help="求解域 padding 比例 (默认: 0.1)")
     parser.add_argument("--minimum-padding", type=float, default=0.01,
@@ -1610,6 +1653,10 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             print(f"[INFO] 使用模板: {args.template}")
     elif args.settings:
         config = ConversionConfig.from_json(args.settings)
+        # CLI --unit overrides JSON if specified
+        if args.unit != "mm":
+            config.unit = args.unit
+            config.resolve_unit_scale()
         if args.verbose:
             print(f"[INFO] 使用设置文件: {args.settings} (仅输出 JSON 中指定的字段)")
         # CLI 参数可覆盖 JSON
@@ -1617,6 +1664,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     else:
         # 无 JSON / 无 template — 用 CLI 参数构建，缺省填 FloTHERM 默认值
         config = ConversionConfig(
+            unit=args.unit,
             padding_ratio=args.padding_ratio,
             minimum_padding=args.minimum_padding,
             ambient_temp=args.ambient_temp,
