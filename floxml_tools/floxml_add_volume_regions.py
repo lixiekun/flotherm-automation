@@ -340,18 +340,26 @@ def _upsert_grid_constraint(grid_constraints_elem: ET.Element, cfg: Dict) -> ET.
     _set_text(elem, "number_cells_control", str(cfg.get("number_cells_control", "min_number")))
     if cfg.get("min_number") is not None:
         _set_text(elem, "min_number", str(cfg["min_number"]))
+    if cfg.get("max_size") is not None:
+        _set_text(elem, "max_size", f"{float(cfg['max_size']):.6g}")
 
-    hi_cfg = cfg.get("high_inflation")
-    if hi_cfg:
-        hi = elem.find("high_inflation")
-        if hi is None:
-            hi = ET.SubElement(elem, "high_inflation")
-        _set_text(hi, "inflation_type", str(hi_cfg.get("inflation_type", "size")))
-        if hi_cfg.get("inflation_size") is not None:
-            _set_text(hi, "inflation_size", f"{float(hi_cfg['inflation_size']):.6g}")
-        _set_text(hi, "number_cells_control", str(hi_cfg.get("number_cells_control", "min_number")))
-        if hi_cfg.get("min_number") is not None:
-            _set_text(hi, "min_number", str(hi_cfg["min_number"]))
+    for infl_tag in ("high_inflation", "low_inflation"):
+        infl_cfg = cfg.get(infl_tag)
+        if not infl_cfg:
+            continue
+        infl = elem.find(infl_tag)
+        if infl is None:
+            infl = ET.SubElement(elem, infl_tag)
+        _set_text(infl, "inflation_type", str(infl_cfg.get("inflation_type", "size")))
+        if infl_cfg.get("inflation_size") is not None:
+            _set_text(infl, "inflation_size", f"{float(infl_cfg['inflation_size']):.6g}")
+        if infl_cfg.get("inflation_percent") is not None:
+            _set_text(infl, "inflation_percent", f"{float(infl_cfg['inflation_percent']):.6g}")
+        _set_text(infl, "number_cells_control", str(infl_cfg.get("number_cells_control", "min_number")))
+        if infl_cfg.get("min_number") is not None:
+            _set_text(infl, "min_number", str(infl_cfg["min_number"]))
+        if infl_cfg.get("max_size") is not None:
+            _set_text(infl, "max_size", f"{float(infl_cfg['max_size']):.6g}")
 
     return elem
 
@@ -868,29 +876,32 @@ def _read_grid_constraints_sheet(ws) -> List[Dict]:
         if v and str(v).strip():
             entry["number_cells_control"] = str(v).strip()
 
-        v = _parse_number(rd.get("min_number"))
+        v = _parse_number(rd.get("max_size"))
         if v is not None:
-            entry["min_number"] = int(v)
+            entry["max_size"] = v
 
-        # high_inflation 子对象
-        hi = {}
-        for key, json_key in [
-            ("high_inflation_type", "inflation_type"),
-            ("high_inflation_size", "inflation_size"),
-            ("high_inflation_number_cells_control", "number_cells_control"),
-            ("high_inflation_min_number", "min_number"),
-        ]:
-            raw = rd.get(key)
-            if raw is None or str(raw).strip() == "":
-                continue
-            if json_key == "min_number":
-                hi[json_key] = int(float(raw))
-            elif json_key == "inflation_size":
-                hi[json_key] = float(raw)
-            else:
-                hi[json_key] = str(raw).strip()
-        if hi:
-            entry["high_inflation"] = hi
+        # inflation sub-objects (high / low)
+        for prefix, tag in [("high_inflation", "high_inflation"), ("low_inflation", "low_inflation")]:
+            infl: Dict = {}
+            for key, json_key in [
+                (f"{prefix}_type", "inflation_type"),
+                (f"{prefix}_size", "inflation_size"),
+                (f"{prefix}_percent", "inflation_percent"),
+                (f"{prefix}_number_cells_control", "number_cells_control"),
+                (f"{prefix}_min_number", "min_number"),
+                (f"{prefix}_max_size", "max_size"),
+            ]:
+                raw = rd.get(key)
+                if raw is None or str(raw).strip() == "":
+                    continue
+                if json_key in ("min_number",):
+                    infl[json_key] = int(float(raw))
+                elif json_key in ("inflation_size", "inflation_percent", "max_size"):
+                    infl[json_key] = float(raw)
+                else:
+                    infl[json_key] = str(raw).strip()
+            if infl:
+                entry[tag] = infl
 
         results.append(entry)
     return results
@@ -1097,12 +1108,19 @@ def create_template_excel(output_path: str) -> None:
     ws1 = wb.active
     ws1.title = "grid_constraints"
     _write_headers(ws1, [
-        "name", "enable_min_cell_size", "min_cell_size", "number_cells_control", "min_number",
-        "high_inflation_type", "high_inflation_size",
-        "high_inflation_number_cells_control", "high_inflation_min_number",
+        "name", "enable_min_cell_size", "min_cell_size", "number_cells_control", "min_number", "max_size",
+        "high_inflation_type", "high_inflation_size", "high_inflation_percent",
+        "high_inflation_number_cells_control", "high_inflation_min_number", "high_inflation_max_size",
+        "low_inflation_type", "low_inflation_size", "low_inflation_percent",
+        "low_inflation_number_cells_control", "low_inflation_min_number", "low_inflation_max_size",
     ])
     example1 = [
-        ["Grid Constraint 1", "true", 0.001, "min_number", 43, "size", 0.005, "min_number", 23],
+        ["Grid Constraint 1", "true", 0.001, "min_number", 43, "",
+         "size", 0.005, "", "min_number", 23, "",
+         "", "", "", "", "", ""],
+        ["Grid Constraint 2", "true", 0.0005, "max_size", "", 0.002,
+         "percent", "", 10, "max_size", "", 0.001,
+         "size", 0.005, "", "min_number", 23, ""],
     ]
     for r, row_data in enumerate(example1, 2):
         for c, val in enumerate(row_data, 1):
