@@ -1,0 +1,65 @@
+{
+  "overall_control": {
+    "outer_iterations": 500,
+    "fan_relaxation": 0.9,
+    "estimated_free_convection_velocity": 0.2,
+    "solver_option": "multi_grid",
+    "monitor_convergence": true,
+    "active_plate_conduction": false,
+    "use_double_precision": false,
+    "network_assembly_block_correction": false,
+    "freeze_flow": false,
+    "store_error_field": false,
+    "convergence_values": {
+      "required_accuracy": 0.2,
+      "num_iterations": 45,
+      "residual_threshold": 200
+    }
+  },
+  "variable_controls": [
+    {
+      "variable": "x_velocity",
+      "false_time_step": "user",
+      "false_time_step_user_value": 1.5,
+      "terminal_residual": "automatic",
+      "terminal_residual_auto_multiplier": 1,
+      "inner_iterations": 1
+    },
+    {
+      "variable": "y_velocity",
+      "false_time_step": "user",
+      "false_time_step_user_value": 1.5,
+      "terminal_residual": "automatic",
+      "terminal_residual_auto_multiplier": 1,
+      "inner_iterations": 1
+    },
+    {
+      "variable": "z_velocity",
+      "false_time_step": "user",
+      "false_time_step_user_value": 1.5,
+      "terminal_residual": "automatic",
+      "terminal_residual_auto_multiplier": 1,
+      "inner_iterations": 1
+    },
+    {
+      "variable": "temperature",
+      "false_time_step": "user",
+      "false_time_step_user_value": 1.5,
+      "terminal_residual": "automatic",
+      "terminal_residual_auto_multiplier": 1,
+      "inner_iterations": 1
+    }
+  ],
+  "solver_controls": [
+    {
+      "variable": "pressure",
+      "linear_relaxation": 0.3,
+      "error_compute_frequency": 0
+    },
+    {
+      "variable": "temperature",
+      "linear_relaxation": 0.7,
+      "error_compute_frequency": 0
+    }
+  ]
+}
