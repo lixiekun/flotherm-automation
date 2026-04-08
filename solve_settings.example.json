@@ -61,5 +61,34 @@
       "linear_relaxation": 0.7,
       "error_compute_frequency": 0
     }
-  ]
+  ],
+  "transient": {
+    "overall_transient": {
+      "start_time": 0,
+      "end_time": 60,
+      "duration": 60,
+      "keypoint_tolerance": 0.0001
+    },
+    "save_times": [0, 30, 60],
+    "time_patches": [
+      {
+        "name": "First",
+        "start_time": 0,
+        "end_time": 30,
+        "step_control": "minimum_number",
+        "minimum_number": 15,
+        "step_distribution": "increasing_power",
+        "distribution_index": 1.4
+      },
+      {
+        "name": "Second",
+        "start_time": 30,
+        "end_time": 60,
+        "step_control": "minimum_number",
+        "minimum_number": 12,
+        "step_distribution": "uniform",
+        "distribution_index": 1
+      }
+    ]
+  }
 }

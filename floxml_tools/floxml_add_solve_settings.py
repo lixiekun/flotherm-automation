@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """
-Add/update FloTHERM solve settings (<solve>) in an existing FloXML project
-using JSON or Excel config.
+Add/update FloTHERM solve settings (<solve>) and transient settings (<transient>)
+in an existing FloXML project using JSON or Excel config.
 
 Supported sections:
+
+  Solve settings (<solve>):
   1. overall_control  – outer iterations, solver option, convergence, booleans
   2. variable_controls – per-variable (x/y/z_velocity, temperature) solver tuning
   3. solver_controls   – per-variable linear solver settings (pressure, temperature, …)
+
+  Transient settings (<model>/<transient>):
+  4. overall_transient – start_time, end_time, duration, keypoint_tolerance
+  5. time_patches      – named time intervals with step control and distribution
+  6. save_times        – time points at which to save solution snapshots
 
 Usage:
   python -m floxml_tools.floxml_add_solve_settings model.xml --config solve.json -o out.xml
@@ -201,8 +208,133 @@ def _apply_solver_controls(solve: ET.Element, controls: List[Dict]) -> None:
                 _set_text(entry, field, _format_value(ctrl_cfg[field], ftype))
 
 
+# ============================================================================
+# Transient settings (<model>/<transient>)
+# ============================================================================
+
+OVERALL_TRANSIENT_FIELDS = {
+    "start_time": float,
+    "end_time": float,
+    "duration": float,
+    "keypoint_tolerance": float,
+}
+
+TIME_PATCH_FIELDS = {
+    "start_time": float,
+    "end_time": float,
+    "step_control": str,
+    "minimum_number": int,
+    "maximum_step_size": float,
+    "smallest_step_size": float,
+    "smallest_step_location": float,
+    "step_distribution": str,
+    "distribution_index": float,
+}
+
+
+def _find_or_create_model(root: ET.Element) -> ET.Element:
+    """Find or create <model> element."""
+    model = root.find("model")
+    if model is None:
+        model = ET.SubElement(root, "model")
+    return model
+
+
+def _find_or_create_modeling(model: ET.Element) -> ET.Element:
+    """Find or create <modeling> inside <model>."""
+    modeling = model.find("modeling")
+    if modeling is None:
+        modeling = ET.SubElement(model, "modeling")
+    return modeling
+
+
+def _apply_transient_toggle(model: ET.Element, enabled: bool) -> None:
+    """Set <modeling>/<transient> true/false."""
+    modeling = _find_or_create_modeling(model)
+    _set_text(modeling, "transient", "true" if enabled else "false")
+
+
+def _apply_overall_transient(model: ET.Element, cfg: Dict) -> None:
+    """Create/update <model>/<transient>/<overall_transient>."""
+    transient = _find_or_create(model, "transient")
+    ot = _find_or_create(transient, "overall_transient")
+
+    for fname, ftype in OVERALL_TRANSIENT_FIELDS.items():
+        if fname in cfg:
+            _set_text(ot, fname, _format_value(cfg[fname], ftype))
+
+
+def _apply_save_times(model: ET.Element, times: List[float]) -> None:
+    """Create/update <model>/<transient>/<transient_save_times>."""
+    transient = _find_or_create(model, "transient")
+    st_parent = _find_or_create(transient, "transient_save_times")
+
+    # Remove existing save_time entries and re-create
+    for old in st_parent.findall("save_time"):
+        st_parent.remove(old)
+
+    for t in times:
+        st = ET.SubElement(st_parent, "save_time")
+        st.text = _format_value(t, float)
+
+
+def _apply_time_patches(model: ET.Element, patches: List[Dict]) -> None:
+    """Create/update <model>/<transient>/<time_patches>."""
+    transient = _find_or_create(model, "transient")
+    tp_parent = _find_or_create(transient, "time_patches")
+
+    for patch_cfg in patches:
+        name = patch_cfg.get("name")
+        if not name:
+            continue
+
+        # Find existing time_patch by name, or create new
+        entry = None
+        for child in tp_parent.findall("time_patch"):
+            n = child.find("name")
+            if n is not None and (n.text or "").strip() == name:
+                entry = child
+                break
+        if entry is None:
+            entry = ET.SubElement(tp_parent, "time_patch")
+
+        _set_text(entry, "name", name)
+
+        for fname, ftype in TIME_PATCH_FIELDS.items():
+            if fname in patch_cfg:
+                _set_text(entry, fname, _format_value(patch_cfg[fname], ftype))
+
+
+def _apply_transient_settings(root: ET.Element, config: Dict) -> None:
+    """Apply all transient config sections."""
+    transient_cfg = config.get("transient")
+    if not transient_cfg:
+        return
+
+    model = _find_or_create_model(root)
+
+    # Enable transient in <modeling>
+    _apply_transient_toggle(model, True)
+
+    # overall_transient
+    if "overall_transient" in transient_cfg:
+        _apply_overall_transient(model, transient_cfg["overall_transient"])
+
+    # save_times
+    if "save_times" in transient_cfg:
+        _apply_save_times(model, transient_cfg["save_times"])
+
+    # time_patches
+    if "time_patches" in transient_cfg:
+        _apply_time_patches(model, transient_cfg["time_patches"])
+
+
+# ============================================================================
+# Main entry
+# ============================================================================
+
 def apply_solve_settings(root: ET.Element, config: Dict) -> ET.Element:
-    """Main entry: apply all solve config sections to a FloXML tree."""
+    """Main entry: apply all solve and transient config sections to a FloXML tree."""
     solve = _find_or_create_solve(root)
 
     if "overall_control" in config:
@@ -213,6 +345,9 @@ def apply_solve_settings(root: ET.Element, config: Dict) -> ET.Element:
 
     if "solver_controls" in config:
         _apply_solver_controls(solve, config["solver_controls"])
+
+    if "transient" in config:
+        _apply_transient_settings(root, config)
 
     return root
 
@@ -358,6 +493,80 @@ def _read_controls_sheet(ws, entry_tag: str) -> List[Dict]:
     return results
 
 
+def _read_transient_overall_sheet(ws) -> Dict:
+    """Read transient_overall sheet -> single dict (merged across rows)."""
+    headers = [str(ws.cell(row=1, column=c).value or "").strip()
+               for c in range(1, ws.max_column + 1)]
+    if not headers or not headers[0]:
+        return {}
+
+    result: Dict = {}
+    for row in range(2, ws.max_row + 1):
+        rd = _row_dict(ws, row, headers)
+        if not rd:
+            continue
+        for col_name, ftype in OVERALL_TRANSIENT_FIELDS.items():
+            raw = rd.get(col_name)
+            if raw is not None and (not isinstance(raw, str) or raw.strip()):
+                try:
+                    result[col_name] = ftype(float(raw))
+                except (ValueError, TypeError):
+                    pass
+    return result
+
+
+def _read_transient_save_times_sheet(ws) -> List[float]:
+    """Read transient_save_times sheet -> list of time values."""
+    headers = [str(ws.cell(row=1, column=c).value or "").strip()
+               for c in range(1, ws.max_column + 1)]
+    if not headers or not headers[0]:
+        return []
+
+    times: List[float] = []
+    for row in range(2, ws.max_row + 1):
+        rd = _row_dict(ws, row, headers)
+        if not rd:
+            continue
+        raw = rd.get("save_time")
+        if raw is not None and (not isinstance(raw, str) or raw.strip()):
+            try:
+                times.append(float(raw))
+            except (ValueError, TypeError):
+                pass
+    return times
+
+
+def _read_time_patches_sheet(ws) -> List[Dict]:
+    """Read time_patches sheet -> list of time_patch dicts."""
+    headers = [str(ws.cell(row=1, column=c).value or "").strip()
+               for c in range(1, ws.max_column + 1)]
+    if not headers or not headers[0]:
+        return []
+
+    results: List[Dict] = []
+    for row in range(2, ws.max_row + 1):
+        rd = _row_dict(ws, row, headers)
+        if not rd:
+            continue
+
+        name = rd.get("name")
+        if not name or not str(name).strip():
+            continue
+
+        entry: Dict = {"name": str(name).strip()}
+        for col_name, ftype in TIME_PATCH_FIELDS.items():
+            raw = rd.get(col_name)
+            if raw is not None and (not isinstance(raw, str) or raw.strip()):
+                try:
+                    entry[col_name] = ftype(float(raw)) if ftype in (int, float) else str(raw).strip()
+                except (ValueError, TypeError):
+                    pass
+
+        if len(entry) > 1:
+            results.append(entry)
+    return results
+
+
 def load_excel(path: Path) -> Dict:
     try:
         from openpyxl import load_workbook as _load_wb
@@ -383,6 +592,24 @@ def load_excel(path: Path) -> Dict:
         data = _read_controls_sheet(wb["solver_controls"], "solver_controls")
         if data:
             config["solver_controls"] = data
+
+    # transient_overall
+    if "transient_overall" in wb.sheetnames:
+        data = _read_transient_overall_sheet(wb["transient_overall"])
+        if data:
+            config.setdefault("transient", {}).setdefault("overall_transient", {}).update(data)
+
+    # transient_save_times
+    if "transient_save_times" in wb.sheetnames:
+        data = _read_transient_save_times_sheet(wb["transient_save_times"])
+        if data:
+            config.setdefault("transient", {})["save_times"] = data
+
+    # time_patches
+    if "time_patches" in wb.sheetnames:
+        data = _read_time_patches_sheet(wb["time_patches"])
+        if data:
+            config.setdefault("transient", {})["time_patches"] = data
 
     wb.close()
     return config
@@ -467,6 +694,35 @@ def create_template_excel(output_path: str) -> None:
         ws3.cell(row=r, column=3, value=ecf)
     _widths(ws3)
 
+    # ── Sheet 4: transient_overall ──
+    ws4 = wb.create_sheet("transient_overall")
+    _headers(ws4, ["start_time", "end_time", "duration", "keypoint_tolerance"])
+    for c, val in enumerate([0, 60, 60, 0.0001], 1):
+        ws4.cell(row=2, column=c, value=val)
+    _widths(ws4)
+
+    # ── Sheet 5: transient_save_times ──
+    ws5 = wb.create_sheet("transient_save_times")
+    _headers(ws5, ["save_time"])
+    for r, val in enumerate([0, 30, 60], 2):
+        ws5.cell(row=r, column=1, value=val)
+    _widths(ws5)
+
+    # ── Sheet 6: time_patches ──
+    ws6 = wb.create_sheet("time_patches")
+    _headers(ws6, [
+        "name", "start_time", "end_time",
+        "step_control", "minimum_number",
+        "step_distribution", "distribution_index",
+    ])
+    for r, row_data in enumerate([
+        ("First", 0, 30, "minimum_number", 15, "increasing_power", 1.4),
+        ("Second", 30, 60, "minimum_number", 12, "uniform", 1),
+    ], 2):
+        for c, val in enumerate(row_data, 1):
+            ws6.cell(row=r, column=c, value=val)
+    _widths(ws6)
+
     wb.save(output_path)
     print(f"[OK] Template created: {output_path}")
 
@@ -529,6 +785,17 @@ def main() -> int:
         sections.append(f"{len(config['variable_controls'])} variable_control(s)")
     if "solver_controls" in config:
         sections.append(f"{len(config['solver_controls'])} solver_control(s)")
+    if "transient" in config:
+        tr = config["transient"]
+        parts = []
+        if "overall_transient" in tr:
+            parts.append("overall_transient")
+        if "time_patches" in tr:
+            parts.append(f"{len(tr['time_patches'])} time_patch(es)")
+        if "save_times" in tr:
+            parts.append(f"{len(tr['save_times'])} save_time(s)")
+        if parts:
+            sections.append("transient(" + ", ".join(parts) + ")")
     print(f"[OK] Applied solve settings ({', '.join(sections)}): {output_path}")
     return 0
 
