@@ -552,6 +552,18 @@ class ECXMLExtractor:
                     data.root_assembly = assembly
                 # 如果有多个根 assembly，可以作为子 assembly 添加
 
+            # 解析根 geometry 下的裸 cuboid（不在 assembly 内的）
+            root_cuboids = []
+            for cuboid_elem in self._find_children(geometry_elem, 'solid3dblock'):
+                cuboid = self._parse_solid3d_block(cuboid_elem)
+                root_cuboids.append(cuboid)
+            if root_cuboids:
+                if data.root_assembly is None:
+                    # 没有 assembly，创建一个默认的来放 cuboid
+                    data.root_assembly = AssemblyData(name=f"{data.name}_Assembly")
+                data.root_assembly.cuboids.extend(root_cuboids)
+                data.root_assembly.geometry_items.extend(("cuboid", c) for c in root_cuboids)
+
             # 解析独立热源
             for source_elem in self._find_children(
                 geometry_elem,
