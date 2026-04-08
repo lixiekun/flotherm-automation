@@ -119,15 +119,14 @@ class ECXMLData:
 ComponentData = CuboidData
 
 
-# Output unit → scale factor.  ECXML values are assumed to be in mm (JEDEC standard).
-# To keep mm output use --unit mm (scale=1, no conversion).
-# To convert to metres use --unit m (scale=0.001).
+# Output unit → scale factor from metres.
+# ECXML (JEDEC JEP181) uses SI units (metres).  --unit controls the output unit.
 _UNIT_SCALES = {
-    "mm": 1.0,
-    "cm": 0.1,
-    "m": 0.001,
-    "in": 1.0 / 25.4,
-    "mil": 1.0 / 1000.0,
+    "m": 1.0,
+    "mm": 1000.0,
+    "cm": 100.0,
+    "in": 1000.0 / 25.4,
+    "mil": 1.0e6 / 25.4,
 }
 
 
@@ -135,7 +134,7 @@ _UNIT_SCALES = {
 class ConversionConfig:
     """转换配置"""
     # --- Unit ---
-    unit: str = "mm"  # Output unit: "mm" keeps original values, "m" converts to metres
+    unit: str = "m"  # Output unit; "m" keeps original ECXML values, "mm" ×1000
     unit_scale: float = 1.0  # computed from unit; 1.0 = no scaling
 
     # --- Domain & Environment ---
@@ -1541,7 +1540,7 @@ def build_parser() -> argparse.ArgumentParser:
   # 单文件转换
   python ecxml_to_floxml_converter.py input.ecxml -o output.xml
 
-  # ECXML 尺寸是 mm，转换时自动 ×0.001
+  # ECXML 尺寸是 m，输出用 mm (×1000)
   python ecxml_to_floxml_converter.py input.ecxml -o output.xml --unit mm
 
   # 批量转换
@@ -1562,8 +1561,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="输出目录 (批量模式)")
 
     # 转换参数
-    parser.add_argument("--unit", choices=["mm", "m", "cm", "in", "mil"], default="mm",
-                        help="输出尺寸单位 (默认: mm，保持原始值。m 时 ×0.001)")
+    parser.add_argument("--unit", choices=["m", "mm", "cm", "in", "mil"], default="m",
+                        help="输出尺寸单位 (默认: m，保持原始值。mm 时 ×1000)")
     parser.add_argument("--padding-ratio", type=float, default=0.1,
                         help="求解域 padding 比例 (默认: 0.1)")
     parser.add_argument("--minimum-padding", type=float, default=0.01,
@@ -1654,7 +1653,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     elif args.settings:
         config = ConversionConfig.from_json(args.settings)
         # CLI --unit overrides JSON if specified
-        if args.unit != "mm":
+        if args.unit != "m":
             config.unit = args.unit
             config.resolve_unit_scale()
         if args.verbose:
