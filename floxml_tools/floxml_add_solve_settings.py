@@ -223,10 +223,9 @@ TIME_PATCH_FIELDS = {
     "start_time": float,
     "end_time": float,
     "step_control": str,
+    "additional_steps": int,
     "minimum_number": int,
-    "maximum_step_size": float,
-    "smallest_step_size": float,
-    "smallest_step_location": float,
+    "maximum_size": float,
     "step_distribution": str,
     "distribution_index": float,
 }
@@ -712,15 +711,16 @@ def create_template_excel(output_path: str) -> None:
     ws6 = wb.create_sheet("time_patches")
     _headers(ws6, [
         "name", "start_time", "end_time",
-        "step_control", "minimum_number",
+        "step_control", "additional_steps", "minimum_number", "maximum_size",
         "step_distribution", "distribution_index",
     ])
     for r, row_data in enumerate([
-        ("First", 0, 30, "minimum_number", 15, "increasing_power", 1.4),
-        ("Second", 30, 60, "minimum_number", 12, "uniform", 1),
+        ("First", 0, 30, "minimum_number", None, 15, None, "increasing_power", 1.4),
+        ("Second", 30, 60, "minimum_number", None, 12, None, "uniform", 1),
     ], 2):
         for c, val in enumerate(row_data, 1):
-            ws6.cell(row=r, column=c, value=val)
+            if val is not None:
+                ws6.cell(row=r, column=c, value=val)
     _widths(ws6)
 
     wb.save(output_path)
