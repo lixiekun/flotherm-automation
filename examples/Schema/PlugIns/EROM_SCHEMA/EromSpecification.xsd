@@ -1,0 +1,174 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  This material contains trade secrets or otherwise
+  confidential information owned by Siemens Industry
+  Software Inc. or its affiliates (collectively, "Siemens"),
+  or its licensors. Access to and use of this information
+  is strictly limited as set forth in the Customer's
+  applicable agreements with Siemens.
+
+  Unpublished work. Copyright 2025 Siemens
+-->
+
+<!--
+This schema contains definition for basic  erom types
+-->
+
+<xs:schema attributeFormDefault="unqualified"
+           elementFormDefault="qualified"
+           xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="https://www.mentor.com/FloTHERMXT/XtXML"
+           xmlns="https://www.mentor.com/FloTHERMXT/XtXML">
+
+    <xs:simpleType name="bool_type">
+        <xs:restriction base="xs:boolean"/>
+    </xs:simpleType>
+
+    <xs:simpleType name="string_type">
+        <xs:restriction base="xs:string"/>
+    </xs:simpleType> 
+
+    <xs:simpleType name="int_type">
+        <xs:restriction base="xs:integer"/>
+    </xs:simpleType>
+
+     <xs:simpleType name="double_type">
+        <xs:restriction base="xs:double"/>
+    </xs:simpleType>
+
+     <xs:simpleType name="version_type">
+      <xs:restriction base="xs:decimal">
+        <xs:minInclusive value="0.0" />
+      </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="serial_type">
+      <xs:restriction base="xs:string">
+        <xs:pattern value="[0-9A-Fa-f]{32}"/>
+      </xs:restriction>
+    </xs:simpleType>
+
+    <xs:complexType name="double_vector">
+        <xs:attribute name="x" type="double_type" default="0" />
+        <xs:attribute name="y" type="double_type" default="0" />
+        <xs:attribute name="z" type="double_type" default="0" />
+    </xs:complexType>
+    
+    <xs:complexType name="position">
+          <xs:complexContent>
+              <xs:extension base="double_vector"/>
+          </xs:complexContent>    
+    </xs:complexType>
+
+    <xs:complexType name="size">
+        <xs:attribute name="x" type="double_type" default="0.1" />
+        <xs:attribute name="y" type="double_type" default="0.1" />
+        <xs:attribute name="z" type="double_type" default="0.1" />
+    </xs:complexType>
+
+    <xs:simpleType name="version_erom_xtxml_type">
+        <xs:restriction base="xs:decimal">
+            <xs:minInclusive value="0.0"/>
+            <xs:maxInclusive value="2504"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:complexType name="erom_specification">
+        <xs:sequence>
+            <xs:element name="erom_identifier" type="erom_identifier"  minOccurs="1" maxOccurs="1"/>
+            <xs:element name="erom_optional_geometry" type="erom_optional_geometry"  minOccurs="1" maxOccurs="1"/>
+            <xs:element name="volume" type="erom_volume"  minOccurs="1" maxOccurs="1"/>
+            <xs:element name="faces" type="erom_faces"  minOccurs="1" maxOccurs="1"/>
+            <xs:element name="sources" type="erom_sources"  minOccurs="1" maxOccurs="1"/>
+			<xs:element name="probes" type="erom_probes"  minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+        <xs:attribute name="version" type="version_erom_xtxml_type" use="required" />
+    </xs:complexType>
+ 
+    <xs:complexType name="erom_identifier">
+        <xs:attribute name="id" type="serial_type" use="required" />
+    </xs:complexType>
+
+    <xs:complexType name="erom_optional_geometry">
+        <xs:attribute name="has_probe" type="bool_type" use="required" />
+        <xs:attribute name="has_source" type="bool_type" use="required" />
+    </xs:complexType>
+
+    <xs:complexType name="erom_volume">
+        <xs:sequence>
+            <xs:element name="erom_block" type="erom_block" minOccurs="1" maxOccurs="unbounded"></xs:element>
+        </xs:sequence>
+        <xs:attribute name="volume" type="double_type" use="required" />
+    </xs:complexType>
+
+    <xs:complexType name="erom_block">
+        <xs:sequence>
+            <xs:element name="position" type="position"  minOccurs="1" maxOccurs="1"/>
+            <xs:element name="size" type="size"  minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="erom_faces">
+        <xs:sequence>
+            <xs:element name="erom_ambient" type="erom_face_ambient" minOccurs="1" maxOccurs="unbounded"></xs:element>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <xs:complexType name="erom_face_ambient">
+        <xs:sequence>
+            <xs:element name="erom_face" type="erom_face_go" minOccurs="0" maxOccurs="unbounded"></xs:element>
+        </xs:sequence>
+        <xs:attribute name="has_htc" type="bool_type" use="required"/>
+        <xs:attribute name="htc" type="double_type" use="required"/>
+        <xs:attribute name="name" type="string_type" use="required"/>
+    </xs:complexType>
+
+    <xs:complexType name="erom_face_go">
+        <xs:sequence>
+            <xs:element name="erom_face_collapsed_cuboid" type="erom_face_collapsed_cuboid" minOccurs="1" maxOccurs="unbounded"></xs:element>
+        </xs:sequence>
+        <xs:attribute name="emissivity" type="double_type" use="required"/>
+        <xs:attribute name="face_number" type="int_type" use="required"/>
+    </xs:complexType>
+
+    <xs:complexType name="erom_face_collapsed_cuboid">
+        <xs:sequence>
+            <xs:element name="position" type="position"  minOccurs="1" maxOccurs="1"/>
+            <xs:element name="size" type="size"  minOccurs="1" maxOccurs="1"/>
+            <xs:element name="normal" type="position"  minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name ="erom_sources">
+        <xs:sequence>
+            <xs:element name="erom_source" type="erom_source"  minOccurs="1" maxOccurs="unbounded"/>
+            </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="erom_source">
+        <xs:sequence>
+            <xs:element name="position" type="position"  minOccurs="1" maxOccurs="1"/>
+            <xs:element name="size" type="size"  minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+        <xs:attribute name="id" type="serial_type" use="required"/>
+        <xs:attribute name="name" type="string_type" use="required"/>
+        <xs:attribute name="power" type="double_type" use="required"/>
+    </xs:complexType>
+
+    <xs:complexType name ="erom_probes">
+        <xs:sequence>
+            <xs:element name="erom_probe" type="erom_probe"  minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="erom_probe">
+        <xs:sequence>
+            <xs:element name="position" type="position"  minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+        <xs:attribute name="id" type="serial_type" use="required"/>
+        <xs:attribute name="name" type="string_type" use="required"/>
+    </xs:complexType>
+
+    <xs:element name="erom_specification" type="erom_specification"/>
+</xs:schema>

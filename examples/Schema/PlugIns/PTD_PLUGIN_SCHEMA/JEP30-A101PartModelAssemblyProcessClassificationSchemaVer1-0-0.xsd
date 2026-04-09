@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2015 rel. 4 (x64) (http://www.altova.com) by Michael Durkan (Mentor Graphics) -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:jaxb="http://java.sun.com/xml/ns/jaxb" xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning" elementFormDefault="qualified" attributeFormDefault="unqualified" vc:minVersion="1.1" jaxb:version="2.1">
+	<xs:annotation>
+		<xs:appinfo>
+			<jaxb:globalBindings typesafeEnumMaxMembers="0"/>
+		</xs:appinfo>
+	</xs:annotation>
+	<xs:include schemaLocation="JEP30-D10PartModelSchemaTypesDictionaryVer1-0-0.xsd"/>
+	<!---->
+	<!--Beginning of Assembly Process Classification Section-->
+	<xs:element name="AssemblyProcessClassificationSection" type="AssemblyProcessClassificationSectionType"/>
+	<xs:complexType name="AssemblyProcessClassificationSectionType">
+		<xs:sequence>
+			<xs:element name="ProcessSensitivityLevel-Array" type="ProcessSensitivityLevel-ArrayType" minOccurs="0">
+				<xs:key name="PSL-Key">
+					<xs:selector xpath="ProcessSensitivityLevels"/>
+					<xs:field xpath="ID"/>
+				</xs:key>
+			</xs:element>
+			<xs:element name="MoistureSensitivityLevel-Array" type="MoistureSensitivityLevel-ArrayType" minOccurs="0">
+				<xs:key name="MSL-Key">
+					<xs:selector xpath="MoistureSensitivityLevel"/>
+					<xs:field xpath="ID"/>
+				</xs:key>
+			</xs:element>
+			<xs:element name="StorageTemperature-Array" type="StorageTemperature-ArrayType" minOccurs="0">
+				<xs:key name="StorageTemperatureKey">
+					<xs:selector xpath="StorageTemperature"/>
+					<xs:field xpath="ID"/>
+				</xs:key>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<!---->
+	<!--Beginning of PSL Section-->
+	<xs:complexType name="ProcessSensitivityLevel-ArrayType">
+		<xs:sequence>
+			<xs:element name="ProcessSensitivityLevels" type="ProcessSensitivityLevelsType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ProcessSensitivityLevelsType">
+		<xs:sequence>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="Reflow" type="ReflowProcessSensitivityLevelsType" minOccurs="0"/>
+			<xs:element name="Wave" type="WaveProcessSensitivityLevelsType" minOccurs="0"/>
+			<xs:element name="OtherProcessLimitations" type="OtherProcessSensitivityLevelsType" minOccurs="0"/>
+			<xs:element name="PostAssembly" type="PostAssemblyClassificationProfileType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!---->
+	<!--Beginning of PSL-Reflow Section-->
+	<xs:complexType name="ReflowProcessSensitivityLevelsType">
+		<xs:sequence>
+			<xs:element name="ClassificationProfile" type="ReflowClassificationProfileType" minOccurs="0"/>
+			<xs:element name="Limitations" type="ReflowLimitationsType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ReflowClassificationProfileType">
+		<xs:sequence>
+			<xs:element name="Preheat" type="MinMaxTemperature-in-Celsius-in-MinMaxTime-in-SecondsType" minOccurs="0"/>
+			<xs:element name="TemperatureRampupRate" type="TemperatureRampRateType" minOccurs="0"/>
+			<xs:element name="TimeAboveLiquidusTemperature" type="TimeAboveLiquidusTemperatureType" minOccurs="0"/>
+			<xs:element name="PeakPackageBodyTemperature" type="Temperature-in-CelsiusValueType"/>
+			<xs:element name="TimeWithin5DegreeCelsiusOfClassificationTemperature" type="Time-in-SecondsValueType" minOccurs="0"/>
+			<xs:element name="TemperatureRampdownRate" type="TemperatureRampRateType" minOccurs="0"/>
+			<xs:element name="TimeFrom25DegreeCelsius-to-PeakTemperature" type="Time-in-MinutesValueType" minOccurs="0"/>
+			<xs:element name="NumberOfReflowCycles" type="xs:integer" minOccurs="0"/>
+			<xs:element name="FluxLimitation" type="ReflowFluxLimitationType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TimeAboveLiquidusTemperatureType">
+		<xs:sequence>
+			<xs:element name="LiquidusTemperature" type="Temperature-in-CelsiusValueType"/>
+			<xs:element name="Time" type="MinMaxTime-in-SecondsType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ReflowFluxLimitationType">
+		<xs:sequence>
+			<xs:element name="Mildly-to-HighlyActivatedWaterSolubleFluxes" type="xs:string" minOccurs="0"/>
+			<xs:element name="No-cleanFluxes" type="xs:string" minOccurs="0"/>
+			<xs:element name="Other" type="xs:string" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ReflowLimitationsType">
+		<xs:sequence>
+			<xs:element name="ReflowCode" type="ReflowType"/>
+			<xs:element name="ReflowPSL-AdditionalInfoCode" type="PSL-AdditionalInfoType" minOccurs="0"/>
+			<xs:element name="ReflowPSL-AdditionalLimitations" type="ReflowPSL-AdditionalLimitationsType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="ReflowType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="R0"/>
+			<xs:enumeration value="R4"/>
+			<xs:enumeration value="R5"/>
+			<xs:enumeration value="R6"/>
+			<xs:enumeration value="R7"/>
+			<xs:enumeration value="R8"/>
+			<xs:enumeration value="R9"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="ReflowPSL-AdditionalLimitationsType">
+		<xs:sequence>
+			<xs:element name="C-Preheat" type="MinMaxTemperature-in-Celsius-in-MaxTime-in-SecondsType" minOccurs="0"/>
+			<xs:element name="F-TimeAbove217DegC-LiquidusTemperature" type="Time-in-SecondsValueType" minOccurs="0"/>
+			<xs:element name="G-TimeWithin5DegC-of-ClassificationTemperature" type="Time-in-SecondsValueType" minOccurs="0"/>
+			<xs:element name="H-TemperatureRamp-downRate" type="TemperatureRampRateType" minOccurs="0"/>
+			<xs:element name="J-NumberOfReflowCycles" type="xs:integer" minOccurs="0"/>
+			<xs:element name="K-FluxLimitation" type="ReflowFluxLimitationType" minOccurs="0"/>
+			<xs:element name="Z-Other" type="xs:string" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of PSL-Reflow Section-->
+	<!---->
+	<!--Beginning of PSL-Wave Section-->
+	<xs:complexType name="WaveProcessSensitivityLevelsType">
+		<xs:sequence>
+			<xs:element name="ClassificationProfile" type="WaveClassificationProfileType" minOccurs="0"/>
+			<xs:element name="Limitations" type="WaveLimitationsType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="WaveClassificationProfileType">
+		<xs:sequence>
+			<xs:element name="PreheatSoak" type="MaxTemperature-in-Celsius-in-MaxTime-in-SecondsType" minOccurs="0"/>
+			<xs:element name="DeviceThermalSpike" type="Temperature-in-CelsiusValueType" minOccurs="0"/>
+			<xs:element name="WaveSolderTemperature" type="MaxTemperature-in-CelsiusValueType"/>
+			<xs:element name="TimeInWave" type="MaxTime-in-SecondsType" minOccurs="0"/>
+			<xs:element name="TemperatureRampdownRate" type="TemperatureRampRateType" minOccurs="0"/>
+			<xs:element name="NumberOfPasses" type="xs:integer" minOccurs="0"/>
+			<xs:element name="FluxLimitation" type="WaveFluxLimitationType" minOccurs="0"/>
+			<xs:element name="Other" type="xs:string" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="WaveFluxLimitationType">
+		<xs:sequence>
+			<xs:element name="Mildly-to-HighlyActivatedWaterSolubleFluxes" type="xs:string" minOccurs="0"/>
+			<xs:element name="No-cleanFluxes" type="xs:string" minOccurs="0"/>
+			<xs:element name="CorrosiveFlux-pH-1-2" type="xs:string" minOccurs="0"/>
+			<xs:element name="Other" type="xs:string" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="WaveLimitationsType">
+		<xs:sequence>
+			<xs:element name="WaveCode" type="WaveSolderType"/>
+			<xs:element name="WavePSL-AdditionalInfoCode" type="PSL-AdditionalInfoType" minOccurs="0"/>
+			<xs:element name="WavePSL-AdditionalLimitations" type="WavePSL-AdditionalLimitationsType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="WaveSolderType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="W0"/>
+			<xs:enumeration value="W1"/>
+			<xs:enumeration value="W2"/>
+			<xs:enumeration value="W3"/>
+			<xs:enumeration value="W4"/>
+			<xs:enumeration value="W5"/>
+			<xs:enumeration value="W6"/>
+			<xs:enumeration value="W7"/>
+			<xs:enumeration value="W8"/>
+			<xs:enumeration value="W9"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="WavePSL-AdditionalLimitationsType">
+		<xs:sequence>
+			<xs:element name="A-ThermalSpike" type="Temperature-in-CelsiusValueType" minOccurs="0"/>
+			<xs:element name="C-Preheat" type="MinMaxTemperature-in-Celsius-in-MaxTime-in-SecondsType" minOccurs="0"/>
+			<xs:element name="E-TimeInWave" type="MaxTime-in-SecondsType" minOccurs="0"/>
+			<xs:element name="H-TemperatureRamp-downRate" type="TemperatureRampRateType" minOccurs="0"/>
+			<xs:element name="J-NumberOfPasses" type="xs:integer" minOccurs="0"/>
+			<xs:element name="K-FluxLimitation" type="WaveFluxLimitationType" minOccurs="0"/>
+			<xs:element name="Z-Other" type="xs:string" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of PSL-Wave Section-->
+	<!---->
+	<!--Beginning of PSL-Non-Soldering Process Section-->
+	<xs:complexType name="OtherProcessSensitivityLevelsType">
+		<xs:sequence>
+			<xs:element name="M-Cleaning" type="CleaningProcessSensitivityLevelsType" minOccurs="0"/>
+			<xs:element name="V-VacuumPick-up" minOccurs="0"/>
+			<xs:element name="X-XRayRadiationLimitation" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="CleaningProcessSensitivityLevelsType">
+		<xs:sequence>
+			<xs:element name="FullImmersion" type="xs:string" minOccurs="0"/>
+			<xs:element name="HighPressureJetWash" type="xs:string" minOccurs="0"/>
+			<xs:element name="ChemicalWashingAgent" type="xs:string" minOccurs="0"/>
+			<xs:element name="Other" type="xs:string" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of PSL-Non-Soldering Process Section-->
+	<!---->
+	<!--Beginning of Post Assembly Classification Section-->
+	<xs:complexType name="PostAssemblyClassificationProfileType">
+		<xs:sequence>
+			<xs:element name="AssemblyLevelCureBakeCondition" type="AssemblyLevelCureBakeConditionType" minOccurs="0"/>
+			<xs:element name="AssemblyLevelMoistureBake" type="AssemblyLevelMoistureBakeType" minOccurs="0"/>
+			<xs:element name="ThermalCycling" type="ThermalCyclingType" minOccurs="0"/>
+			<xs:element name="ThermalExposure-to-NeighboringRework" type="ThermalExposure-to-NeighboringReworkType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AssemblyLevelCureBakeConditionType">
+		<xs:sequence>
+			<xs:element name="Time" type="Time-in-MinutesValueType"/>
+			<xs:element name="Temperature" type="MaxTemperature-in-CelsiusValueType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AssemblyLevelMoistureBakeType">
+		<xs:sequence>
+			<xs:element name="Time" type="Time-in-HoursValueType"/>
+			<xs:element name="Temperature" type="MaxTemperature-in-CelsiusValueType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ThermalCyclingType">
+		<xs:sequence>
+			<xs:element name="TemperatureRange" type="MinMaxTemperature-in-CelsiusType"/>
+			<xs:element name="NumberOfCycles" type="xs:integer"/>
+			<xs:element name="SingleCycleDuration" type="Time-in-HoursValueType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ThermalExposure-to-NeighboringReworkType">
+		<xs:sequence>
+			<xs:element name="Time" type="Time-in-MinutesValueType"/>
+			<xs:element name="Temperature" type="MaxTemperature-in-CelsiusValueType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of Post Assembly Classification Section-->
+	<!---->
+	<xs:simpleType name="PSL-AdditionalInfoType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="A"/>
+			<xs:enumeration value="C"/>
+			<xs:enumeration value="E"/>
+			<xs:enumeration value="F"/>
+			<xs:enumeration value="G"/>
+			<xs:enumeration value="H"/>
+			<xs:enumeration value="J"/>
+			<xs:enumeration value="K"/>
+			<xs:enumeration value="M"/>
+			<xs:enumeration value="N"/>
+			<xs:enumeration value="P"/>
+			<xs:enumeration value="R"/>
+			<xs:enumeration value="V"/>
+			<xs:enumeration value="X"/>
+			<xs:enumeration value="Y"/>
+			<xs:enumeration value="Z"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!--End of PSL Section-->
+	<!---->
+	<!--Beginning of MSL Section-->
+	<xs:complexType name="MoistureSensitivityLevel-ArrayType">
+		<xs:sequence>
+			<xs:element name="MoistureSensitivityLevel" type="MoistureSensitivityLevelType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="MoistureSensitivityLevelType">
+		<xs:sequence>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="MSL-Code" type="MSL-ClassificationType" minOccurs="0"/>
+			<xs:element name="FloorLife" type="FloorLifeType" minOccurs="0"/>
+			<xs:element name="Bake" type="BakeType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="MSL-ClassificationType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="1"/>
+			<xs:enumeration value="2"/>
+			<xs:enumeration value="2a"/>
+			<xs:enumeration value="3"/>
+			<xs:enumeration value="4"/>
+			<xs:enumeration value="5"/>
+			<xs:enumeration value="5a"/>
+			<xs:enumeration value="6"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="FloorLifeType">
+		<xs:sequence>
+			<xs:element name="FloorLifeTime" type="FloorLifeTimeValueType"/>
+			<xs:element name="Condition" type="MSL-EnvironmentConditionType"/>
+			<xs:element name="Footnote" type="xs:string" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="FloorLifeTimeValueType">
+		<xs:sequence>
+			<xs:element name="Time" type="xs:double" minOccurs="0"/>
+			<xs:element name="FloorLifeTimeUOM" type="LifeTimeUOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="MSL-EnvironmentConditionType">
+		<xs:choice>
+			<xs:sequence>
+				<xs:element name="Temperature" type="Temperature-in-CelsiusValueType"/>
+				<xs:element name="RelativeHumidityPercent" type="xs:integer"/>
+			</xs:sequence>
+		</xs:choice>
+	</xs:complexType>
+	<!---->
+	<xs:complexType name="BakeType">
+		<xs:sequence>
+			<xs:element name="BakeTemperature" type="Temperature-in-CelsiusValueType"/>
+			<xs:element name="BakeTime" type="BakeTimeValueType"/>
+			<xs:element name="Footnote" type="xs:string" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="BakeTimeValueType">
+		<xs:sequence>
+			<xs:element name="Time" type="xs:integer"/>
+			<xs:element name="BakeTimeUOM" type="Time-in-HoursUOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of MSL Section-->
+	<!---->
+	<!--Beginning of Storage Temperature Section-->
+	<xs:complexType name="StorageTemperature-ArrayType">
+		<xs:sequence>
+			<xs:element name="StorageTemperature" type="StorageTemperatureType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="StorageTemperatureType">
+		<xs:sequence>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="StorageTemperatureRange" type="MinMaxTemperature-in-CelsiusType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of Storage Temperature Section-->
+	<!---->
+	<!--End of Assembly Process Classification Section-->
+</xs:schema>

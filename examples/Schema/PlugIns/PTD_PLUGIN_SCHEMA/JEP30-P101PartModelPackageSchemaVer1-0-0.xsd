@@ -1,0 +1,2069 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2018 sp1 (x64) (http://www.altova.com) by Michael Durkan (Mentor Graphics Corporation) -->
+<xs:schema xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning" xmlns:jaxb="http://java.sun.com/xml/ns/jaxb" xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" jaxb:version="2.1" vc:minVersion="1.1">
+	<xs:annotation>
+		<xs:appinfo>
+			<jaxb:globalBindings typesafeEnumMaxMembers="0"/>
+		</xs:appinfo>
+	</xs:annotation>
+	<xs:include schemaLocation="JEP30-D10PartModelSchemaTypesDictionaryVer1-0-0.xsd"/>
+	<!---->
+	<xs:element name="PackageSection" type="PackageSectionType"/>
+	<xs:complexType name="PackageSectionType">
+		<xs:sequence>
+			<xs:element name="Package-Array" type="Package-ArrayType">
+				<xs:key name="PackageKey">
+					<xs:selector xpath="Package"/>
+					<xs:field xpath="ID"/>
+				</xs:key>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<!---->
+	<!--Begininning of Package Section Definition-->
+	<xs:complexType name="Package-ArrayType">
+		<xs:sequence>
+			<xs:element name="Package" type="PackageType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PackageType">
+		<xs:sequence>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="DescriptiveDesignation" type="xs:string" minOccurs="0"/>
+			<xs:element name="ManufacturerPackageCode" type="xs:string" minOccurs="0"/>
+			<xs:element name="Package-specificFeatures" type="Package-specificFeaturesType" minOccurs="0"/>
+			<xs:element name="Package-bodyMaterial" type="Package-bodyMaterialType" minOccurs="0"/>
+			<xs:element name="PackageTerminalPosition" type="PackageTerminalPositionType" minOccurs="0"/>
+			<xs:element name="PackageOutlineStyle" type="PackageOutlineType" minOccurs="0"/>
+			<xs:element name="PackageTerminalCode" type="PackageTerminalCodeType" minOccurs="0"/>
+			<xs:element name="PackageMountingPreparation" type="PackageMountingPreparationType" minOccurs="0"/>
+			<xs:element name="PackageBodyDirection" type="PackageBodyDirectionType" minOccurs="0"/>
+			<xs:element name="Mass" type="MassValueSetType" minOccurs="0"/>
+			<xs:element name="ExtendedTerminalCount" minOccurs="0">
+				<xs:simpleType>
+					<xs:restriction base="xs:integer">
+						<xs:minInclusive value="1"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="TerminalCount" minOccurs="0">
+				<xs:simpleType>
+					<xs:restriction base="xs:integer">
+						<xs:minInclusive value="1"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="DeletedTerminalCount" type="xs:integer" minOccurs="0"/>
+			<xs:element name="MissingTerminalCount" type="xs:integer" minOccurs="0"/>
+			<xs:element name="DatasheetUOM" type="DimensionUOMType" minOccurs="0"/>
+			<xs:element name="DimensionUOM" type="DimensionUOMType" minOccurs="0"/>
+			<xs:element name="Pitch" type="xs:double" minOccurs="0"/>
+			<xs:element name="PackageShape" type="PackageShapeType" minOccurs="0"/>
+			<xs:element name="PartAccessDirection" type="PartAccessDirectionType" minOccurs="0"/>
+			<xs:element name="PartHeight" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="ClearanceRegion-Array" type="ClearanceRegion-ArrayType" minOccurs="0"/>
+			<xs:element name="KeepoutRegion-Array" type="KeepoutRegion-ArrayType" minOccurs="0"/>
+			<xs:element name="TerminalGroups" type="TerminalGroupsType" minOccurs="0">
+				<xs:keyref name="ViaLocation-TerminalGroupIDKeyRef" refer="TerminalGroupIDKey">
+					<xs:selector xpath="ViaLocation-Array/ViaLocation"/>
+					<xs:field xpath="TerminalGroupID"/>
+				</xs:keyref>
+				<xs:keyref name="FromTerminalGroupIDKeyRef" refer="TerminalGroupIDKey">
+					<xs:selector xpath="TerminalGroupToTerminalGroupRelationships-Array/TerminalGroupToTerminalGroupRelationships"/>
+					<xs:field xpath="FromTerminalGroupID"/>
+				</xs:keyref>
+				<xs:keyref name="ToTerminalGroupIDKeyRef" refer="TerminalGroupIDKey">
+					<xs:selector xpath="TerminalGroupToTerminalGroupRelationships-Array/TerminalGroupToTerminalGroupRelationships"/>
+					<xs:field xpath="ToTerminalGroupID"/>
+				</xs:keyref>
+				<xs:keyref name="TerminalDetailTerminalGroupIDKeyRef" refer="TerminalGroupIDKey">
+					<xs:selector xpath="TerminalDetail-Array/TerminalDetail"/>
+					<xs:field xpath="TerminalGroupID"/>
+				</xs:keyref>
+				<xs:keyref name="AssocTerminalStatus-RefTerminalGroupIDKeyRef" refer="TerminalGroupIDKey">
+					<xs:selector xpath="TerminalDetail-Array/TerminalDetail/TerminalStatus/Associated"/>
+					<xs:field xpath="ReferenceTerminalGroupID"/>
+				</xs:keyref>
+				<xs:keyref name="TerminalPatternDetailTerminalGroupIDKeyRef" refer="TerminalGroupIDKey">
+					<xs:selector xpath="TerminalDetail-Array/TerminalNumberPattern/FirstTerminalLocation"/>
+					<xs:field xpath="TerminalGroupID"/>
+				</xs:keyref>
+				<xs:keyref name="PatternAssocTerminalStatus-RefTerminalGroupIDKeyRef" refer="TerminalGroupIDKey">
+					<xs:selector xpath="TerminalDetail-Array/TerminalNumberPattern/TerminalDetailExceptions/TerminalStatus/Associated"/>
+					<xs:field xpath="ReferenceTerminalGroupID"/>
+				</xs:keyref>
+			</xs:element>
+			<xs:element name="PhysicalModel" type="PhysicalModelType" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="Package-specificFeaturesType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="H">
+				<xs:annotation>
+					<xs:documentation>Integral heat spreader wholly or partially exposed</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="A">
+				<xs:annotation>
+					<xs:documentation>Stacked package assembly</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="C">
+				<xs:annotation>
+					<xs:documentation>Windowed package for optical devices</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Package-bodyMaterialType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="A">
+				<xs:annotation>
+					<xs:documentation>PlasticMetalMix</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="C">
+				<xs:annotation>
+					<xs:documentation>CeramicMetalGlassSealed</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="E">
+				<xs:annotation>
+					<xs:documentation>CeramicPlasticMix</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="G">
+				<xs:annotation>
+					<xs:documentation>CeramicGlassSealed</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="L">
+				<xs:annotation>
+					<xs:documentation>Glass</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="M">
+				<xs:annotation>
+					<xs:documentation>Metal</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="P">
+				<xs:annotation>
+					<xs:documentation>Plastic</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="S">
+				<xs:annotation>
+					<xs:documentation>Silicon</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="T">
+				<xs:annotation>
+					<xs:documentation>Tape</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="X">
+				<xs:annotation>
+					<xs:documentation>Other</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="PackageTerminalPositionType">
+		<xs:choice>
+			<xs:element name="Axial"/>
+			<xs:element name="Bottom" type="BottomPositionConfigurationType"/>
+			<xs:element name="Dual" type="DualPositionConfigurationType"/>
+			<xs:element name="End"/>
+			<xs:element name="Diagonal" type="DiagonalCornerConfigurationType"/>
+			<xs:element name="MultiPosition"/>
+			<xs:element name="Quad" type="QuadPositionConfigurationType"/>
+			<xs:element name="Radial" type="RadialPositionConfigurationType"/>
+			<xs:element name="Single" type="SinglePositionConfigurationType"/>
+			<xs:element name="Triple" type="TriplePositionConfigurationType"/>
+			<xs:element name="Upper"/>
+			<xs:element name="ZigZag"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="PackageOutlineType">
+		<xs:choice>
+			<xs:element name="ArrayType"/>
+			<xs:element name="ClampedPackage"/>
+			<xs:element name="ChipScalePackage"/>
+			<xs:element name="CylinderOrCan"/>
+			<xs:element name="DiskButton"/>
+			<xs:element name="FlangeMount"/>
+			<xs:element name="Flatpack"/>
+			<xs:element name="GridArray"/>
+			<xs:element name="InlinePackage"/>
+			<xs:element name="Longform"/>
+			<xs:element name="MicroelectronicsAssembly" type="MicroelectronicsAssemblyPackageOutlineType"/>
+			<xs:element name="Pressfit"/>
+			<xs:element name="PostMount" type="PostMountPackageOutlineType"/>
+			<xs:element name="SmallOutline"/>
+			<xs:element name="UncasedChip"/>
+			<xs:element name="Connector"/>
+			<xs:element name="Discrete"/>
+			<xs:element name="Hardware"/>
+			<xs:element name="Switch" type="SwitchPackageOutlineType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="MicroelectronicsAssemblyPackageOutlineType">
+		<xs:sequence minOccurs="0">
+			<xs:element name="MultiChipModule"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PostMountPackageOutlineType">
+		<xs:sequence minOccurs="0">
+			<xs:element name="BifurcatedSolderTerminal"/>
+			<xs:element name="TurretSolderTerminal"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="SwitchPackageOutlineType">
+		<xs:choice>
+			<xs:element name="DIP-Switch"/>
+			<xs:element name="Push-Button"/>
+			<xs:element name="Rocker"/>
+			<xs:element name="Rotary"/>
+			<xs:element name="Slide"/>
+			<xs:element name="Tactile"/>
+			<xs:element name="Toggle"/>
+			<xs:element name="Other" type="xs:string"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="PackageTerminalCodeType">
+		<xs:choice>
+			<xs:element name="Ball" type="BallType"/>
+			<xs:element name="C-bend"/>
+			<xs:element name="Lug" type="LugType"/>
+			<xs:element name="Mixed-SMT"/>
+			<xs:element name="Flat" type="FlatType"/>
+			<xs:element name="Gull-wing" type="Gull-wingType"/>
+			<xs:element name="PostTerminal" type="PostTerminalType"/>
+			<xs:element name="J-bend"/>
+			<xs:element name="Mixed-TH"/>
+			<xs:element name="L-bend" type="L-bendType"/>
+			<xs:element name="Column" type="ColumnType"/>
+			<xs:element name="SurfaceTerminal" type="SurfaceTerminalType"/>
+			<xs:element name="Pressfit" type="PressfitType"/>
+			<xs:element name="Pin" type="PinType"/>
+			<xs:element name="QuickConnect"/>
+			<xs:element name="Mixed-Technology"/>
+			<xs:element name="Wraparound" type="WraparoundType"/>
+			<xs:element name="S-bend" type="S-bendType"/>
+			<xs:element name="Through-Hole" type="Through-HoleType"/>
+			<xs:element name="J-inverted"/>
+			<xs:element name="TerminalWire" type="WireType"/>
+			<xs:element name="Screw" type="ScrewType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="PackageMountingPreparationType">
+		<xs:choice>
+			<xs:element name="StraightMounted"/>
+			<xs:element name="PreppedBeforeMounting"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="PackageBodyDirectionType">
+		<xs:choice>
+			<xs:element name="Horizontal"/>
+			<xs:element name="Vertical"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="PackageShapeType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="Rectangle" type="RectangleType"/>
+				<xs:element name="RoundedRectangle" type="RoundedRectangleType"/>
+				<xs:element name="RoundedRectangleWithTab" type="RoundedRectangleWithTabType"/>
+				<xs:element name="ModifiedRectangle" type="ModifiedRectangleType"/>
+				<xs:element name="ModifiedRectangleWithTab" type="ModifiedRectangleWithTabType"/>
+				<xs:element name="Circle" type="CircleType"/>
+				<xs:element name="CircleWithTab" type="CircleWithTabType"/>
+				<xs:element name="D-Shape" type="D-ShapeType"/>
+				<xs:element name="Double-D" type="Double-DType"/>
+				<xs:element name="RegularPolygon" type="RegularPolygonType"/>
+				<xs:element name="Segment" type="SegmentType"/>
+				<xs:element name="Para-truncatedCircle" type="Para-truncatedCircleType"/>
+				<xs:element name="RoundedDiamond" type="RoundedDiamondType"/>
+				<xs:element name="RoundedChamferedDiamond" type="RoundedChamferedDiamondType"/>
+				<xs:element name="IsoscelesTrapezoid" type="IsoscelesTrapezoidType"/>
+				<xs:element name="Contour" type="ContourShapeType"/>
+			</xs:choice>
+			<xs:element name="ShapeCenter" type="PointType"/>
+			<xs:element name="PackageVerticalDimension" type="PackageVerticalDimensionType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="PartAccessDirectionType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="T">
+				<xs:annotation>
+					<xs:documentation>Part Access Direction Code = Topside</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="U">
+				<xs:annotation>
+					<xs:documentation>Part Access Direction Code = Underside</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="F">
+				<xs:annotation>
+					<xs:documentation>Part Access Direction Code = Front</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="B">
+				<xs:annotation>
+					<xs:documentation>Part Access Direction Code = Back</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="L">
+				<xs:annotation>
+					<xs:documentation>Part Access Direction Code = Left</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="R">
+				<xs:annotation>
+					<xs:documentation>Part Access Direction Code = Right</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<!---->
+	<!--Beginning of Clearance Regions-->
+	<xs:complexType name="ClearanceRegion-ArrayType">
+		<xs:choice>
+			<xs:element name="Unspecified"/>
+			<xs:sequence>
+				<xs:element name="StandOff" type="ValueSetType" minOccurs="0"/>
+				<xs:element name="ClearanceRegion" type="ClearanceRegionType" minOccurs="0" maxOccurs="unbounded"/>
+			</xs:sequence>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="ClearanceRegionType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="Rectangle" type="RectangleType"/>
+				<xs:element name="Circle" type="CircleType"/>
+				<xs:element name="Contour" type="ContourShapeType"/>
+			</xs:choice>
+			<xs:element name="ShapeCenter" type="PointType"/>
+			<xs:element name="Clearance" type="UnspecifiedValueSetType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of Clearance Regions-->
+	<!---->
+	<!--Beginning of Keepout Regions-->
+	<xs:complexType name="KeepoutRegion-ArrayType">
+		<xs:sequence>
+			<xs:element name="KeepoutRegion" type="KeepoutRegionType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="KeepoutRegionType">
+		<xs:sequence>
+			<xs:element name="Contour" type="ContourShapeType"/>
+			<xs:element name="ShapeCenter" type="PointType"/>
+			<xs:sequence>
+				<xs:element name="Component" type="xs:boolean"/>
+				<xs:choice minOccurs="0">
+					<xs:element name="All-Copper" type="xs:boolean"/>
+					<xs:sequence>
+						<xs:element name="Vias" type="xs:boolean" minOccurs="0"/>
+						<xs:element name="Routes" type="xs:boolean" minOccurs="0"/>
+					</xs:sequence>
+				</xs:choice>
+			</xs:sequence>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of Keepout Regions-->
+	<!---->
+	<xs:complexType name="TerminalGroupsType">
+		<xs:sequence>
+			<xs:element name="TerminalGroup-Array" type="TerminalGroup-ArrayType" minOccurs="0">
+				<xs:key name="TerminalGroupIDKey">
+					<xs:selector xpath="TerminalGroup"/>
+					<xs:field xpath="ID"/>
+				</xs:key>
+			</xs:element>
+			<xs:element name="TerminalGroupToTerminalGroupRelationships-Array" type="TerminalGroupToTerminalGroupRelationships-ArrayType" minOccurs="0"/>
+			<xs:element name="TerminalDetail-Array" type="TerminalDetail-ArrayType" minOccurs="0"/>
+			<xs:element name="ViaLocation-Array" type="ViaLocation-ArrayType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!---->
+	<!--Beginning of Physical Model Type-->
+	<xs:complexType name="PhysicalModelType">
+		<xs:sequence>
+			<xs:element name="ModelType" type="ModelType"/>
+			<xs:element name="Model" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ModelType">
+		<xs:choice>
+			<xs:element name="Step"/>
+		</xs:choice>
+	</xs:complexType>
+	<!--End of Physical Model Type-->
+	<!--End of Packages-Array-->
+	<!---->
+	<!--Beginning of Shapes Section-->
+	<xs:complexType name="RectangleType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension2" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="RectangleWithShoulderType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension2" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+			<xs:element name="Shoulder" type="RectangularShoulderType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="RectangularShoulderType">
+		<xs:sequence>
+			<xs:element name="Dimension1" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension2" type="UnspecifiedValueSetType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="RoundedRectangleType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension2" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Radius" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="RoundedRectangleWithTabType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension2" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Radius" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+			<xs:element name="TabLength" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="TabWidth" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="TabOrientation" type="xs:integer" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ModifiedRectangleType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension2" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+			<xs:element name="ImpactedCorner" type="ImpactedCornerType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ModifiedRectangleWithShoulderType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension2" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+			<xs:element name="ImpactedCorner" type="ImpactedCornerType" minOccurs="0"/>
+			<xs:element name="Shoulder" type="RectangularShoulderType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ModifiedRectangleWithTabType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension2" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+			<xs:element name="ImpactedCorner" type="ImpactedCornerType" minOccurs="0"/>
+			<xs:element name="TabLength" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="TabWidth" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="TabOrientation" type="xs:integer" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ImpactedCornerType">
+		<xs:all>
+			<xs:element name="NE" type="CornerType" minOccurs="0"/>
+			<xs:element name="SE" type="CornerType" minOccurs="0"/>
+			<xs:element name="SW" type="CornerType" minOccurs="0"/>
+			<xs:element name="NW" type="CornerType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="CornerType">
+		<xs:choice>
+			<xs:element name="ChamferedCorner" type="ChamferedCornerType"/>
+			<xs:element name="RectangularInCorner" type="RectangularInCornerType"/>
+			<xs:element name="ConvexCorner" type="ConvexCornerType"/>
+			<xs:element name="ConcaveCorner" type="ConcaveCornerType"/>
+			<xs:element name="CornerArc" type="CornerArcType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="ChamferedCornerType">
+		<xs:all>
+			<xs:element name="DX" type="UnspecifiedValueSetType"/>
+			<xs:element name="DY" type="UnspecifiedValueSetType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="RectangularInCornerType">
+		<xs:all>
+			<xs:element name="DX" type="UnspecifiedValueSetType"/>
+			<xs:element name="DY" type="UnspecifiedValueSetType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ConvexCornerType">
+		<xs:all>
+			<xs:element name="Radius" type="UnspecifiedValueSetType"/>
+			<xs:element name="ConvexCornerCenter" type="PointType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ConcaveCornerType">
+		<xs:all>
+			<xs:element name="Radius" type="UnspecifiedValueSetType"/>
+			<xs:element name="ConcaveCornerCenter" type="PointType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="CornerArcType">
+		<xs:all>
+			<xs:element name="Radius1" type="UnspecifiedValueSetType"/>
+			<xs:element name="Radius2" type="UnspecifiedValueSetType"/>
+			<xs:element name="Neck" type="UnspecifiedValueSetType"/>
+			<xs:element name="CornerArcCenter" type="PointType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="CircleType">
+		<xs:sequence>
+			<xs:element name="Diameter" type="ValueSetType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="CircleWithShoulderType">
+		<xs:sequence>
+			<xs:element name="Diameter" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Shoulder" type="CircularShoulderType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="CircularShoulderType">
+		<xs:sequence>
+			<xs:element name="Diameter" type="UnspecifiedValueSetType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="CircleWithTabType">
+		<xs:all>
+			<xs:element name="Diameter" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="TabLength" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="TabWidth" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="TabOrientation" type="xs:integer" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="CastellatedShapeType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension2" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Radius" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="D-ShapeType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension2" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="Double-DType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension2" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="RegularPolygonType">
+		<xs:all>
+			<xs:element name="Diameter" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+			<xs:element name="N" type="xs:integer" minOccurs="0"/>
+			<xs:element name="Inner-Outer" type="Inner-OuterType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="Inner-OuterType">
+		<xs:choice>
+			<xs:element name="Inner"/>
+			<xs:element name="Outer"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="SegmentType">
+		<xs:all>
+			<xs:element name="Diameter" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="Para-truncatedCircleType">
+		<xs:all>
+			<xs:element name="Diameter" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="RoundedDiamondType">
+		<xs:all>
+			<xs:element name="Diameter" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Radius" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="RoundedChamferedDiamondType">
+		<xs:all>
+			<xs:element name="Diameter" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension2" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="IsoscelesTrapezoidType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension2" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Dimension3" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ContourShapeType">
+		<xs:all>
+			<xs:element name="X-Tolerance" type="ContourToleranceType" minOccurs="0"/>
+			<xs:element name="Y-Tolerance" type="ContourToleranceType" minOccurs="0"/>
+			<xs:element name="Outline" type="xs:string" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ContourToleranceType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="Split" type="SplitType"/>
+				<xs:element name="Total" type="xs:double"/>
+			</xs:choice>
+			<xs:element name="UOM" type="ToleranceUOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PackageVerticalDimensionType">
+		<xs:sequence>
+			<xs:element name="PackageBodyHeight" type="ValueSetType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!---->
+	<!--Beginning of Terminal Vertical Dimensions Section-->
+	<xs:complexType name="TerminalVerticalDimensionsType">
+		<xs:sequence>
+			<xs:element name="TerminalHeight" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="TerminalThickness" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="TerminalInsertionHeight" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="TerminalShoulderHeight" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="TerminalBendHeight" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="ExposedTerminalThickness" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="Un-preppedTerminalLength" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="ScrewThreadLength" type="UnspecifiedValueSetType" minOccurs="0"/>
+			<xs:element name="ScrewHeadHeight" type="UnspecifiedValueSetType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of Terminal Vertical Dimensions Section-->
+	<!---->
+	<!--Beginning of Terminal Void Section-->
+	<xs:complexType name="TerminalVoid-ArrayType">
+		<xs:sequence>
+			<xs:element name="TerminalVoid" type="TerminalVoidType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TerminalVoidType">
+		<xs:sequence>
+			<xs:element name="TerminalVoidLocation" type="VoidLocationType"/>
+			<xs:element name="TerminalVoidShape" type="TerminalVoidShapeType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="VoidLocationType">
+		<xs:choice>
+			<xs:sequence>
+				<xs:choice>
+					<xs:element name="StandardArray" type="VoidStandardArrayType"/>
+					<xs:element name="CircularArray" type="VoidCircularArrayType"/>
+				</xs:choice>
+				<xs:element name="VoidStatus" type="VoidStatusType" minOccurs="0"/>
+			</xs:sequence>
+			<xs:element name="RandomArray" type="VoidRandomArrayType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="VoidStandardArrayType">
+		<xs:all>
+			<xs:element name="ny" type="xs:integer"/>
+			<xs:element name="nx" type="xs:integer"/>
+			<xs:element name="dx" type="PitchValueSetType"/>
+			<xs:element name="dy" type="PitchValueSetType"/>
+			<xs:element name="Angle" type="xs:integer"/>
+			<xs:element name="VoidGroupLowerLeftVoidCenter" type="PointType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="VoidCircularArrayType">
+		<xs:sequence>
+			<xs:element name="PitchRadius" type="xs:double"/>
+			<xs:element name="Center" type="PointType"/>
+			<xs:element name="StartAngle" type="xs:integer"/>
+			<xs:choice>
+				<xs:element name="AngleToFill" type="xs:integer"/>
+				<xs:element name="AngleBetweenVoids" type="xs:integer"/>
+			</xs:choice>
+			<xs:element name="NumberOfVoids" type="xs:integer"/>
+			<xs:element name="Rotation" type="VoidRotationType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="VoidRotationType">
+		<xs:choice>
+			<xs:element name="RotateWithCircle" type="xs:integer"/>
+			<xs:element name="RotationAngle" type="xs:integer"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="TerminalVoidShapeType">
+		<xs:choice>
+			<xs:element name="RoundedRectangle" type="RoundedRectangleType"/>
+			<xs:element name="Circle" type="CircleType"/>
+			<xs:element name="Double-D" type="Double-DType"/>
+			<xs:element name="Contour" type="ContourShapeType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="VoidStatusType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="VoidIndex">
+					<xs:simpleType>
+						<xs:restriction base="xs:integer">
+							<xs:minInclusive value="1"/>
+						</xs:restriction>
+					</xs:simpleType>
+				</xs:element>
+				<xs:element name="VoidCenter" type="PointType"/>
+			</xs:choice>
+			<xs:element name="Deleted"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="VoidRandomArrayType">
+		<xs:sequence>
+			<xs:element name="VoidLocation" type="PointType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of Terminal Void Section-->
+	<!--End of Shapes Section-->
+	<!---->
+	<!--Beginning of Terminal Groups Section-->
+	<xs:complexType name="TerminalGroup-ArrayType">
+		<xs:sequence>
+			<xs:element name="TerminalGroup" type="TerminalGroupType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TerminalGroupType">
+		<xs:all>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="TerminalPosition" type="TerminalPositionType" minOccurs="0"/>
+			<xs:element name="Terminal" type="TerminalType" minOccurs="0"/>
+			<xs:element name="Coplanarity" type="xs:double" minOccurs="0"/>
+			<xs:element name="FlexibleTerminal" type="xs:boolean" minOccurs="0"/>
+			<xs:element name="TerminalFunction" type="TerminalBasicFunctionType" minOccurs="0"/>
+			<xs:element name="TerminalLocation" type="TerminalLocationType" minOccurs="0"/>
+			<xs:element name="TerminalShape" type="TerminalShapeType" minOccurs="0"/>
+			<xs:element name="RecommendedPadOrHoleShape" type="RecommendedPadOrHoleType" minOccurs="0"/>
+			<xs:element name="TerminalSpan" type="TerminalSpanType" minOccurs="0"/>
+			<xs:element name="TerminalSpacing" type="TerminalSpacingType" minOccurs="0"/>
+			<xs:element name="TerminalGroupToBodyRelationship" type="TerminalGroupToBodyRelationshipType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="TerminalGroupToTerminalGroupRelationships-ArrayType">
+		<xs:sequence>
+			<xs:element name="TerminalGroupToTerminalGroupRelationships" type="TerminalGroupToTerminalGroupRelationship" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TerminalGroupToTerminalGroupRelationship">
+		<xs:all>
+			<xs:element name="FromTerminalGroupID" type="xs:string"/>
+			<xs:element name="ToTerminalGroupID" type="xs:string"/>
+			<xs:element name="TerminalSpan" type="TerminalSpanType" minOccurs="0"/>
+			<xs:element name="TerminalSpacing" type="TerminalSpacingType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="TerminalDetail-ArrayType">
+		<xs:choice>
+			<xs:element name="TerminalDetail" type="TerminalDetailType" maxOccurs="unbounded"/>
+			<xs:element name="TerminalNumberPattern" type="TerminalNumberPatternType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="FirstTerminalLocationType">
+		<xs:choice>
+			<xs:element name="TerminalCenter" type="PointType"/>
+			<xs:sequence>
+				<xs:element name="TerminalGroupID" type="xs:string"/>
+				<xs:element name="RowTerminalIndex">
+					<xs:simpleType>
+						<xs:restriction base="xs:integer">
+							<xs:minInclusive value="1"/>
+						</xs:restriction>
+					</xs:simpleType>
+				</xs:element>
+				<xs:element name="ColumnTerminalIndex">
+					<xs:simpleType>
+						<xs:restriction base="xs:integer">
+							<xs:minInclusive value="1"/>
+						</xs:restriction>
+					</xs:simpleType>
+				</xs:element>
+			</xs:sequence>
+			<xs:element name="LocationRelative-to-PackageCenter" type="LocationRelative-to-PackageCenterType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="ViaLocation-ArrayType">
+		<xs:sequence>
+			<xs:element name="ViaLocation" type="ViaLocationType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of Terminal Groups Section-->
+	<!---->
+	<!--Beginning of Terminal Group-->
+	<xs:complexType name="TerminalPositionType">
+		<xs:choice>
+			<xs:element name="Axial"/>
+			<xs:element name="Bottom" type="BottomPositionConfigurationType"/>
+			<xs:element name="Dual" type="DualPositionConfigurationType"/>
+			<xs:element name="End"/>
+			<xs:element name="Diagonal" type="DiagonalCornerConfigurationType"/>
+			<xs:element name="Quad" type="QuadPositionConfigurationType"/>
+			<xs:element name="Radial" type="RadialPositionConfigurationType"/>
+			<xs:element name="Single" type="SinglePositionConfigurationType"/>
+			<xs:element name="Triple" type="TriplePositionConfigurationType"/>
+			<xs:element name="Upper"/>
+			<xs:element name="ZigZag"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="TerminalType">
+		<xs:choice>
+			<xs:element name="Ball" type="BallType"/>
+			<xs:element name="C-bend"/>
+			<xs:element name="Lug" type="LugType"/>
+			<xs:element name="Flat" type="FlatType"/>
+			<xs:element name="Gull-wing" type="Gull-wingType"/>
+			<xs:element name="Post-Terminal" type="PostTerminalType"/>
+			<xs:element name="J-bend"/>
+			<xs:element name="L-bend" type="L-bendType"/>
+			<xs:element name="Column" type="ColumnType"/>
+			<xs:element name="SurfaceTerminal" type="SurfaceTerminalType"/>
+			<xs:element name="Pressfit" type="PressfitType"/>
+			<xs:element name="Pin" type="PinType"/>
+			<xs:element name="QuickConnect"/>
+			<xs:element name="Wraparound" type="WraparoundType"/>
+			<xs:element name="S-bend" type="S-bendType"/>
+			<xs:element name="Through-Hole" type="Through-HoleType"/>
+			<xs:element name="J-inverted"/>
+			<xs:element name="TerminalWire" type="WireType"/>
+			<xs:element name="Screw" type="ScrewType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="TerminalBasicFunctionType">
+		<xs:choice>
+			<xs:element name="Electrical"/>
+			<xs:element name="ElectricalMechanical"/>
+			<xs:element name="Mechanical"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="TerminalLocationType">
+		<xs:choice>
+			<xs:element name="StandardArray" type="StandardArrayType"/>
+			<xs:element name="CircularArray" type="CircularArrayType"/>
+			<xs:element name="RandomArray" type="RandomArrayType"/>
+		</xs:choice>
+	</xs:complexType>
+	<!---->
+	<!--Beginning of Terminal Location-->
+	<xs:complexType name="StandardArrayType">
+		<xs:all>
+			<xs:element name="nx" type="xs:integer"/>
+			<xs:element name="ny" type="xs:integer"/>
+			<xs:element name="dx" type="PitchValueSetType" minOccurs="0"/>
+			<xs:element name="dy" type="PitchValueSetType" minOccurs="0"/>
+			<xs:element name="Angle" type="xs:integer"/>
+			<xs:element name="TerminalGroupLowerLeftTerminalCenter" type="PointType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="CircularArrayType">
+		<xs:sequence>
+			<xs:element name="PitchRadius" type="xs:double"/>
+			<xs:element name="Center" type="PointType"/>
+			<xs:element name="StartAngle" type="xs:integer"/>
+			<xs:choice>
+				<xs:element name="AngleToFill" type="xs:integer"/>
+				<xs:element name="AngleBetweenTerminals" type="xs:integer"/>
+			</xs:choice>
+			<xs:element name="NumberOfTerminals" type="xs:integer"/>
+			<xs:element name="Rotation" type="RotationType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="RotationType">
+		<xs:choice>
+			<xs:element name="RotateWithCircle" type="xs:boolean"/>
+			<xs:element name="RotationAngle" type="xs:integer"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="RandomArrayType">
+		<xs:sequence>
+			<xs:element name="TerminalLocation" type="PointType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of Terminal Location-->
+	<!---->
+	<xs:complexType name="TerminalShapeType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="Rectangle" type="RectangleType"/>
+				<xs:element name="RectangleWithShoulder" type="RectangleWithShoulderType"/>
+				<xs:element name="RoundedRectangle" type="RoundedRectangleType"/>
+				<xs:element name="ModifiedRectangle" type="ModifiedRectangleType"/>
+				<xs:element name="ModifiedRectangleWithShoulder" type="ModifiedRectangleWithShoulderType"/>
+				<xs:element name="Circle" type="CircleType"/>
+				<xs:element name="CircleWithShoulder" type="CircleWithShoulderType"/>
+				<xs:element name="D-Shape" type="D-ShapeType"/>
+				<xs:element name="Double-D" type="Double-DType"/>
+				<xs:element name="RegularPolygon" type="RegularPolygonType"/>
+				<xs:element name="Segment" type="SegmentType"/>
+				<xs:element name="Para-truncatedCircle" type="Para-truncatedCircleType"/>
+				<xs:element name="Castellated" type="CastellatedShapeType"/>
+				<xs:element name="CastellatedD-Shape" type="CastellatedShapeType"/>
+				<xs:element name="IsoscelesTrapezoid" type="IsoscelesTrapezoidType"/>
+				<xs:element name="Contour" type="ContourShapeType"/>
+			</xs:choice>
+			<xs:element name="TerminalVerticalDimensions" type="TerminalVerticalDimensionsType" minOccurs="0"/>
+			<xs:element name="TerminalVoid-Array" type="TerminalVoid-ArrayType" minOccurs="0"/>
+			<xs:element name="IgnoreForLandPattern" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="RecommendedPadOrHoleType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="SurfaceMount" type="RecommendedSurfaceMountPadShapeType"/>
+				<xs:element name="ThroughHole" type="RecommendedThroughHoleType"/>
+			</xs:choice>
+			<xs:element name="Location" type="RecommendedPadOrHoleLocationType"/>
+			<xs:element name="LandPatternSpan" type="RecommendedLandPatternSpanType"/>
+			<xs:element name="LandPatternSpacing" type="RecommendedLandPatternSpacingType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TerminalSpanType">
+		<xs:sequence>
+			<xs:element name="X-Direction" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y-Direction" type="ValueSetType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TerminalSpacingType">
+		<xs:sequence>
+			<xs:element name="X-Direction" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y-Direction" type="ValueSetType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TerminalGroupToBodyRelationshipType">
+		<xs:sequence>
+			<xs:element name="X1-LeftSideOfBody-to-LeftSideOfLeftTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X2-LeftSideOfBody-to-CenterOfLeftTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X3-LeftSideOfBody-to-RightSideOfLeftTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X4-LeftSideOfBody-to-LeftSideOfCenterTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X5-LeftSideOfBody-to-CenterlineOfTerminalGroup" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X6-LeftSideOfBody-to-RightSideOfCenterTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X7-LeftSideOfBody-to-LeftSideOfRightTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X8-LeftSideOfBody-to-CenterOfRightTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X9-LeftSideOfBody-to-RightSideOfRightTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X10-CenterOfBody-to-LeftSideOfLeftTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X11-CenterOfBody-to-CenterOfLeftTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X12-CenterOfBody-to-RightSideOfLeftTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X13-CenterOfBody-to-LeftSideOfCenterTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X14-CenterOfBody-to-CenterlineOfTerminalGroup" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X15-CenterOfBody-to-RightSideOfCenterTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X16-CenterOfBody-to-LeftSideOfRightTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X17-CenterOfBody-to-CenterOfRightTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X18-CenterOfBody-to-RightSideOfRightTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X19-RightSideOfBody-to-LeftSideOfLeftTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X20-RightSideOfBody-to-CenterOfLeftTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X21-RightSideOfBody-to-RightSideOfLeftTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X22-RightSideOfBody-to-LeftSideOfCenterTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X23-RightSideOfBody-to-CenterlineOfTerminalGroup" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X24-RightSideOfBody-to-RightSideOfCenterTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X25-RightSideOfBody-to-LeftSideOfRightTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X26-RightSideOfBody-to-CenterOfRightTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="X27-RightSideOfBody-to-RightSideOfRightTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y1-BackSideOfBody-to-LowerSideOfLowerTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y2-BackSideOfBody-to-CenterOfLowerTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y3-BackSideOfBody-to-UpperSideOfLowerTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y4-BackSideOfBody-to-LowerSideOfCenterTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y5-BackSideOfBody-to-CenterlineOfTerminalGroup" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y6-BackSideOfBody-to-UpperSideOfCenterTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y7-BackSideOfBody-to-LowerSideOfUpperTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y8-BackSideOfBody-to-CenterOfUpperTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y9-BackSideOfBody-to-UpperSideOfUpperTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y10-CenterOfBody-to-LowerSideOfLowerTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y11-CenterOfBody-to-CenterOfLowerTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y12-CenterOfBody-to-UpperSideOfLowerTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y13-CenterOfBody-to-LowerSideOfCenterTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y14-CenterOfBody-to-CenterlineOfTerminalGroup" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y15-CenterOfBody-to-UpperSideOfCenterTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y16-CenterOfBody-to-LowerSideOfUpperTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y17-CenterOfBody-to-CenterOfUpperTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y18-CenterOfBody-to-UpperSideOfUpperTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y19-FrontSideOfBody-to-LowerSideOfLowerTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y20-FrontSideOfBody-to-CenterOfLowerTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y21-FrontSideOfBody-to-UpperSideOfLowerTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y22-FrontSideOfBody-to-LowerSideOfCenterTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y23-FrontSideOfBody-to-CenterlineOfTerminalGroup" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y24-FrontSideOfBody-to-UpperSideOfCenterTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y25-FrontSideOfBody-to-LowerSideOfUpperTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y26-FrontSideOfBody-to-CenterOfUpperTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+			<xs:element name="Y27-FrontSideOfBody-to-UpperSideOfUpperTerminalContactArea" type="ValueSetType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of Terminal Group-->
+	<!---->
+	<!--Beginning of Terminal Group Position-->
+	<xs:complexType name="BottomPositionConfigurationType">
+		<xs:choice minOccurs="0">
+			<xs:element name="CircularArray"/>
+			<xs:element name="Diagonal" type="BottomDiagonalType"/>
+			<xs:element name="Matrix" type="MatrixType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="BottomDiagonalType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Southwest-to-Northeast"/>
+			<xs:element name="Northwest-to-Southeast"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="MatrixType">
+		<xs:choice minOccurs="0">
+			<xs:element name="FullMatrix" type="MatrixAlterationType"/>
+			<xs:element name="ColumnMatrix" type="MatrixAlterationType"/>
+			<xs:element name="PerimeterMatrix" type="MatrixAlterationType"/>
+			<xs:element name="PerimeterWithInnerArrayMatrix" type="MatrixAlterationType"/>
+			<xs:element name="PerimeterMatrixWithThermalPad" type="MatrixAlterationType"/>
+			<xs:element name="RandomMatrix"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="MatrixAlterationType">
+		<xs:sequence minOccurs="0">
+			<xs:element name="CornerPatternMissing" minOccurs="0"/>
+			<xs:element name="Staggered" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="DualPositionConfigurationType">
+		<xs:choice minOccurs="0">
+			<xs:choice>
+				<xs:element name="Left-to-Right" type="DualSidePositionRelationshipType"/>
+				<xs:element name="Back-to-Front" type="DualSidePositionRelationshipType"/>
+			</xs:choice>
+			<xs:element name="Corners" type="DualCornerConfirurationType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="DualSidePositionRelationshipType">
+		<xs:sequence minOccurs="0">
+			<xs:element name="Staggered" minOccurs="0"/>
+			<xs:choice minOccurs="0">
+				<xs:element name="Outside"/>
+				<xs:element name="Edge-Out"/>
+				<xs:element name="Overlap"/>
+				<xs:element name="Edge-In"/>
+				<xs:element name="Inside"/>
+				<xs:element name="Span" type="SpanPositionRelationshipType"/>
+			</xs:choice>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="DualCornerConfirurationType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Left" type="SideCornerPositionRelationshipType"/>
+			<xs:element name="Back" type="SideCornerPositionRelationshipType"/>
+			<xs:element name="Right" type="SideCornerPositionRelationshipType"/>
+			<xs:element name="Front" type="SideCornerPositionRelationshipType"/>
+			<xs:element name="Left-to-RightTop" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Left-to-RightBottom" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Back-to-FrontLeft" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Back-to-FrontRight" type="DifferentSidePositionRelationshipType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="SpanPositionRelationshipType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Overlap"/>
+			<xs:element name="Edge-In"/>
+			<xs:element name="Inside"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="SideCornerPositionRelationshipType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Outside"/>
+			<xs:element name="Edge-Out"/>
+			<xs:element name="Overlap"/>
+			<xs:element name="Edge-In"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="DifferentSidePositionRelationshipType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Outside"/>
+			<xs:element name="Edge-Out"/>
+			<xs:element name="Overlap"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="DiagonalCornerConfigurationType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Southwest-to-Northeast" type="InternalCornerPositionRelationshipType"/>
+			<xs:element name="Northwest-to-Southeast" type="InternalCornerPositionRelationshipType"/>
+			<xs:element name="Back-left-to-Front-right" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Front-left-to-Back-right" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Left-bottom-to-Right-top" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Left-top-to-Right-bottom" type="DifferentSidePositionRelationshipType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="InternalCornerPositionRelationshipType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Overlap"/>
+			<xs:element name="Edge-In"/>
+			<xs:element name="Inside"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="QuadPositionConfigurationType">
+		<xs:choice minOccurs="0">
+			<xs:choice minOccurs="0">
+				<xs:element name="Outside"/>
+				<xs:element name="Edge-Out"/>
+				<xs:element name="Overlap"/>
+				<xs:element name="Edge-In"/>
+				<xs:element name="Inside"/>
+			</xs:choice>
+			<xs:element name="Span" type="SpanPositionRelationshipType"/>
+			<xs:element name="Corners" type="QuadCornerConfigurationType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="QuadCornerConfigurationType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Overlap"/>
+			<xs:element name="Edge-In"/>
+			<xs:element name="Inside"/>
+			<xs:element name="Left-to-Right" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Back-to-Front" type="DifferentSidePositionRelationshipType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="RadialPositionConfigurationType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Outside"/>
+			<xs:element name="Edge-Out"/>
+			<xs:element name="Overlap"/>
+			<xs:element name="Edge-In"/>
+			<xs:element name="Inside"/>
+			<xs:element name="Corners" type="RadialCornerPositionRelationshipType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="RadialCornerPositionRelationshipType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Outside"/>
+			<xs:element name="Edge-Out"/>
+			<xs:element name="Overlap"/>
+			<xs:element name="Edge-In"/>
+			<xs:element name="Inside"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="SinglePositionConfigurationType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Left" type="SingleSidePositionRelationshipType"/>
+			<xs:element name="Back" type="SingleSidePositionRelationshipType"/>
+			<xs:element name="Right" type="SingleSidePositionRelationshipType"/>
+			<xs:element name="Front" type="SingleSidePositionRelationshipType"/>
+			<xs:element name="Corner" type="SingleCornerConfigurationType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="SingleCornerConfigurationType">
+		<xs:choice>
+			<xs:element name="Southwest" type="InternalCornerPositionRelationshipType"/>
+			<xs:element name="Southeast" type="InternalCornerPositionRelationshipType"/>
+			<xs:element name="Northeast" type="InternalCornerPositionRelationshipType"/>
+			<xs:element name="Northwest" type="InternalCornerPositionRelationshipType"/>
+			<xs:element name="Back-left" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Back-right" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Front-right" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Front-left" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Left-bottom" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Right-bottom" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Right-top" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Left-top" type="DifferentSidePositionRelationshipType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="SingleSidePositionRelationshipType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Outside"/>
+			<xs:element name="Edge-Out"/>
+			<xs:element name="Overlap"/>
+			<xs:element name="Edge-In"/>
+			<xs:element name="Inside"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="TriplePositionConfigurationType">
+		<xs:choice minOccurs="0">
+			<xs:element name="NotLeft" type="MultiSidePositionRelationshipType"/>
+			<xs:element name="NotBack" type="MultiSidePositionRelationshipType"/>
+			<xs:element name="NotRight" type="MultiSidePositionRelationshipType"/>
+			<xs:element name="NotFront" type="MultiSidePositionRelationshipType"/>
+			<xs:element name="Corner" type="TripleCornerConfigurationType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="MultiSidePositionRelationshipType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Outside"/>
+			<xs:element name="Edge-Out"/>
+			<xs:element name="Overlap"/>
+			<xs:element name="Edge-In"/>
+			<xs:element name="Inside"/>
+			<xs:element name="Span" type="SpanPositionRelationshipType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="TripleCornerConfigurationType">
+		<xs:choice>
+			<xs:element name="Not-Southwest" type="InternalCornerPositionRelationshipType"/>
+			<xs:element name="Not-Southeast" type="InternalCornerPositionRelationshipType"/>
+			<xs:element name="Not-Northeast" type="InternalCornerPositionRelationshipType"/>
+			<xs:element name="Not-Northwest" type="InternalCornerPositionRelationshipType"/>
+			<xs:element name="Not-Back-left" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Not-Back-right" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Not-Front-right" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Not-Front-left" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Not-Left-bottom" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Not-Right-bottom" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Not-Right-top" type="DifferentSidePositionRelationshipType"/>
+			<xs:element name="Not-Left-top" type="DifferentSidePositionRelationshipType"/>
+		</xs:choice>
+	</xs:complexType>
+	<!--End of Terminal Group Position-->
+	<!---->
+	<!--Beginning of Terminal Type-->
+	<xs:complexType name="BallType">
+		<xs:choice>
+			<xs:element name="Bump"/>
+			<xs:element name="Collapsing"/>
+			<xs:element name="Non-Collapsing"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="LugType">
+		<xs:choice minOccurs="0">
+			<xs:element name="PerforatedSolderTerminal"/>
+			<xs:element name="CupSolderTerminal"/>
+			<xs:element name="HookSolderTerminal"/>
+			<xs:element name="CrimpLug"/>
+			<xs:element name="RingTongueTerminal"/>
+			<xs:element name="LugWithThreadedHole"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="FlatType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Elevated"/>
+			<xs:element name="Flat-L-bend"/>
+			<xs:element name="Hole"/>
+			<xs:element name="With-opening"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="Gull-wingType">
+		<xs:sequence minOccurs="0">
+			<xs:element name="Shoulder"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PostTerminalType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Butt"/>
+			<xs:element name="FlattenPostConnection"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="L-bendType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Inward"/>
+			<xs:element name="Outward"/>
+			<xs:element name="SideInward"/>
+			<xs:element name="SideOutward"/>
+			<xs:element name="LC-bend"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="ColumnType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Pillar"/>
+			<xs:element name="Microspring-SolidCore"/>
+			<xs:element name="Microspring-AirCore"/>
+			<xs:element name="CopperCoatedSolderColumn"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="SurfaceTerminalType">
+		<xs:choice minOccurs="0">
+			<xs:sequence>
+				<xs:element name="D-Shape" minOccurs="0"/>
+				<xs:element name="Pullback" minOccurs="0"/>
+			</xs:sequence>
+			<xs:element name="Castellated" type="CastellatedType"/>
+			<xs:element name="Hole"/>
+			<xs:element name="With-opening"/>
+			<xs:element name="Open-Ring" type="RingType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="CastellatedType">
+		<xs:sequence minOccurs="0">
+			<xs:element name="WettableFlank" minOccurs="0"/>
+			<xs:element name="D-Shape" minOccurs="0"/>
+			<xs:element name="Pullback" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="RingType">
+		<xs:sequence>
+			<xs:element name="Castellated" type="RingCastellatedType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="RingCastellatedType">
+		<xs:sequence>
+			<xs:element name="WettableFlank" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PressfitType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Compliant" type="CompliantType"/>
+			<xs:element name="Non-Compliant"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="CompliantType">
+		<xs:choice>
+			<xs:element name="Eye-of-the-NeedlePin"/>
+			<xs:element name="ConicalPin"/>
+			<xs:element name="Multi-SpringPin"/>
+			<xs:element name="ActionPin"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="PinType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Kinked"/>
+			<xs:element name="Shoulder"/>
+			<xs:element name="Press-InSolderable"/>
+			<xs:element name="SwageFasteningPin"/>
+			<xs:element name="Press-InNon-Solderable"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="WraparoundType">
+		<xs:choice minOccurs="0">
+			<xs:element name="D-Shape" minOccurs="0"/>
+			<xs:element name="Castellated" type="WraparoundCastellatedType"/>
+			<xs:element name="Ring" type="RingType"/>
+			<xs:element name="Open-Ring" type="RingType"/>
+			<xs:element name="Nibble"/>
+			<xs:element name="ConvexE"/>
+			<xs:element name="ConvexS"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="WraparoundCastellatedType">
+		<xs:sequence>
+			<xs:element name="WettableFlank" minOccurs="0"/>
+			<xs:element name="D-Shape" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="S-bendType">
+		<xs:choice>
+			<xs:element name="InwardFlat"/>
+			<xs:element name="InwardCurved"/>
+			<xs:element name="OutwardFlat"/>
+			<xs:element name="OutwardCurved"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="Through-HoleType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Kinked"/>
+			<xs:element name="Shoulder"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="WireType">
+		<xs:choice minOccurs="0">
+			<xs:element name="Kinked"/>
+			<xs:element name="SM-Wire"/>
+			<xs:element name="SM-CoinedWire"/>
+			<xs:element name="Wraparound-SMTMount"/>
+			<xs:element name="CoinedWraparound-SMTMount"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="ScrewType">
+		<xs:choice minOccurs="0">
+			<xs:element name="ClearanceHole"/>
+			<xs:element name="ThreadedHole"/>
+			<xs:element name="Screw"/>
+		</xs:choice>
+	</xs:complexType>
+	<!--End of Terminal Type-->
+	<!---->
+	<!--Beginning of Recommended Shape Pad Section-->
+	<xs:complexType name="RecommendedSurfaceMountPadShapeType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="Rectangle" type="RectanglePadType"/>
+				<xs:element name="RoundedRectangle" type="RoundedRectanglePadType"/>
+				<xs:element name="HalfRoundedRectangle" type="HalfRoundedRectanglePadType"/>
+				<xs:element name="ModifiedRectangle" type="ModifiedRectanglePadType"/>
+				<xs:element name="Circle" type="CirclePadType"/>
+				<xs:element name="D-Shape" type="D-ShapePadType"/>
+				<xs:element name="RoundedRectangleD-Shape" type="D-ShapeRoundedRectanglePadType"/>
+				<xs:element name="Double-D" type="Double-DPadType"/>
+				<xs:element name="Contour" type="ContourShapePadType"/>
+			</xs:choice>
+			<xs:element name="PadVoid-Array" type="PadVoid-ArrayType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="RectanglePadType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueType"/>
+			<xs:element name="Dimension2" type="ValueType"/>
+			<xs:element name="Angle" type="xs:integer"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="RoundedRectanglePadType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueType"/>
+			<xs:element name="Dimension2" type="ValueType"/>
+			<xs:element name="Radius" type="ValueType"/>
+			<xs:element name="Angle" type="xs:integer"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="HalfRoundedRectanglePadType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueType"/>
+			<xs:element name="Dimension2" type="ValueType"/>
+			<xs:element name="Radius" type="ValueType"/>
+			<xs:element name="Angle" type="xs:integer"/>
+			<xs:element name="ImpactedSide" type="ImpactedSideType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:simpleType name="ImpactedSideType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="Left"/>
+			<xs:enumeration value="Back"/>
+			<xs:enumeration value="Right"/>
+			<xs:enumeration value="Front"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="ModifiedRectanglePadType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueType"/>
+			<xs:element name="Dimension2" type="ValueType"/>
+			<xs:element name="Angle" type="xs:integer"/>
+			<xs:element name="ImpactedCorner" type="ImpactedCornerPadType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ImpactedCornerPadType">
+		<xs:all>
+			<xs:element name="NE" type="CornerPadType" minOccurs="0"/>
+			<xs:element name="SE" type="CornerPadType" minOccurs="0"/>
+			<xs:element name="SW" type="CornerPadType" minOccurs="0"/>
+			<xs:element name="NW" type="CornerPadType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="CornerPadType">
+		<xs:choice>
+			<xs:element name="ChamferedCorner" type="ChamferedCornerPadType"/>
+			<xs:element name="ConvexCorner" type="ConvexCornerPadType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="ChamferedCornerPadType">
+		<xs:all>
+			<xs:element name="DX" type="ValueType"/>
+			<xs:element name="DY" type="ValueType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ConvexCornerPadType">
+		<xs:sequence>
+			<xs:element name="Radius" type="ValueType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="CirclePadType">
+		<xs:sequence>
+			<xs:element name="Diameter" type="ValueType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="D-ShapePadType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueType"/>
+			<xs:element name="Dimension2" type="ValueType"/>
+			<xs:element name="Angle" type="xs:integer"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="D-ShapeRoundedRectanglePadType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueType"/>
+			<xs:element name="Dimension2" type="ValueType"/>
+			<xs:element name="Radius" type="ValueType"/>
+			<xs:element name="Angle" type="xs:integer"/>
+			<xs:element name="ImpactedSide" type="ImpactedSideType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="Double-DPadType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueType"/>
+			<xs:element name="Dimension2" type="ValueType"/>
+			<xs:element name="Angle" type="xs:integer"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ContourShapePadType">
+		<xs:all>
+			<xs:element name="Outline" type="xs:string"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="PadVoid-ArrayType">
+		<xs:sequence>
+			<xs:element name="PadVoid" type="PadVoidType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PadVoidType">
+		<xs:sequence>
+			<xs:element name="PadVoidLocation" type="PadVoidLocationType"/>
+			<xs:element name="PadVoidShape" type="PadVoidShapeType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PadVoidShapeType">
+		<xs:choice>
+			<xs:element name="RoundedRectangle" type="RoundedRectangleVoidType"/>
+			<xs:element name="Circle" type="CircleVoidType"/>
+			<xs:element name="Double-D" type="Double-DVoidType"/>
+			<xs:element name="Contour" type="ContourPadVoidShapeType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="RoundedRectangleVoidType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueType"/>
+			<xs:element name="Dimension2" type="ValueType"/>
+			<xs:element name="Radius" type="ValueType"/>
+			<xs:element name="Angle" type="xs:integer"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="CircleVoidType">
+		<xs:sequence>
+			<xs:element name="Diameter" type="ValueType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="Double-DVoidType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueType"/>
+			<xs:element name="Dimension2" type="ValueType"/>
+			<xs:element name="Angle" type="xs:integer"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="RecommendedThroughHoleType">
+		<xs:sequence>
+			<xs:element name="HoleShape" type="HoleShapeType"/>
+			<xs:element name="MountSidePad" type="MountSidePadType"/>
+			<xs:element name="InternalPad" type="InternalPadType"/>
+			<xs:element name="OppositeSidePad" type="OppositeSidePadType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="HoleShapeType">
+		<xs:choice>
+			<xs:element name="RoundedRectangle" type="RoundedRectangleHoleType"/>
+			<xs:element name="Circle" type="CircleHoleType"/>
+			<xs:element name="Double-D" type="Double-DHoleType"/>
+			<xs:element name="Contour" type="ContourShapeHoleType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="MountSidePadType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="Rectangle" type="RectanglePadType"/>
+				<xs:element name="RoundedRectangle" type="RoundedRectanglePadType"/>
+				<xs:element name="Circle" type="CirclePadType"/>
+				<xs:element name="Double-D" type="Double-DPadType"/>
+				<xs:element name="Contour" type="ContourShapePadType"/>
+			</xs:choice>
+			<xs:element name="Clearance" type="xs:double"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="InternalPadType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="Rectangle" type="RectanglePadType"/>
+				<xs:element name="RoundedRectangle" type="RoundedRectanglePadType"/>
+				<xs:element name="Circle" type="CirclePadType"/>
+				<xs:element name="Double-D" type="Double-DPadType"/>
+				<xs:element name="Contour" type="ContourShapePadType"/>
+			</xs:choice>
+			<xs:element name="Clearance" type="xs:double"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="OppositeSidePadType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="Rectangle" type="RectanglePadType"/>
+				<xs:element name="RoundedRectangle" type="RoundedRectanglePadType"/>
+				<xs:element name="Circle" type="CirclePadType"/>
+				<xs:element name="Double-D" type="Double-DPadType"/>
+				<xs:element name="Contour" type="ContourShapePadType"/>
+			</xs:choice>
+			<xs:element name="Clearance" type="xs:double"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="RoundedRectangleHoleType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueType"/>
+			<xs:element name="Dimension2" type="ValueType"/>
+			<xs:element name="Radius" type="ValueType"/>
+			<xs:element name="Angle" type="xs:integer"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="CircleHoleType">
+		<xs:sequence>
+			<xs:element name="Diameter" type="ValueType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="Double-DHoleType">
+		<xs:all>
+			<xs:element name="Dimension1" type="ValueType"/>
+			<xs:element name="Dimension2" type="ValueType"/>
+			<xs:element name="Angle" type="xs:integer"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ContourShapeHoleType">
+		<xs:sequence>
+			<xs:element name="Outline" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="RecommendedPadOrHoleLocationType">
+		<xs:choice>
+			<xs:sequence>
+				<xs:choice>
+					<xs:element name="StandardArray" type="PadStandardArrayType"/>
+					<xs:element name="CircularArray" type="PadCircularArrayType"/>
+				</xs:choice>
+				<xs:element name="Pad-or-HoleStatus" type="Pad-or-HoleStatusType" minOccurs="0"/>
+			</xs:sequence>
+			<xs:element name="RandomArray" type="Pad-or-HoleRandomArrayType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="RecommendedLandPatternSpanType">
+		<xs:sequence>
+			<xs:element name="X-Direction" type="ValueType" minOccurs="0"/>
+			<xs:element name="Y-Direction" type="ValueType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="RecommendedLandPatternSpacingType">
+		<xs:sequence>
+			<xs:element name="X-Direction" type="ValueType" minOccurs="0"/>
+			<xs:element name="Y-Direction" type="ValueType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ContourPadVoidShapeType">
+		<xs:all>
+			<xs:element name="Outline" type="xs:string"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="PadVoidLocationType">
+		<xs:choice>
+			<xs:sequence>
+				<xs:choice>
+					<xs:element name="StandardArray" type="PadVoidStandardArrayType"/>
+					<xs:element name="CircularArray" type="VoidCircularArrayType"/>
+				</xs:choice>
+				<xs:element name="VoidStatus" type="VoidStatusType" minOccurs="0"/>
+			</xs:sequence>
+			<xs:element name="RandomArray" type="VoidRandomArrayType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="PadStandardArrayType">
+		<xs:all>
+			<xs:element name="nx" type="xs:integer"/>
+			<xs:element name="ny" type="xs:integer"/>
+			<xs:element name="dx" type="xs:double"/>
+			<xs:element name="dy" type="xs:double"/>
+			<xs:element name="Angle" type="xs:integer"/>
+			<xs:element name="LandGroupLowerLeftPad-or-HoleCenter" type="PointType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="PadVoidStandardArrayType">
+		<xs:all>
+			<xs:element name="nx" type="xs:integer"/>
+			<xs:element name="ny" type="xs:integer"/>
+			<xs:element name="dx" type="xs:double"/>
+			<xs:element name="dy" type="xs:double"/>
+			<xs:element name="Angle" type="xs:integer"/>
+			<xs:element name="VoidGroupLowerLeftVoidCenter" type="PointType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="PadCircularArrayType">
+		<xs:sequence>
+			<xs:element name="PitchRadius" type="xs:double"/>
+			<xs:element name="Center" type="PointType"/>
+			<xs:element name="StartAngle" type="xs:integer"/>
+			<xs:choice>
+				<xs:element name="AngleToFill" type="xs:integer"/>
+				<xs:element name="AngleBetweenPads" type="xs:integer"/>
+			</xs:choice>
+			<xs:element name="NumberOfPads" type="xs:integer"/>
+			<xs:element name="Rotation" type="PadRotationType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PadRotationType">
+		<xs:choice>
+			<xs:element name="RotateWithCircle" type="xs:integer"/>
+			<xs:element name="RotationAngle" type="xs:integer"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="Pad-or-HoleRandomArrayType">
+		<xs:sequence>
+			<xs:element name="Pad-or-HoleLocation" type="PointType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="Pad-or-HoleStatusType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="Index">
+					<xs:simpleType>
+						<xs:restriction base="xs:integer">
+							<xs:minInclusive value="1"/>
+						</xs:restriction>
+					</xs:simpleType>
+				</xs:element>
+				<xs:element name="Center" type="PointType"/>
+			</xs:choice>
+			<xs:element name="Deleted"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of Recommended Shape Pad Section-->
+	<!---->
+	<!--Beginning of Terminal Detail - Array Type-->
+	<xs:complexType name="TerminalDetailType">
+		<xs:sequence>
+			<xs:element name="TerminalNumber" type="xs:string" minOccurs="0"/>
+			<xs:choice>
+				<xs:element name="TerminalCenter" type="PointType"/>
+				<xs:sequence>
+					<xs:element name="TerminalGroupID" type="xs:string"/>
+					<xs:element name="RowTerminalIndex">
+						<xs:simpleType>
+							<xs:restriction base="xs:integer">
+								<xs:minInclusive value="1"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+					<xs:element name="ColumnTerminalIndex">
+						<xs:simpleType>
+							<xs:restriction base="xs:integer">
+								<xs:minInclusive value="1"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+				</xs:sequence>
+			</xs:choice>
+			<xs:element name="TerminalStatus" type="TerminalStatusType" minOccurs="0"/>
+			<xs:element name="IgnoreForLandPattern" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TerminalStatusType">
+		<xs:choice>
+			<xs:element name="Missing"/>
+			<xs:element name="Deleted"/>
+			<xs:element name="Associated" type="AssociatedTerminalStatusType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="AssociatedTerminalStatusType">
+		<xs:sequence>
+			<xs:element name="ReferenceTerminalGroupID" type="xs:string"/>
+			<xs:sequence minOccurs="0">
+				<xs:element name="RowTerminalIndex">
+					<xs:simpleType>
+						<xs:restriction base="xs:integer">
+							<xs:minInclusive value="1"/>
+						</xs:restriction>
+					</xs:simpleType>
+				</xs:element>
+				<xs:element name="ColumnTerminalIndex">
+					<xs:simpleType>
+						<xs:restriction base="xs:integer">
+							<xs:minInclusive value="1"/>
+						</xs:restriction>
+					</xs:simpleType>
+				</xs:element>
+			</xs:sequence>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TerminalNumberPatternType">
+		<xs:sequence>
+			<xs:element name="FirstTerminalLocation" type="FirstTerminalLocationType"/>
+			<xs:choice>
+				<xs:element name="Sequential" type="SequentialTerminalNumberOrderingType"/>
+				<xs:element name="Grid" type="GridTerminalNumberOrderingType"/>
+			</xs:choice>
+			<xs:element name="TerminalDetailExceptions" type="TerminalDetailExceptionsType" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TerminalDetailExceptionsType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="TerminalCenter" type="PointType"/>
+				<xs:element name="TerminalIndex" type="TerminalIndexType"/>
+				<xs:element name="TerminalNumber" type="TerminalNumberType"/>
+			</xs:choice>
+			<xs:element name="TerminalStatus" type="TerminalStatusType"/>
+			<xs:element name="IgnoreForLandPattern" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TerminalIndexType">
+		<xs:sequence>
+			<xs:element name="TerminalGroupID" type="xs:string"/>
+			<xs:choice>
+				<xs:element name="RowTerminalIndex">
+					<xs:simpleType>
+						<xs:restriction base="xs:integer">
+							<xs:minInclusive value="1"/>
+						</xs:restriction>
+					</xs:simpleType>
+				</xs:element>
+				<xs:sequence>
+					<xs:element name="FromRowTerminalIndex">
+						<xs:simpleType>
+							<xs:restriction base="xs:integer">
+								<xs:minInclusive value="1"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+					<xs:element name="ToRowTerminalIndex">
+						<xs:simpleType>
+							<xs:restriction base="xs:integer">
+								<xs:minInclusive value="1"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+				</xs:sequence>
+			</xs:choice>
+			<xs:choice>
+				<xs:element name="ColumnTerminalIndex">
+					<xs:simpleType>
+						<xs:restriction base="xs:integer">
+							<xs:minInclusive value="1"/>
+						</xs:restriction>
+					</xs:simpleType>
+				</xs:element>
+				<xs:sequence>
+					<xs:element name="FromColumnTerminalIndex">
+						<xs:simpleType>
+							<xs:restriction base="xs:integer">
+								<xs:minInclusive value="1"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+					<xs:element name="ToColumnTerminalIndex">
+						<xs:simpleType>
+							<xs:restriction base="xs:integer">
+								<xs:minInclusive value="1"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+				</xs:sequence>
+			</xs:choice>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TerminalNumberType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="Row" type="xs:string"/>
+				<xs:sequence>
+					<xs:element name="FromRow" type="xs:string"/>
+					<xs:element name="ToRow" type="xs:string"/>
+				</xs:sequence>
+			</xs:choice>
+			<xs:choice>
+				<xs:element name="Column" type="xs:string"/>
+				<xs:sequence>
+					<xs:element name="FromColumn" type="xs:string"/>
+					<xs:element name="ToColumn" type="xs:string"/>
+				</xs:sequence>
+			</xs:choice>
+		</xs:sequence>
+	</xs:complexType>
+	<!---->
+	<!--Beginning of First Terminal Location Detail-->
+	<xs:complexType name="LocationRelative-to-PackageCenterType">
+		<xs:choice>
+			<xs:element name="Code" type="LocationRelative-to-PackageCenterCodeType" minOccurs="0"/>
+			<xs:element name="Description" type="LocationRelative-to-PackageCenterDescriptionType" minOccurs="0"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:simpleType name="LocationRelative-to-PackageCenterCodeType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="SW"/>
+			<xs:enumeration value="SE"/>
+			<xs:enumeration value="NE"/>
+			<xs:enumeration value="NW"/>
+			<xs:enumeration value="BL"/>
+			<xs:enumeration value="BR"/>
+			<xs:enumeration value="FR"/>
+			<xs:enumeration value="FL"/>
+			<xs:enumeration value="LB"/>
+			<xs:enumeration value="RB"/>
+			<xs:enumeration value="RT"/>
+			<xs:enumeration value="LT"/>
+			<xs:enumeration value="LC"/>
+			<xs:enumeration value="BC"/>
+			<xs:enumeration value="RC"/>
+			<xs:enumeration value="FC"/>
+			<xs:enumeration value="L"/>
+			<xs:enumeration value="B"/>
+			<xs:enumeration value="R"/>
+			<xs:enumeration value="F"/>
+			<xs:enumeration value="TBD"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="LocationRelative-to-PackageCenterDescriptionType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="Southwest"/>
+			<xs:enumeration value="Southeast"/>
+			<xs:enumeration value="Northeast"/>
+			<xs:enumeration value="Northwest"/>
+			<xs:enumeration value="Back-left"/>
+			<xs:enumeration value="Back-right"/>
+			<xs:enumeration value="Front-right"/>
+			<xs:enumeration value="Front-left"/>
+			<xs:enumeration value="Left-bottom"/>
+			<xs:enumeration value="Right-bottom"/>
+			<xs:enumeration value="Right-top"/>
+			<xs:enumeration value="Left-top"/>
+			<xs:enumeration value="Left-center"/>
+			<xs:enumeration value="Back-center"/>
+			<xs:enumeration value="Right-center"/>
+			<xs:enumeration value="Front-center"/>
+			<xs:enumeration value="Left"/>
+			<xs:enumeration value="Back"/>
+			<xs:enumeration value="Right"/>
+			<xs:enumeration value="Front"/>
+			<xs:enumeration value="TBD"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!--End of First Terminal Location Detail-->
+	<!---->
+	<xs:complexType name="SequentialTerminalNumberOrderingType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="Code" type="TerminalNumberOrderingCodeType" minOccurs="0"/>
+				<xs:element name="Description" type="TerminalNumberOrderingDescriptionType" minOccurs="0"/>
+			</xs:choice>
+			<xs:choice minOccurs="0">
+				<xs:element name="NumericalSequence" type="NumericalSequenceType"/>
+				<xs:element name="AlphabeticalSequence" type="AlphabeticalSequenceType"/>
+			</xs:choice>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="TerminalNumberOrderingCodeType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="CW"/>
+			<xs:enumeration value="CCW"/>
+			<xs:enumeration value="L2R"/>
+			<xs:enumeration value="B2F"/>
+			<xs:enumeration value="R2L"/>
+			<xs:enumeration value="F2B"/>
+			<xs:enumeration value="S-H"/>
+			<xs:enumeration value="S-V"/>
+			<xs:enumeration value="ZZ-H"/>
+			<xs:enumeration value="ZZ-V"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="TerminalNumberOrderingDescriptionType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="Clockwise"/>
+			<xs:enumeration value="Counter-Clockwise"/>
+			<xs:enumeration value="Left-to-Right"/>
+			<xs:enumeration value="Back-to-Front"/>
+			<xs:enumeration value="Right-to-Left"/>
+			<xs:enumeration value="Front-to-Back"/>
+			<xs:enumeration value="Snake-Horizontal"/>
+			<xs:enumeration value="Snake-Vertical"/>
+			<xs:enumeration value="Zig-Zag-Horizontal"/>
+			<xs:enumeration value="Zig-Zag-Vertical"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="GridTerminalNumberOrderingType">
+		<xs:sequence>
+			<xs:element name="Row" type="RowTerminalNumberOrderingType"/>
+			<xs:element name="Column" type="ColumnTerminalNumberOrderingType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="RowTerminalNumberOrderingType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="NumericalSequence" type="NumericalSequenceType"/>
+				<xs:element name="AlphabeticalSequence" type="AlphabeticalSequenceType"/>
+			</xs:choice>
+			<xs:choice>
+				<xs:element name="Left-to-Right"/>
+				<xs:element name="Right-to-Left"/>
+			</xs:choice>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ColumnTerminalNumberOrderingType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="NumericalSequence" type="NumericalSequenceType"/>
+				<xs:element name="AlphabeticalSequence" type="AlphabeticalSequenceType"/>
+			</xs:choice>
+			<xs:choice>
+				<xs:element name="Back-to-Front"/>
+				<xs:element name="Front-to-Back"/>
+			</xs:choice>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="NumericalSequenceType">
+		<xs:sequence>
+			<xs:element name="Numerical" type="xs:integer" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AlphabeticalSequenceType">
+		<xs:sequence>
+			<xs:element name="Character" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of Terminal Detail - Array Type-->
+	<!---->
+	<!--Beginning of Via Region Section-->
+	<xs:complexType name="ViaRandomArrayType">
+		<xs:sequence>
+			<xs:element name="ViaLocation" type="PointType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ViaLocationType">
+		<xs:sequence>
+			<xs:element name="TerminalGroupID" type="xs:string"/>
+			<xs:choice>
+				<xs:sequence>
+					<xs:choice>
+						<xs:element name="StandardArray" type="ViaStandardArrayType"/>
+						<xs:element name="CircularArray" type="ViaCircularArrayType"/>
+					</xs:choice>
+					<xs:element name="ViaStatus" type="ViaStatusType" minOccurs="0"/>
+				</xs:sequence>
+				<xs:element name="RandomArray" type="ViaRandomArrayType"/>
+			</xs:choice>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ViaStandardArrayType">
+		<xs:all>
+			<xs:element name="ny" type="xs:integer"/>
+			<xs:element name="nx" type="xs:integer"/>
+			<xs:element name="dx" type="ValueType"/>
+			<xs:element name="dy" type="ValueType"/>
+			<xs:element name="LowerLeftViaLocation" type="PointType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ViaCircularArrayType">
+		<xs:sequence>
+			<xs:element name="PitchRadius" type="xs:double"/>
+			<xs:element name="Center" type="PointType"/>
+			<xs:element name="StartAngle" type="xs:integer"/>
+			<xs:choice>
+				<xs:element name="AngleToFill" type="xs:integer"/>
+				<xs:element name="AngleBetweenVias" type="xs:integer"/>
+			</xs:choice>
+			<xs:element name="NumberOfVias" type="xs:integer"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ViaStatusType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="ViaIndex">
+					<xs:simpleType>
+						<xs:restriction base="xs:integer">
+							<xs:minInclusive value="1"/>
+						</xs:restriction>
+					</xs:simpleType>
+				</xs:element>
+				<xs:element name="ViaCenter" type="PointType"/>
+			</xs:choice>
+			<xs:element name="Deleted"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of Via Region Section-->
+	<!---->
+</xs:schema>

@@ -1,0 +1,452 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2015 rel. 4 (x64) (http://www.altova.com) by Michael Durkan (Mentor Graphics) -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xs:simpleType name="VersionType">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="\d+[.]\d+[.]\d+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!---->
+	<!--Begininning of General Value Set Type-->
+	<xs:complexType name="MassValueSetType">
+		<xs:all>
+			<xs:element name="Value" type="ValueSetType"/>
+			<xs:element name="Units" type="MassUOMType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="PitchValueSetType">
+		<xs:sequence>
+			<xs:sequence>
+				<xs:element name="Standard" type="StandardType" minOccurs="0"/>
+				<xs:element name="Limits" type="MinMaxLimitsType" minOccurs="0"/>
+			</xs:sequence>
+			<xs:element name="PitchToleranceCumulative" type="xs:boolean"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="UnspecifiedValueSetType">
+		<xs:choice>
+			<xs:sequence>
+				<xs:element name="Standard" type="StandardType" minOccurs="0"/>
+				<xs:element name="Limits" type="MinMaxLimitsType" minOccurs="0"/>
+			</xs:sequence>
+			<xs:element name="Unspecified"/>
+		</xs:choice>
+	</xs:complexType>
+	<!--End of General Value Set Type-->
+	<!---->
+	<!--Begininning of General Value Type-->
+	<xs:complexType name="Temperature-in-CelsiusValueType">
+		<xs:sequence>
+			<xs:element name="Temperature" type="xs:integer"/>
+			<xs:element name="TemperatureUOM" type="Temperature-in-CelsiusUOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TemperatureValueType">
+		<xs:sequence>
+			<xs:element name="Temperature" type="xs:integer"/>
+			<xs:element name="TemperatureUOM" type="TemperatureUOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TimeValueType">
+		<xs:sequence>
+			<xs:element name="Time" type="xs:double"/>
+			<xs:element name="TimeUOM" type="Time-in-uSec-to-Sec-UOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="Time-in-SecondsValueType">
+		<xs:sequence>
+			<xs:element name="Time" type="xs:double"/>
+			<xs:element name="TimeUOM" type="Time-in-SecondsUOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="Time-in-MinutesValueType">
+		<xs:sequence>
+			<xs:element name="MaximumTime" type="xs:double"/>
+			<xs:element name="TimeUOM" type="Time-in-MinutesUOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of General Value Type-->
+	<!---->
+	<!--Begininning of General Min-Max Limit Type-->
+	<xs:complexType name="MinMaxTemperature-in-CelsiusType">
+		<xs:all>
+			<xs:element name="Temperature" type="MinMaxLimitsType"/>
+			<xs:element name="TemperatureUOM" type="Temperature-in-CelsiusUOMType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="MinMaxTemperatureType">
+		<xs:all>
+			<xs:element name="Temperature" type="MinMaxLimitsType"/>
+			<xs:element name="TemperatureUOM" type="TemperatureUOMType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="MinMaxTime-in-uSec-to-SecType">
+		<xs:sequence>
+			<xs:element name="Time" type="MinMaxLimitsType"/>
+			<xs:element name="TimeUOM" type="Time-in-uSec-to-Sec-UOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="MinMaxTime-in-SecondsType">
+		<xs:sequence>
+			<xs:element name="Time" type="MinMaxLimitsType"/>
+			<xs:element name="TimeUOM" type="Time-in-SecondsUOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of General Min-Max Limit Type-->
+	<!---->
+	<!--Begininning of General Min-Nom-Max Value Set Type-->
+	<!--End of General Min-Nom-Max Value Set Type-->
+	<!---->
+	<!--Begininning of General Max Value Type-->
+	<xs:complexType name="MaxTemperature-in-CelsiusValueType">
+		<xs:sequence>
+			<xs:element name="MaximumTemperature" type="xs:integer"/>
+			<xs:element name="CelsiusTempUOM" type="Temperature-in-CelsiusUOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="MaxTime-in-uSec-to-SecType">
+		<xs:sequence>
+			<xs:element name="MaximumTime" type="xs:double"/>
+			<xs:element name="TimeUOM" type="Time-in-uSec-to-Sec-UOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="MaxTime-in-SecondsType">
+		<xs:sequence>
+			<xs:element name="MaximumTime" type="xs:double"/>
+			<xs:element name="TimeUOM" type="Time-in-SecondsUOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="Time-in-HoursValueType">
+		<xs:sequence>
+			<xs:element name="MaximumTime" type="xs:double"/>
+			<xs:element name="TimeUOM" type="Time-in-HoursUOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of General Max Value Type-->
+	<!---->
+	<!--Begininning of General Units of Measure Type-->
+	<!--Begininning of Dimensional UOM Types-->
+	<xs:simpleType name="DimensionUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="nm"/>
+			<xs:enumeration value="um"/>
+			<xs:enumeration value="mm"/>
+			<xs:enumeration value="m"/>
+			<xs:enumeration value="in"/>
+			<xs:enumeration value="mil"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!--End of Dimensional UOM Types-->
+	<!---->
+	<!--Begininning of Mass UOM Types-->
+	<xs:simpleType name="MassUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="ug"/>
+			<xs:enumeration value="mg"/>
+			<xs:enumeration value="g"/>
+			<xs:enumeration value="kg"/>
+			<xs:enumeration value="oz"/>
+			<xs:enumeration value="lb"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!--End of Mass UOM Types-->
+	<!---->
+	<!--Begininning of Power UOM Types-->
+	<xs:simpleType name="PowerUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="mW">
+				<xs:annotation>
+					<xs:documentation>Power Rating Mili Watts UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="W">
+				<xs:annotation>
+					<xs:documentation>Power Rating Watts UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="kW">
+				<xs:annotation>
+					<xs:documentation>Power Rating Kilowatts UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<!--End of Power UOM Types-->
+	<!---->
+	<!--Begininning of Temperature / Thermal UOM Types-->
+	<xs:simpleType name="Temperature-in-CelsiusUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="DegC">
+				<xs:annotation>
+					<xs:documentation>Degree Celsius</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="TemperatureUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="DegC">
+				<xs:annotation>
+					<xs:documentation>Degree Celsius</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="DegF">
+				<xs:annotation>
+					<xs:documentation>Degree Fahrenheit </xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="K">
+				<xs:annotation>
+					<xs:documentation>Kelvin</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="ThermalResistanceUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="K/W"/>
+			<xs:enumeration value="DegC/W"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!--End of Temperature / Thermal UOM Types-->
+	<!---->
+	<!--Begininning of Time UOM Types-->
+	<xs:simpleType name="LifeTimeUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="yr"/>
+			<xs:enumeration value="wk"/>
+			<xs:enumeration value="h"/>
+			<xs:enumeration value="Time-on-Label"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Time-in-uSec-to-Sec-UOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="us">
+				<xs:annotation>
+					<xs:documentation>Microsecond UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="ms">
+				<xs:annotation>
+					<xs:documentation>Milisecond UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="s">
+				<xs:annotation>
+					<xs:documentation>Second UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Time-in-pSec-to-Sec-UOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="ps">
+				<xs:annotation>
+					<xs:documentation>Picosecond UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="ns">
+				<xs:annotation>
+					<xs:documentation>Nanosecond UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="us">
+				<xs:annotation>
+					<xs:documentation>Microsecond UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="ms">
+				<xs:annotation>
+					<xs:documentation>Milisecond UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="s">
+				<xs:annotation>
+					<xs:documentation>Second UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Time-in-pSec-to-Years-UOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="ps">
+				<xs:annotation>
+					<xs:documentation>Picoosecond UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="ns">
+				<xs:annotation>
+					<xs:documentation>Nanosecond UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="us">
+				<xs:annotation>
+					<xs:documentation>Microsecond UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="ms">
+				<xs:annotation>
+					<xs:documentation>Milisecond UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="s">
+				<xs:annotation>
+					<xs:documentation>Second UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="min">
+				<xs:annotation>
+					<xs:documentation>Minutes UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="h">
+				<xs:annotation>
+					<xs:documentation>Hours UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="d">
+				<xs:annotation>
+					<xs:documentation>Days UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="wk">
+				<xs:annotation>
+					<xs:documentation>Weeks UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="y">
+				<xs:annotation>
+					<xs:documentation>Years UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Time-in-SecondsUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="s">
+				<xs:annotation>
+					<xs:documentation>Second UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Time-in-MinutesUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="min">
+				<xs:annotation>
+					<xs:documentation>Minute UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Time-in-HoursUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="h">
+				<xs:annotation>
+					<xs:documentation>Hour UOM</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<!--End of Time UOM Types-->
+	<!--End of General Units of Measure Type-->
+	<!---->
+	<!--Begininning of Temperature per Time Types-->
+	<xs:complexType name="MaxTemperature-in-Celsius-in-MaxTime-in-SecondsType">
+		<xs:sequence>
+			<xs:element name="SoakTemperature" type="MaxTemperature-in-CelsiusValueType"/>
+			<xs:element name="TimeFrom25DegCelsius-to-MaximumSoakTemperature" type="MaxTime-in-SecondsType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="MinMaxTemperature-in-Celsius-in-MaxTime-in-SecondsType">
+		<xs:sequence>
+			<xs:element name="Temperature" type="MinMaxTemperature-in-CelsiusType"/>
+			<xs:element name="MaximumTime" type="Time-in-SecondsValueType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="MinMaxTemperature-in-Celsius-in-MinMaxTime-in-SecondsType">
+		<xs:sequence>
+			<xs:element name="Temperature" type="MinMaxTemperature-in-CelsiusType"/>
+			<xs:element name="Time" type="MinMaxTime-in-SecondsType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TemperatureRampRateType">
+		<xs:sequence>
+			<xs:element name="TemperaturePerSec" type="xs:double"/>
+			<xs:element name="TemperaturePerSecondUOM" type="TemperatureRampRateUOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="TemperatureRampRateUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="DegC/S">
+				<xs:annotation>
+					<xs:documentation>Degree Celsius per Second</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<!--End of Temperature per Time Types-->
+	<!---->
+	<!--Begininning of General Value Set Type-->
+	<xs:complexType name="PointType">
+		<xs:all>
+			<xs:element name="x" type="xs:double"/>
+			<xs:element name="y" type="xs:double"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ValueType">
+		<xs:sequence>
+			<xs:element name="Nominal" type="xs:double"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ValueSetType">
+		<xs:sequence>
+			<xs:element name="Standard" type="StandardType" minOccurs="0"/>
+			<xs:element name="Limits" type="MinMaxLimitsType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="StandardType">
+		<xs:all>
+			<xs:element name="Nominal" type="xs:double" minOccurs="0"/>
+			<xs:element name="Tolerance" type="ToleranceType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="SplitType">
+		<xs:all>
+			<xs:element name="Negative" type="xs:double" minOccurs="0"/>
+			<xs:element name="Positive" type="xs:double" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ToleranceType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="Split" type="SplitType"/>
+				<xs:element name="Total" type="xs:double"/>
+			</xs:choice>
+			<xs:element name="UOM" type="ToleranceUOMType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="ToleranceUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="Value"/>
+			<xs:enumeration value="Percent"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="MinMaxLimitsType">
+		<xs:sequence>
+			<xs:element name="Minimum" type="xs:double" minOccurs="0"/>
+			<xs:element name="Maximum" type="xs:double" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="MinNomMaxValueSetType">
+		<xs:sequence>
+			<xs:element name="Minimum" type="xs:double" minOccurs="0"/>
+			<xs:element name="Nominal" type="xs:double" minOccurs="0"/>
+			<xs:element name="Maximum" type="xs:double" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!--End of General Value Set Type-->
+	<!---->
+	<!--Begininning of General Limit Type-->
+	<!--End of General Limit Type-->
+</xs:schema>

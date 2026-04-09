@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2015 rel. 4 (x64) (http://www.altova.com) by Michael Durkan (Mentor Graphics) -->
+<xs:schema xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning" xmlns:jaxb="http://java.sun.com/xml/ns/jaxb" xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" jaxb:version="2.1" vc:minVersion="1.1">
+	<xs:annotation>
+		<xs:appinfo>
+			<jaxb:globalBindings typesafeEnumMaxMembers="0"/>
+		</xs:appinfo>
+	</xs:annotation>
+	<xs:include schemaLocation="JEP30-D10PartModelSchemaTypesDictionaryVer1-0-0.xsd"/>
+	<!---->
+	<!--Begininning of Thermal Section Definition-->
+	<xs:element name="ThermalSection" type="ThermalSectionType"/>
+	<xs:complexType name="ThermalSectionType">
+		<xs:sequence>
+			<xs:element name="ThermalFamily-Array" type="Thermal-ArrayType">
+				<xs:key name="ThermalFamilyIDKey">
+					<xs:selector xpath="ThermalFamily"/>
+					<xs:field xpath="ID"/>
+				</xs:key>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="Thermal-ArrayType">
+		<xs:sequence>
+			<xs:element name="ThermalFamily" type="ThermalType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ThermalType">
+		<xs:sequence>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="ThermalData" type="ThermalDataType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ThermalDataType">
+		<xs:all>
+			<xs:element name="TemperatureRating-Array" type="TemperatureRating-ArrayType" minOccurs="0"/>
+			<xs:element name="ThermalMetrics-Array" type="ThermalMetrics-ArrayType" minOccurs="0"/>
+			<xs:element name="NetworkModels" type="ThermalDataNetworkModelsType" minOccurs="0"/>
+			<xs:element name="UnitsForThermalData" type="UnitsForThermalDataType"/>
+		</xs:all>
+	</xs:complexType>
+	<!---->
+	<xs:complexType name="TemperatureRating-ArrayType">
+		<xs:sequence>
+			<xs:element name="TemperatureRating" type="TemperatureRatingType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TemperatureRatingType">
+		<xs:sequence>
+			<xs:element name="Name" type="TemperatureRatingNameType"/>
+			<xs:element name="Temperature" type="MinNomMaxValueSetType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TemperatureRatingNameType">
+		<xs:choice>
+			<xs:element name="JunctionTemperature"/>
+			<xs:element name="CaseTemperature"/>
+			<xs:element name="SolderPointTemperature"/>
+			<xs:element name="Other" type="xs:string"/>
+		</xs:choice>
+	</xs:complexType>
+	<!---->
+	<xs:complexType name="ThermalMetrics-ArrayType">
+		<xs:sequence>
+			<xs:element name="ThermalMetrics" type="ThermalMetricsType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ThermalMetricsType">
+		<xs:choice>
+			<xs:element name="ThetaMetric" type="ThetaMetricType"/>
+			<xs:element name="PSI-Metric" type="PSI-MetricType"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="ThetaMetricType">
+		<xs:sequence>
+			<xs:element name="Name" type="ThetaMetricNameType"/>
+			<xs:element name="ThermalResistance" type="MinNomMaxValueSetType"/>
+			<xs:element name="Footnotes" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ThetaMetricNameType">
+		<xs:choice>
+			<xs:element name="Theta-JA"/>
+			<xs:element name="Theta-JC"/>
+			<xs:element name="Theta-JB"/>
+			<xs:element name="Theta-JMA"/>
+			<xs:element name="Other" type="xs:string"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="PSI-MetricType">
+		<xs:sequence>
+			<xs:element name="PSI-MetricName" type="PSI-MetricNameType"/>
+			<xs:element name="ThermalResistance" type="MinNomMaxValueSetType"/>
+			<xs:element name="Footnotes" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PSI-MetricNameType">
+		<xs:choice>
+			<xs:element name="Psi-JT"/>
+			<xs:element name="Psi-JB"/>
+			<xs:element name="Other" type="xs:string"/>
+		</xs:choice>
+	</xs:complexType>
+	<!---->
+	<xs:complexType name="ThermalDataNetworkModelsType">
+		<xs:choice maxOccurs="unbounded">
+			<xs:element name="DELPHI-Model" type="DELPHI-ModelType" maxOccurs="unbounded"/>
+			<xs:element name="TwoResistorModel" type="TwoResistorModelType" maxOccurs="unbounded"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="DELPHI-ModelType">
+		<xs:sequence>
+			<xs:element name="Name" type="xs:string"/>
+			<xs:element name="Description" type="xs:string" minOccurs="0"/>
+			<xs:element name="PackageBodyCenterOffset-to-Origin" type="PositionCoordinateType"/>
+			<xs:element name="CoreNetwork" type="DELPHI-ModelCoreNetworkType"/>
+			<xs:element name="ConnectionNetwork-Array" type="DELPHI-ModelConnectionNetwork-ArrayType" minOccurs="0"/>
+			<xs:element name="OverlappingPolicy" type="OverlappingPolicy" default="PrecedenceByHierarchy" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="DELPHI-ModelCoreNetworkType">
+		<xs:all>
+			<xs:element name="Node-Array" type="Node-ArrayType"/>
+			<xs:element name="ThermalResistance-Array" type="ThermalResistanceBetweenNodes-ArrayType" minOccurs="0"/>
+			<xs:element name="ThermalCapacitance-Array" type="ThermalCapacitanceNodal-ArrayType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="DELPHI-ModelConnectionNetwork-ArrayType">
+		<xs:sequence>
+			<xs:element name="ConnectionNetwork" type="DELPHI-ModelConnectionNetworkType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="DELPHI-ModelConnectionNetworkType">
+		<xs:all>
+			<xs:element name="Node-Array" type="Node-ArrayType"/>
+			<xs:element name="ThermalResistance-Array" type="ThermalResistanceBetweenNodes-ArrayType" minOccurs="0"/>
+			<xs:element name="ThermalCapacitance-Array" type="ThermalCapacitanceNodal-ArrayType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:simpleType name="OverlappingPolicy">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="PrecedenceByHierarchy"/>
+			<xs:enumeration value="PrecedenceBySize"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!---->
+	<xs:complexType name="TwoResistorModelType">
+		<xs:all>
+			<xs:element name="Name" type="xs:string"/>
+			<xs:element name="Description" type="xs:string" minOccurs="0"/>
+			<xs:element name="PackageBodyCenterOffset-to-Origin" type="PositionCoordinateType"/>
+			<xs:element name="Network" type="TwoResistorModelNetworkType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="TwoResistorModelNetworkType">
+		<xs:sequence>
+			<xs:element name="Node-Array" type="Node-ArrayType"/>
+			<xs:element name="ThermalResistance-Array" type="ThermalResistanceBetweenNodes-ArrayType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!---->
+	<xs:complexType name="Node-ArrayType">
+		<xs:sequence>
+			<xs:element name="Node" type="NodeType" minOccurs="2" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="NodeType">
+		<xs:all>
+			<xs:element name="Name" type="NodeName"/>
+			<xs:element name="Power" type="xs:double" minOccurs="0"/>
+			<xs:element name="NodeFace-Array" type="NodeFace-ArrayType" minOccurs="0"/>
+			<xs:element name="NodeVolume-Array" type="NodeVolume-ArrayType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:simpleType name="NodeName">
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="NodeFace-ArrayType">
+		<xs:sequence>
+			<xs:element name="RectangularNodeFace" type="RectangularNodeFaceType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="RectangularNodeFaceType">
+		<xs:sequence>
+			<xs:element name="Position" type="PositionCoordinateType"/>
+			<xs:choice>
+				<xs:element name="xyPlane" type="xyPlaneType"/>
+				<xs:element name="yzPlane" type="yzPlaneType"/>
+				<xs:element name="xzPlane" type="xzPlaneType"/>
+			</xs:choice>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="NodeVolume-ArrayType">
+		<xs:sequence>
+			<xs:element name="CuboidalNodeVolume" type="CuboidalNodeVolumeType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="CuboidalNodeVolumeType">
+		<xs:all>
+			<xs:element name="Position" type="PositionCoordinateType"/>
+			<xs:element name="Size" type="SizeType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="SizeType">
+		<xs:sequence>
+			<xs:element name="dx" type="xs:double"/>
+			<xs:element name="dy" type="xs:double"/>
+			<xs:element name="dz" type="xs:double"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!---->
+	<xs:complexType name="ThermalResistanceBetweenNodes-ArrayType">
+		<xs:sequence>
+			<xs:element name="ThermalResistance" type="ThermalResistanceBetweenNodesType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ThermalResistanceBetweenNodesType">
+		<xs:sequence>
+			<xs:element name="FromNode" type="xs:string"/>
+			<xs:element name="ToNode" type="xs:string"/>
+			<xs:element name="ThermalResistance" type="xs:double"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ThermalCapacitanceNodal-ArrayType">
+		<xs:sequence>
+			<xs:element name="ThermalCapacitance" type="ThermalCapacitanceNodalType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ThermalCapacitanceNodalType">
+		<xs:sequence>
+			<xs:element name="FromNode" type="xs:string"/>
+			<xs:element name="ToNode" type="xs:string" minOccurs="0"/>
+			<xs:choice>
+				<xs:sequence>
+					<xs:element name="NodalMass" type="xs:double"/>
+					<xs:element name="NodalSpecificHeatCapacity" type="xs:double"/>
+				</xs:sequence>
+				<xs:element name="ThermalCapacitance" type="xs:double"/>
+			</xs:choice>
+		</xs:sequence>
+	</xs:complexType>
+	<!---->
+	<xs:complexType name="PositionCoordinateType">
+		<xs:sequence>
+			<xs:element name="x" type="xs:double"/>
+			<xs:element name="y" type="xs:double"/>
+			<xs:element name="z" type="xs:double"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="xzPlaneType">
+		<xs:sequence>
+			<xs:element name="dx" type="xs:double"/>
+			<xs:element name="dz" type="xs:double"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="yzPlaneType">
+		<xs:sequence>
+			<xs:element name="dy" type="xs:double"/>
+			<xs:element name="dz" type="xs:double"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="xyPlaneType">
+		<xs:sequence>
+			<xs:element name="dx" type="xs:double"/>
+			<xs:element name="dy" type="xs:double"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!---->
+	<xs:complexType name="UnitsForThermalDataType">
+		<xs:all>
+			<xs:element name="DimensionUOM" type="DimensionUOMType"/>
+			<xs:element name="NodalMassUOM" type="MassUOMType"/>
+			<xs:element name="PowerUOM" type="PowerUOMType"/>
+			<xs:element name="SpecificHeatCapacityUOM" type="SpecificHeatCapacityUOMType"/>
+			<xs:element name="ThermalCapacitanceUOM" type="ThermalCapacitanceUOMType"/>
+			<xs:element name="ThermalResistanceUOM" type="ThermalResistanceUOMType"/>
+			<xs:element name="TemperatureUOM" type="TemperatureUOMType"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:simpleType name="ThermalCapacitanceUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="J/K"/>
+			<xs:enumeration value="mJ/K"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="SpecificHeatCapacityUOMType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="J/kgK"/>
+			<xs:enumeration value="Cal/gK"/>
+			<xs:enumeration value="BTU/lb DegF"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!---->
+	<!--End of Thermal Section Definition-->
+</xs:schema>

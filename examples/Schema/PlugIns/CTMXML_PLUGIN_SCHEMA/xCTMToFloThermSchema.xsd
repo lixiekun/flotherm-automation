@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1.0">
+  <xs:simpleType name="doubleGTZero">
+    <xs:restriction base="xs:double">
+      <xs:minExclusive value="0" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="Coordinate">
+    <xs:attribute name="x" type="xs:double" use="required" />
+    <xs:attribute name="y" type="xs:double" use="required" />
+    <xs:attribute name="z" type="xs:double" use="required" />
+  </xs:complexType>
+  <xs:complexType name="Size">
+    <xs:attribute name="x" type="doubleGTZero" use="required" />
+    <xs:attribute name="y" type="doubleGTZero" use="required" />
+    <xs:attribute name="z" type="doubleGTZero" use="required" />
+  </xs:complexType>
+  <xs:complexType name="Cuboid">
+    <xs:all>
+      <xs:element name="position" type="Coordinate" />
+      <xs:element name="size" type="Size" />
+    </xs:all>
+  </xs:complexType>
+  <xs:complexType name="Rectangle">
+    <xs:sequence>
+      <xs:element name="position" type="Coordinate" />
+      <xs:choice>
+        <xs:element name="xyPlane">
+          <xs:complexType>
+            <xs:attribute name="x" type="doubleGTZero" use="required" />
+            <xs:attribute name="y" type="doubleGTZero" use="required" />
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="yzPlane">
+          <xs:complexType>
+            <xs:attribute name="y" type="doubleGTZero" use="required" />
+            <xs:attribute name="z" type="doubleGTZero" use="required" />
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="xzPlane">
+          <xs:complexType>
+            <xs:attribute name="x" type="doubleGTZero" use="required" />
+            <xs:attribute name="z" type="doubleGTZero" use="required" />
+          </xs:complexType>
+        </xs:element>
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="Capacitance">
+    <xs:attribute name="fromNode" type="xs:string" use="required" />
+    <xs:attribute name="value" type="xs:double" use="required" />
+  </xs:complexType>
+  <xs:complexType name="Resistance">
+    <xs:attribute name="fromNode" type="xs:string" use="required" />
+    <xs:attribute name="toNode" type="xs:string" use="required" />
+    <xs:attribute name="value" type="xs:double" use="required" />
+  </xs:complexType>
+  <xs:complexType name="Node" mixed="true">
+    <xs:sequence>
+      <xs:element name="nodeFaces" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name ="rectangularNodeFace" type="Rectangle" maxOccurs="unbounded"/>
+          </xs:sequence>
+        </xs:complexType>        
+      </xs:element>
+      <xs:element name="nodeVolumes" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name ="cuboidalNodeVolume" type="Cuboid" maxOccurs="unbounded"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="monitorPoint" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="name" type="xs:string" />
+            <xs:element name="position" type="Coordinate" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required"/>
+    <xs:attribute name="power" type="xs:double" />
+  </xs:complexType>
+  <xs:complexType name="Nodes">
+    <xs:sequence>
+      <xs:element name ="node" type="Node" minOccurs="2" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="Resistances">
+    <xs:sequence>
+      <xs:element name ="resistance" type="Resistance" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="Capacitances">
+    <xs:sequence>
+      <xs:element name ="capacitance" type="Capacitance" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="T3SterCTM">
+    <xs:complexType mixed="true">
+      <xs:sequence>
+        <xs:element name="length" default="m">
+          <xs:simpleType>
+            <xs:restriction base="xs:string">
+              <xs:enumeration value="m" />
+              <xs:enumeration value="mm" />
+              <xs:enumeration value="in" />
+              <xs:enumeration value="mil" />
+              <xs:enumeration value="micron" />
+            </xs:restriction>
+          </xs:simpleType>
+        </xs:element>
+        <xs:element name="model">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="name" type="xs:string" />
+              <xs:element name="nodes" type="Nodes"/>
+              <xs:element name="resistances" type="Resistances"/>
+              <xs:element name="capacitances" type="Capacitances"  minOccurs="0"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name ="version" type="xs:string" use="optional" default="1.0"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

@@ -1,0 +1,675 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2018 sp1 (x64) (http://www.altova.com) by Michael Durkan (Mentor Graphics Corporation) -->
+<xs:schema xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning" xmlns:jaxb="http://java.sun.com/xml/ns/jaxb" xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" jaxb:version="2.1" vc:minVersion="1.1">
+	<xs:include schemaLocation="JEP30-A101PartModelAssemblyProcessClassificationSchemaVer1-0-0.xsd"/>
+	<xs:include schemaLocation="JEP30-E101PartModelElectricalSchemaVer1-0-0.xsd"/>
+	<xs:include schemaLocation="JEP30-P101PartModelPackageSchemaVer1-0-0.xsd"/>
+	<xs:include schemaLocation="JEP30-T101PartModelThermalSchemaVer1-0-0.xsd"/>
+	<xs:include schemaLocation="JEP30-D10PartModelSchemaTypesDictionaryVer1-0-0.xsd"/>
+	<xs:element name="PartModel" type="PartModelType">
+		<xs:keyref name="MPN-PartNumberConstructionManufacturerNameKeyRef" refer="ManufacturerNameKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartNumberConstruction"/>
+			<xs:field xpath="ManufacturerID"/>
+		</xs:keyref>
+		<xs:keyref name="MPN-PartDetailsManufacturerNameKeyRef" refer="ManufacturerNameKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails"/>
+			<xs:field xpath="ManufacturerID"/>
+		</xs:keyref>
+		<xs:keyref name="MPN-ReferenceDocumentsKeyRef" refer="ReferenceDocumentsKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/ReferenceDocumentsID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-PSL-KeyRef" refer="PSL-Key">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/ProcessSensitivityLevelsID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-MSL-KeyRef" refer="MSL-Key">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/MoistureSensitivityLevelsClassificationID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-StorageTemperatureKeyRef" refer="StorageTemperatureKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/StorageTemperatureID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-PartClassificationKeyRef" refer="PartClassificationKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/PartClassificationID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-SymbolKeyRef" refer="SymbolKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/SymbolID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-ElectricalKeyRef" refer="ElectricalKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/ElectricalID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-ElectricalSpecificationKeyRef" refer="ElectricalSpecificationKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/ElectricalSpecificationID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-TruthTableKeyRef" refer="TruthTableKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/TruthTableID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-SimulationModelKeyRef" refer="SimulationModelKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/SimulationModelID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-RequiredCircuitryKeyRef" refer="RequiredCircuitryKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/RequiredCircuitryID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-ReferenceDesignKeyRef" refer="ReferenceDesignKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/ReferenceDesignID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-EnvironmentalDeclarationKeyRef" refer="EnvironmentalDeclarationKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/EnvironmentalDeclarationFamilyID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-PackageKeyRef" refer="PackageKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/PackageID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-ThermalFamilyIDKeyRef" refer="ThermalFamilyIDKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/ThermalFamilyID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="MPN-AlternativeManufacturerNameKeyRef" refer="ManufacturerNameKey">
+			<xs:selector xpath="ManufacturerPartNumber-Array/PartDetails/EquivalentParts/AlternativeParts/AlternativeManufacturer-Array/AlternativeManufacturer"/>
+			<xs:field xpath="ManufacturerID"/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-ManufacturerNameKeyRef" refer="ManufacturerNameKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails"/>
+			<xs:field xpath="ManufacturerID"/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-ReferenceDocumentsIDKeyRef" refer="ReferenceDocumentsKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/ReferenceDocumentsID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-PSL-KeyRef" refer="PSL-Key">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/ProcessSensitivityLevelsID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-StorageTemperatureKeyRef" refer="StorageTemperatureKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/StorageTemperatureID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-MSL-KeyRef" refer="MSL-Key">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/MoistureSensitivityLevelClassificationID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-PartClassificationKeyRef" refer="PartClassificationKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/PartClassificationID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-SymbolKeyRef" refer="SymbolKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/SymbolID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-ElectricalKeyRef" refer="ElectricalKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/ElectricalID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-ElectricalSpecificationKeyRef" refer="ElectricalSpecificationKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/ElectricalSpecificationID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-TruthTableKeyRef" refer="TruthTableKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/TruthTableID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-SimulationModelKeyRef" refer="SimulationModelKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/SimulationModelID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-RequiredCircuitryKeyRef" refer="RequiredCircuitryKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/RequiredCircuitryID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-ReferenceDesignKeyRef" refer="ReferenceDocumentsKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/ReferenceDesignID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-EnvironmentalDeclarationKeyRef" refer="EnvironmentalDeclarationKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/EnvironmentalDeclarationFamilyID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-PackageFamilyIDKeyRef" refer="PackageKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/PackageID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-ThermalFamilyIDKeyRef" refer="ThermalFamilyIDKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/ThermalFamilyID"/>
+			<xs:field xpath="."/>
+		</xs:keyref>
+		<xs:keyref name="RefMPN-AlternativeMPN-ManufacturerNameKeyRef" refer="ManufacturerNameKey">
+			<xs:selector xpath="ReferenceManufacturerPartNumber-Array/PartDetails/EquivalentParts/AlternativeParts/AlternativeManufacturer-Array/AlternativeManufacturer"/>
+			<xs:field xpath="ManufacturerID"/>
+		</xs:keyref>
+	</xs:element>
+	<xs:complexType name="PartModelType">
+		<xs:sequence>
+			<xs:element name="BusinessInfo" type="BusinessInfoType" minOccurs="0"/>
+			<xs:element name="PartDataChangedTimestamp" type="xs:dateTime"/>
+			<xs:sequence>
+				<xs:element name="Manufacturer-Array" type="Manufacturer-ArrayType">
+					<xs:key name="ManufacturerNameKey">
+						<xs:selector xpath="Manufacturer"/>
+						<xs:field xpath="ID"/>
+					</xs:key>
+				</xs:element>
+				<xs:element name="ManufacturerPartNumber-Array" type="MPN-ArrayType">
+					<xs:key name="PartNumberConstructionKey">
+						<xs:selector xpath="PartNumberConstruction"/>
+						<xs:field xpath="ID"/>
+					</xs:key>
+					<xs:keyref name="PartDetailsPartNumberConstructionKeyRef" refer="PartNumberConstructionKey">
+						<xs:selector xpath="PartDetails/Family"/>
+						<xs:field xpath="PartNumberConstructionID"/>
+					</xs:keyref>
+					<xs:keyref name="PartDetailsPartNumberFieldNameKeyRef" refer="PartNumberFieldNameKey">
+						<xs:selector xpath="PartDetails/Family/Field-Array/Field"/>
+						<xs:field xpath="Name"/>
+					</xs:keyref>
+					<xs:keyref name="PartDetailsPartNumberFieldCodeKeyRef" refer="PartNumberFieldCodeKey">
+						<xs:selector xpath="PartDetails/Family/Field-Array/Field/Code"/>
+						<xs:field xpath="."/>
+					</xs:keyref>
+					<xs:key name="PartDetailsKey">
+						<xs:selector xpath="PartDetails/ID"/>
+						<xs:field xpath="."/>
+					</xs:key>
+					<xs:keyref name="OrderablePartNumberPartDetailsKeyRef" refer="PartDetailsKey">
+						<xs:selector xpath="OrderablePartNumber-Array/OrderablePartNumber/PartDetailsID"/>
+						<xs:field xpath="."/>
+					</xs:keyref>
+				</xs:element>
+				<xs:element name="ReferenceManufacturerPartNumber-Array" type="ReferenceManufacturerPartNumber-ArrayType" minOccurs="0">
+					<xs:key name="ReferencePartIdentificationIDKey">
+						<xs:selector xpath="PartDetails"/>
+						<xs:field xpath="ID"/>
+					</xs:key>
+				</xs:element>
+				<xs:element name="ReferenceDocuments-Array" type="ReferenceDocuments-ArrayType" minOccurs="0">
+					<xs:key name="ReferenceDocumentsKey">
+						<xs:selector xpath="ReferenceDocuments"/>
+						<xs:field xpath="ID"/>
+					</xs:key>
+				</xs:element>
+				<xs:sequence>
+					<xs:element ref="AssemblyProcessClassificationSection" minOccurs="0"/>
+					<xs:element ref="ElectricalSection" minOccurs="0"/>
+					<xs:element name="EnvironmentalSection" type="EnvironmentalSectionType" minOccurs="0"/>
+					<xs:element ref="PackageSection" minOccurs="0"/>
+					<xs:element ref="ThermalSection" minOccurs="0"/>
+				</xs:sequence>
+			</xs:sequence>
+		</xs:sequence>
+		<xs:attribute name="ComplianceToPartModelSchemaVersion" type="VersionType" use="required"/>
+		<xs:attribute name="PartModelContentRevision" type="xs:string" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="BusinessInfoType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="Distribute"/>
+				<xs:element name="Request-Reply"/>
+			</xs:choice>
+			<xs:element name="Request" type="RequestType" minOccurs="0"/>
+			<xs:element name="Response" type="ResponseType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ResponseType">
+		<xs:sequence>
+			<xs:sequence>
+				<xs:element name="DateTimestamp" type="xs:dateTime"/>
+				<xs:element name="DocID" type="xs:string" minOccurs="0"/>
+				<xs:element name="Comment" type="xs:string" minOccurs="0"/>
+			</xs:sequence>
+			<xs:element name="Authorizer" type="ContactType"/>
+			<xs:element name="SupplyCompany" type="CompanyType"/>
+			<xs:element name="Contact" type="ContactType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="CompanyType">
+		<xs:sequence>
+			<xs:element name="Name" type="xs:string"/>
+			<xs:element name="CompanyID" type="CompanyIDType" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="RequestType">
+		<xs:sequence>
+			<xs:sequence>
+				<xs:element name="DateTimestamp" type="xs:dateTime" minOccurs="0"/>
+				<xs:element name="DocID" type="xs:string" minOccurs="0"/>
+				<xs:element name="Comment" type="xs:string" minOccurs="0"/>
+				<xs:element name="RespondByDate" type="xs:dateTime" minOccurs="0"/>
+				<xs:element name="InternalSupplierID" type="xs:string" minOccurs="0"/>
+				<xs:element name="SupplierCheckbox" type="xs:boolean"/>
+			</xs:sequence>
+			<xs:element name="Contact" type="ContactType"/>
+			<xs:element name="RequestCompany" type="CompanyType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ContactType">
+		<xs:sequence>
+			<xs:sequence>
+				<xs:element name="Name" type="xs:string"/>
+				<xs:element name="Title" type="xs:string" minOccurs="0"/>
+				<xs:element name="Comment" type="xs:string" minOccurs="0"/>
+			</xs:sequence>
+			<xs:element name="Email" type="EmailType"/>
+			<xs:element name="SurfaceAddress" type="SurfaceAddressType" minOccurs="0"/>
+			<xs:element name="Phone" type="PhoneType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="EmailType">
+		<xs:sequence>
+			<xs:element name="Address" type="xs:string"/>
+			<xs:element name="Type" type="xs:string" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="SurfaceAddressType">
+		<xs:sequence>
+			<xs:element name="Internal" type="xs:string"/>
+			<xs:element name="Street" type="xs:string" minOccurs="0"/>
+			<xs:element name="City" type="xs:string" minOccurs="0"/>
+			<xs:element name="StateProvince" type="xs:string" minOccurs="0"/>
+			<xs:element name="Country" type="xs:string" minOccurs="0"/>
+			<xs:element name="PostalCode" type="xs:string" minOccurs="0"/>
+			<xs:element name="Type" type="xs:string" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PhoneType">
+		<xs:sequence>
+			<xs:element name="Number" type="xs:string"/>
+			<xs:element name="Type" type="xs:string" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="CompanyIDType">
+		<xs:sequence>
+			<xs:element name="Identity" type="xs:string" minOccurs="0"/>
+			<xs:element name="Authority" type="xs:string" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="Manufacturer-ArrayType">
+		<xs:sequence>
+			<xs:element name="Manufacturer" type="ManufacturerType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ManufacturerType">
+		<xs:sequence>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:sequence>
+				<xs:element name="DocID" type="xs:string" minOccurs="0"/>
+				<xs:element name="Comment" type="xs:string" minOccurs="0"/>
+			</xs:sequence>
+			<xs:element name="ManufacturerCode" type="xs:string" minOccurs="0"/>
+			<xs:element name="ManufacturerIdentity" type="CompanyType"/>
+			<xs:element name="Authorizer" type="ContactType" minOccurs="0"/>
+			<xs:element name="Contact" type="ContactType" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="MPN-ArrayType">
+		<xs:sequence>
+			<xs:element name="PartNumberConstruction" type="PartNumberType" minOccurs="0" maxOccurs="unbounded">
+				<xs:keyref name="AllowablePartNumberConstraintsFieldNameKeyRef" refer="PartNumberFieldNameKey">
+					<xs:selector xpath="FieldCodeConstraints-Array/CombinationsAllowed/Field"/>
+					<xs:field xpath="Name"/>
+				</xs:keyref>
+				<xs:keyref name="Non-allowablePartNumberConstraintsFieldNameKeyRef" refer="PartNumberFieldNameKey">
+					<xs:selector xpath="FieldCodeConstraints-Array/CombinationsNot-allowed/Field"/>
+					<xs:field xpath="Name"/>
+				</xs:keyref>
+				<xs:keyref name="AllowablePartNumberConstraintsFieldCodeKeyRef" refer="PartNumberFieldCodeKey">
+					<xs:selector xpath="FieldCodeConstraints-Array/CombinationsAllowed/Field/Code"/>
+					<xs:field xpath="."/>
+				</xs:keyref>
+				<xs:keyref name="AllowablePartNumberConstraintsRuleFieldFromCodeKeyRef" refer="PartNumberFieldCodeKey">
+					<xs:selector xpath="FieldCodeConstraints-Array/CombinationsAllowed/Field/Rule"/>
+					<xs:field xpath="FromCode"/>
+				</xs:keyref>
+				<xs:keyref name="AllowablePartNumberConstraintsRuleFieldToCodeKeyRef" refer="PartNumberFieldCodeKey">
+					<xs:selector xpath="FieldCodeConstraints-Array/CombinationsAllowed/Field/Rule"/>
+					<xs:field xpath="ToCode"/>
+				</xs:keyref>
+				<xs:keyref name="Non-allowablePartNumberConstraintsFieldCodeKeyRef" refer="PartNumberFieldCodeKey">
+					<xs:selector xpath="FieldCodeConstraints-Array/CombinationsNot-allowed/Field"/>
+					<xs:field xpath="Code"/>
+				</xs:keyref>
+				<xs:keyref name="Non-allowablePartNumberConstraintsRuleFieldFromCodeKeyRef" refer="PartNumberFieldCodeKey">
+					<xs:selector xpath="FieldCodeConstraints-Array/CombinationsNot-allowed/Field/Rule"/>
+					<xs:field xpath="FromCode"/>
+				</xs:keyref>
+				<xs:keyref name="Non-allowablePartNumberConstraintsRuleFieldToCodeKeyRef" refer="PartNumberFieldCodeKey">
+					<xs:selector xpath="FieldCodeConstraints-Array/CombinationsNot-allowed/Field/Rule"/>
+					<xs:field xpath="ToCode"/>
+				</xs:keyref>
+			</xs:element>
+			<xs:element name="OrderablePartNumber-Array" type="OrderablePartNumber-ArrayType" minOccurs="0">
+				<xs:key name="OrderablePartNumberKey">
+					<xs:selector xpath="OrderablePartNumber"/>
+					<xs:field xpath="ID"/>
+				</xs:key>
+			</xs:element>
+			<xs:element name="PartDetails" type="PartDetailsType" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="EquivalencyPartsType">
+		<xs:sequence>
+			<xs:element name="ManufacturerAlternativePartNumber-Array" type="ManufacturerAlternativePartNumber-ArrayType" minOccurs="0"/>
+			<xs:element name="AlternativeSupplierPartNumber" type="AlternativeSupplierPartNumberType" minOccurs="0">
+				<xs:keyref name="SupplierKeyRef" refer="SupplierKey">
+					<xs:selector xpath="SupplierPartNumber-Array/SupplierPartNumber"/>
+					<xs:field xpath="SupplierID"/>
+				</xs:keyref>
+			</xs:element>
+			<xs:element name="AlternativeParts" type="AlternativePartsType" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>This PartModel can replace these Alternative Parts, but these Alternative Parts can not necessarily replace this PartModel</xs:documentation>
+				</xs:annotation>
+				<xs:keyref name="AlternativeManufacturerNameIDKeyRef" refer="AlternativeManufacturerKey">
+					<xs:selector xpath="AlternativePart-Array/AlternativePart"/>
+					<xs:field xpath="AlternativeManufacturerID"/>
+				</xs:keyref>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ManufacturerAlternativePartNumber-ArrayType">
+		<xs:sequence>
+			<xs:element name="AlternativePartNumber" type="xs:string" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AlternativeSupplierPartNumberType">
+		<xs:sequence>
+			<xs:element name="Supplier-Array" type="Supplier-ArrayType">
+				<xs:key name="SupplierKey">
+					<xs:selector xpath="Supplier"/>
+					<xs:field xpath="ID"/>
+				</xs:key>
+			</xs:element>
+			<xs:element name="SupplierPartNumber-Array" type="SupplierPartNumber-ArrayType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="Supplier-ArrayType">
+		<xs:sequence>
+			<xs:element name="Supplier" type="SupplierType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="SupplierType">
+		<xs:sequence>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="SupplierCode" type="xs:string" minOccurs="0"/>
+			<xs:element name="SupplierName" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="SupplierPartNumberType">
+		<xs:sequence>
+			<xs:element name="SupplierPartNumber" type="xs:string" maxOccurs="unbounded"/>
+			<xs:element name="PartReferenceID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="SupplierID" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AlternativePartsType">
+		<xs:sequence>
+			<xs:element name="AlternativeManufacturer-Array" type="AlternativeManufacturer-ArrayType">
+				<xs:key name="AlternativeManufacturerKey">
+					<xs:selector xpath="AlternativeManufacturer"/>
+					<xs:field xpath="ID"/>
+				</xs:key>
+			</xs:element>
+			<xs:element name="AlternativePart-Array" type="AlternativePart-ArrayType">
+				<xs:key name="AlternativeManufacturerMPN-IDKey">
+					<xs:selector xpath="AlternativePart"/>
+					<xs:field xpath="ID"/>
+				</xs:key>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AlternativeManufacturer-ArrayType">
+		<xs:sequence>
+			<xs:element name="AlternativeManufacturer" type="AlternativeManufacturerType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AlternativeManufacturerType">
+		<xs:sequence maxOccurs="unbounded">
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="ManufacturerID" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AlternativePart-ArrayType">
+		<xs:sequence>
+			<xs:element name="AlternativePart" type="AlternativePartType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AlternativePartType">
+		<xs:sequence maxOccurs="unbounded">
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="ManufacturerPartNumber" type="xs:string" maxOccurs="unbounded"/>
+			<xs:element name="AlternativeManufacturerID" type="xs:string"/>
+			<xs:element name="PartReferenceDatasheet" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ReferenceDocuments-ArrayType">
+		<xs:sequence>
+			<xs:element name="ReferenceDocuments" type="ReferenceDocumentsType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ReferenceDocumentsType">
+		<xs:sequence>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="Datasheet" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="ProductDescription" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="ProductTraining" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="ProductSales" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="ProductVideo" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="ReferenceDesign" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ReferenceManufacturerPartNumber-ArrayType">
+		<xs:sequence>
+			<xs:element name="PartDetails" type="ReferencePartDetailsType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:annotation>
+		<xs:appinfo>
+			<jaxb:globalBindings typesafeEnumMaxMembers="0"/>
+		</xs:appinfo>
+	</xs:annotation>
+	<xs:complexType name="PartNumberType">
+		<xs:sequence>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="Name" type="xs:string"/>
+			<xs:element name="Field-Array" type="PartNumberField-ArrayType">
+				<xs:key name="PartNumberFieldNameKey">
+					<xs:selector xpath="Field"/>
+					<xs:field xpath="Name"/>
+				</xs:key>
+			</xs:element>
+			<xs:element name="FieldCodeConstraints-Array" type="FieldCodeConstraints-ArrayType" minOccurs="0"/>
+			<xs:element name="ManufacturerID" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PartNumberField-ArrayType">
+		<xs:sequence>
+			<xs:element name="Field" type="PartNumberFieldType" maxOccurs="unbounded">
+				<xs:key name="PartNumberFieldCodeKey">
+					<xs:selector xpath="Code"/>
+					<xs:field xpath="."/>
+				</xs:key>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PartNumberFieldType">
+		<xs:sequence>
+			<xs:element name="Name" type="xs:string"/>
+			<xs:sequence maxOccurs="unbounded">
+				<xs:element name="Code" type="xs:string"/>
+				<xs:element name="CodeValue" type="xs:string" minOccurs="0"/>
+			</xs:sequence>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="FieldCodeConstraints-ArrayType">
+		<xs:sequence>
+			<xs:choice minOccurs="0" maxOccurs="unbounded">
+				<xs:element name="CombinationsAllowed" type="FieldCodeConstraintsType"/>
+				<xs:element name="CombinationsNot-allowed" type="FieldCodeConstraintsType"/>
+			</xs:choice>
+			<xs:element name="AdditionalConstraints" type="AdditionalConstraintsType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="FieldCodeConstraintsType">
+		<xs:sequence>
+			<xs:element name="Field" type="FamilyNameFieldType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="FamilyNameFieldType">
+		<xs:sequence>
+			<xs:element name="Name" type="xs:string"/>
+			<xs:choice>
+				<xs:element name="Code" type="xs:string" maxOccurs="unbounded"/>
+				<xs:element name="Rule" type="ConstraintRuleType" maxOccurs="unbounded"/>
+			</xs:choice>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="OrderablePartNumberType">
+		<xs:sequence>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="PartNumber" type="xs:string"/>
+			<xs:element name="PartDetailsID" type="xs:string" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="OrderablePartNumber-ArrayType">
+		<xs:sequence>
+			<xs:element name="OrderablePartNumber" type="OrderablePartNumberType" maxOccurs="unbounded">
+				<xs:unique name="PartDetailsID">
+					<xs:selector xpath="PartDetailsID"/>
+					<xs:field xpath="."/>
+				</xs:unique>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="PartDetailsType">
+		<xs:sequence>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="Name" type="xs:string" minOccurs="0"/>
+			<xs:element name="ManufacturerID" type="xs:string"/>
+			<xs:choice>
+				<xs:element name="PartialPartNumber" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="Family" type="FamilyNameType" minOccurs="0"/>
+			</xs:choice>
+			<xs:sequence>
+				<xs:element name="ReferenceDocumentsID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="ProcessSensitivityLevelsID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="MoistureSensitivityLevelsClassificationID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="StorageTemperatureID" type="xs:string" minOccurs="0"/>
+				<xs:element name="PartClassificationID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="SymbolID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="ElectricalID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="ElectricalSpecificationID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="TruthTableID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="SimulationModelID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="RequiredCircuitryID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="ReferenceDesignID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="EnvironmentalDeclarationFamilyID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="PackageID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="ThermalFamilyID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+			</xs:sequence>
+			<xs:element name="EquivalentParts" type="EquivalencyPartsType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ReferencePartDetailsType">
+		<xs:sequence>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="Name" type="xs:string" minOccurs="0"/>
+			<xs:element name="ManufacturerID" type="xs:string" minOccurs="0"/>
+			<xs:choice>
+				<xs:element name="OrderablePartNumber" type="xs:string" minOccurs="0"/>
+				<xs:element name="PartialPartNumber" type="xs:string" minOccurs="0"/>
+			</xs:choice>
+			<xs:sequence>
+				<xs:element name="ReferenceDocumentsID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="ProcessSensitivityLevelsID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="MoistureSensitivityLevelClassificationID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="StorageTemperatureID" type="xs:string" minOccurs="0"/>
+				<xs:element name="PartClassificationID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="SymbolID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="ElectricalID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="TruthTableID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="ElectricalSpecificationID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="SimulationModelID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="RequiredCircuitryID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="ReferenceDesignID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="EnvironmentalDeclarationFamilyID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="PackageID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="ThermalFamilyID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+			</xs:sequence>
+			<xs:element name="EquivalentParts" type="EquivalencyPartsType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="FamilyNameType">
+		<xs:sequence>
+			<xs:element name="PartNumberConstructionID" type="xs:string" minOccurs="0"/>
+			<xs:element name="Field-Array" type="PartNumberField-ArrayType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AdditionalConstraintsType">
+		<xs:choice maxOccurs="unbounded">
+			<xs:element name="AllowablePartNumbers" type="xs:string"/>
+			<xs:element name="Non-allowablePartNumbers" type="xs:string"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="ConstraintRuleType">
+		<xs:sequence>
+			<xs:element name="FromCode" type="xs:string"/>
+			<xs:element name="ToCode" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="SupplierPartNumber-ArrayType">
+		<xs:sequence>
+			<xs:element name="SupplierPartNumber" type="SupplierPartNumberType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<!---->
+	<xs:element name="EnvironmentalSection" type="EnvironmentalSectionType"/>
+	<xs:complexType name="EnvironmentalSectionType">
+		<xs:sequence minOccurs="0">
+			<xs:element name="EnvironmentalDeclerationFamily-Array" type="MaterialDeclaration-ArrayType">
+				<xs:key name="EnvironmentalDeclarationKey">
+					<xs:selector xpath="EnvironmentalDeclaration"/>
+					<xs:field xpath="ID"/>
+				</xs:key>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<!---->
+	<!--Beginning of Material Declaration Section-->
+	<xs:complexType name="MaterialDeclaration-ArrayType">
+		<xs:sequence>
+			<xs:element name="EnvironmentalDeclaration" type="MaterialDeclarationType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="MaterialDeclarationType">
+		<xs:sequence>
+			<xs:element name="ID" type="xs:string"/>
+			<xs:element name="LeadFree" type="LeadFreeType" minOccurs="0"/>
+			<xs:element name="RoHsCompliance" type="RoHsComplianceType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="LeadFreeType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="Yes"/>
+			<xs:enumeration value="No"/>
+			<xs:enumeration value="Unspecified"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="RoHsComplianceType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="Yes"/>
+			<xs:enumeration value="No"/>
+			<xs:enumeration value="Unspecified"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!--End of Material Declaration Section-->
+	<!---->
+</xs:schema>
