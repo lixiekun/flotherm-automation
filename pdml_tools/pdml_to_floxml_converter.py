@@ -1716,9 +1716,9 @@ class PDMLBinaryReader:
                                 if idx < len(self._gc_names_cache):
                                     gc_name = self._gc_names_cache[idx]
                         elif field_index == 5:
-                            # vt=0x01 flag=1 → localized_grid=true
-                            # vt=0x02 → localized_grid=false
-                            localized_grid = (vt == 0x01 and self.data[j + 5] == 1)
+                            # vt=0x02 → localized_grid=true (localized grid)
+                            # vt=0x01 → localized_grid=false (global constraint)
+                            localized_grid = (vt == 0x02)
 
         return gc_name, localized_grid
 
