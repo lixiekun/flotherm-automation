@@ -1485,30 +1485,44 @@ class PDMLBinaryReader:
     def _extract_transient_settings_from_binary(self, model: PDMLModelSettings):
         """Extract transient settings from PDML binary.
 
-        Scans the model region for transient-related fields.
+        Locates the 0x00F0 parent tagged string then scans its child fields:
+          [1] double → start_time
+          [2] double → end_time
+          [3] double → (reserved / duplicate)
+          [4] double → (reserved / duplicate)
+          [5] double → keypoint_tolerance
         If not found, transient_settings remains None (builder will use defaults).
         """
-        if 'model' not in self.sections:
+        # Find the 0x00F0 parent tagged string (like time patches use 0x00E0)
+        parent_offset = None
+        for record in self.tagged_strings:
+            if record['type_code'] == 0x00F0:
+                parent_offset = record['offset']
+                break
+
+        if parent_offset is None:
             return
 
-        section_start = self.sections['model']
-        section_end = self.sections.get('attributes', section_start + 5000)
-        scan_start = section_start
-        scan_end = min(section_end, len(self.data) - 20)
+        # Scan child fields starting just past the parent tagged string header
+        # Parent format: 07 02 00 F0 reserved(2B) length(4B) [data] [trailer]
+        # Skip past the header: 10 bytes minimum + any string data
+        skip = 10  # marker(2) + tc(2) + reserved(2) + length(4)
+        # Find the first 0x0A child field marker after the parent
+        scan_start = parent_offset + skip
+        scan_end = min(scan_start + 500, len(self.data) - 20)
 
-        # Try 0x00F0 first
         fields = self._scan_typed_fields(scan_start, scan_end, 0x00F0)
         if fields:
             ts = PDMLTransientSettings()
             has_data = False
-            if 0 in fields and 'double' in fields[0]:
-                ts.start_time = fields[0]['double']
-                has_data = True
             if 1 in fields and 'double' in fields[1]:
-                ts.end_time = fields[1]['double']
+                ts.start_time = fields[1]['double']
                 has_data = True
             if 2 in fields and 'double' in fields[2]:
-                ts.keypoint_tolerance = fields[2]['double']
+                ts.end_time = fields[2]['double']
+                has_data = True
+            if 5 in fields and 'double' in fields[5]:
+                ts.keypoint_tolerance = fields[5]['double']
                 has_data = True
             if has_data:
                 model.transient_settings = ts

@@ -1,4 +1,39 @@
 {
+  "modeling": {
+    "solution": "flow_heat",
+    "dimensionality": "3d",
+    "radiation": "on",
+    "joule_heating": false,
+    "store_mass_flux": false,
+    "store_heat_flux": false,
+    "store_surface_temp": false,
+    "store_grad_t": false,
+    "store_bn_sc": false,
+    "store_power_density": false,
+    "store_mean_radiant_temperature": false
+  },
+  "turbulence": {
+    "type": "laminar"
+  },
+  "gravity": {
+    "type": "normal",
+    "normal_direction": "neg_y",
+    "value_type": "default"
+  },
+  "global": {
+    "datum_pressure": 101325.0,
+    "ambient_temperature": 25.0,
+    "radiant_temperature": 25.0
+  },
+  "initial_variables": {
+    "temperature": {
+      "type": "user_specified",
+      "value": 25.0
+    },
+    "pressure": {
+      "type": "automatic"
+    }
+  },
   "overall_control": {
     "outer_iterations": 500,
     "fan_relaxation": 0.9,
@@ -7,6 +42,7 @@
     "monitor_convergence": true,
     "active_plate_conduction": false,
     "use_double_precision": false,
+    "multi_grid_damping": false,
     "network_assembly_block_correction": false,
     "freeze_flow": false,
     "store_error_field": false,
@@ -14,6 +50,15 @@
       "required_accuracy": 0.2,
       "num_iterations": 45,
       "residual_threshold": 200
+    },
+    "monitor_point_transient_termination_criteria": {
+      "use_monitor_point_transient_termination_criteria": false,
+      "terminating_monitor_points": [
+        {
+          "monitor_point": "Monitor.1",
+          "temperature": 85.0
+        }
+      ]
     }
   },
   "variable_controls": [
@@ -21,32 +66,40 @@
       "variable": "x_velocity",
       "false_time_step": "user",
       "false_time_step_user_value": 1.5,
+      "false_time_step_damping_auto_multiplier": 0,
       "terminal_residual": "automatic",
       "terminal_residual_auto_multiplier": 1,
+      "terminal_residual_user_value": null,
       "inner_iterations": 1
     },
     {
       "variable": "y_velocity",
       "false_time_step": "user",
       "false_time_step_user_value": 1.5,
+      "false_time_step_damping_auto_multiplier": 0,
       "terminal_residual": "automatic",
       "terminal_residual_auto_multiplier": 1,
+      "terminal_residual_user_value": null,
       "inner_iterations": 1
     },
     {
       "variable": "z_velocity",
       "false_time_step": "user",
       "false_time_step_user_value": 1.5,
+      "false_time_step_damping_auto_multiplier": 0,
       "terminal_residual": "automatic",
       "terminal_residual_auto_multiplier": 1,
+      "terminal_residual_user_value": null,
       "inner_iterations": 1
     },
     {
       "variable": "temperature",
       "false_time_step": "user",
       "false_time_step_user_value": 1.5,
+      "false_time_step_damping_auto_multiplier": 0,
       "terminal_residual": "automatic",
       "terminal_residual_auto_multiplier": 1,
+      "terminal_residual_user_value": null,
       "inner_iterations": 1
     }
   ],

@@ -77,6 +77,7 @@ BOOL_FIELDS = (
     "monitor_convergence",
     "active_plate_conduction",
     "use_double_precision",
+    "multi_grid_damping",
     "network_assembly_block_correction",
     "freeze_flow",
     "store_error_field",
@@ -146,6 +147,25 @@ def _apply_overall_control(solve: ET.Element, cfg: Dict) -> None:
             if fname in cv_cfg:
                 _set_text(cv, fname, _format_value(cv_cfg[fname], ftype))
 
+    # monitor_point_transient_termination_criteria
+    mpttc_cfg = cfg.get("monitor_point_transient_termination_criteria")
+    if mpttc_cfg and isinstance(mpttc_cfg, dict):
+        mpttc = _find_or_create(oc, "monitor_point_transient_termination_criteria")
+        if "use_monitor_point_transient_termination_criteria" in mpttc_cfg:
+            _set_text(mpttc, "use_monitor_point_transient_termination_criteria",
+                      _format_value(mpttc_cfg["use_monitor_point_transient_termination_criteria"], bool))
+        tmp_cfg = mpttc_cfg.get("terminating_monitor_points")
+        if tmp_cfg and isinstance(tmp_cfg, list):
+            tmp_parent = _find_or_create(mpttc, "terminating_monitor_points")
+            for old in tmp_parent.findall("terminating_monitor_point"):
+                tmp_parent.remove(old)
+            for mp_cfg in tmp_cfg:
+                mp = ET.SubElement(tmp_parent, "terminating_monitor_point")
+                if "monitor_point" in mp_cfg:
+                    _set_text(mp, "monitor_point", str(mp_cfg["monitor_point"]))
+                if "temperature" in mp_cfg:
+                    _set_text(mp, "temperature", _format_value(mp_cfg["temperature"], float))
+
 
 def _apply_variable_controls(solve: ET.Element, controls: List[Dict]) -> None:
     """Create/update <variable_controls> with multiple <variable_control> entries."""
@@ -171,11 +191,13 @@ def _apply_variable_controls(solve: ET.Element, controls: List[Dict]) -> None:
         for field, ftype in (
             ("false_time_step", str),
             ("false_time_step_user_value", float),
+            ("false_time_step_damping_auto_multiplier", float),
             ("terminal_residual", str),
-            ("terminal_residual_auto_multiplier", int),
+            ("terminal_residual_auto_multiplier", float),
+            ("terminal_residual_user_value", float),
             ("inner_iterations", int),
         ):
-            if field in ctrl_cfg:
+            if field in ctrl_cfg and ctrl_cfg[field] is not None:
                 _set_text(entry, field, _format_value(ctrl_cfg[field], ftype))
 
 
@@ -332,8 +354,152 @@ def _apply_transient_settings(root: ET.Element, config: Dict) -> None:
 # Main entry
 # ============================================================================
 
+# --- Model section builders ---
+
+MODELING_STRING_FIELDS = (
+    "solution",       # flow_heat | flow_only | conduction_only
+    "dimensionality", # 2d | 3d
+    "radiation",      # off | on | high_accuracy
+)
+
+MODELING_BOOL_FIELDS = (
+    "joule_heating",
+    "store_mass_flux",
+    "store_heat_flux",
+    "store_surface_temp",
+    "store_grad_t",
+    "store_bn_sc",
+    "store_power_density",
+    "store_mean_radiant_temperature",
+    "compute_capture_index",
+    "user_defined_subgroups",
+    "store_lma",
+    "store_visibility",
+)
+
+MODELING_FLOAT_FIELDS = (
+    "recirculation_ratio",
+)
+
+
+def _apply_modeling(model: ET.Element, cfg: Dict) -> None:
+    """Create/update <model>/<modeling>."""
+    modeling = _find_or_create_modeling(model)
+
+    for field in MODELING_STRING_FIELDS:
+        if field in cfg:
+            _set_text(modeling, field, str(cfg[field]))
+
+    for field in MODELING_BOOL_FIELDS:
+        if field in cfg:
+            _set_text(modeling, field, _format_value(cfg[field], bool))
+
+    for field in MODELING_FLOAT_FIELDS:
+        if field in cfg:
+            _set_text(modeling, field, _format_value(cfg[field], float))
+
+
+def _apply_turbulence(model: ET.Element, cfg: Dict) -> None:
+    """Create/update <model>/<turbulence>."""
+    turb = _find_or_create(model, "turbulence")
+
+    for field in ("type", "turbulence_type"):
+        if field in cfg:
+            _set_text(turb, field, str(cfg[field]))
+
+    if "lvel_k_epsilon_stratification" in cfg:
+        _set_text(turb, "lvel_k_epsilon_stratification",
+                  _format_value(cfg["lvel_k_epsilon_stratification"], bool))
+    if "capped_lvel_multiplier" in cfg:
+        _set_text(turb, "capped_lvel_multiplier",
+                  _format_value(cfg["capped_lvel_multiplier"], float))
+
+    # revised_algebraic sub-element
+    ra_cfg = cfg.get("revised_algebraic")
+    if ra_cfg and isinstance(ra_cfg, dict):
+        ra = _find_or_create(turb, "revised_algebraic")
+        if "velocity" in ra_cfg:
+            _set_text(ra, "velocity", _format_value(ra_cfg["velocity"], float))
+        if "length" in ra_cfg:
+            _set_text(ra, "length", _format_value(ra_cfg["length"], float))
+
+
+def _apply_gravity(model: ET.Element, cfg: Dict) -> None:
+    """Create/update <model>/<gravity>."""
+    grav = _find_or_create(model, "gravity")
+
+    for field in ("type", "normal_direction", "value_type"):
+        if field in cfg:
+            _set_text(grav, field, str(cfg[field]))
+
+    if "gravity_value" in cfg:
+        _set_text(grav, "gravity_value", _format_value(cfg["gravity_value"], float))
+
+    # angled_direction (triplet)
+    ad_cfg = cfg.get("angled_direction")
+    if ad_cfg and isinstance(ad_cfg, dict):
+        ad = _find_or_create(grav, "angled_direction")
+        for axis in ("x", "y", "z"):
+            if axis in ad_cfg:
+                _set_text(ad, axis, _format_value(ad_cfg[axis], float))
+
+
+GLOBAL_FIELDS = {
+    "datum_pressure": float,
+    "radiant_temperature": float,
+    "ambient_temperature": float,
+    "ambient_transient": str,
+    "radiant_transient": str,
+}
+
+
+def _apply_global(model: ET.Element, cfg: Dict) -> None:
+    """Create/update <model>/<global>."""
+    g = _find_or_create(model, "global")
+
+    for fname, ftype in GLOBAL_FIELDS.items():
+        if fname in cfg:
+            _set_text(g, fname, _format_value(cfg[fname], ftype))
+
+    for i in range(1, 16):
+        key = f"concentration_{i}"
+        if key in cfg:
+            _set_text(g, key, _format_value(cfg[key], float))
+
+
+_INITIAL_VAR_NAMES = [
+    "pressure", "x_velocity", "y_velocity", "z_velocity", "temperature",
+    "ke_turb", "diss_turb", "turb_vis", "density", "potential",
+] + [f"concentration_{i}" for i in range(1, 16)]
+
+
+def _apply_initial_variables(model: ET.Element, cfg: Dict) -> None:
+    """Create/update <model>/<initial_variables>."""
+    iv = _find_or_create(model, "initial_variables")
+
+    for field in ("initial_solution_name", "initial_solution_id"):
+        if field in cfg:
+            _set_text(iv, field, str(cfg[field]))
+
+    if "use_initial_for_all" in cfg:
+        _set_text(iv, "use_initial_for_all", _format_value(cfg["use_initial_for_all"], bool))
+
+    for var_name in _INITIAL_VAR_NAMES:
+        var_cfg = cfg.get(var_name)
+        if var_cfg and isinstance(var_cfg, dict):
+            var_elem = _find_or_create(iv, var_name)
+            if "type" in var_cfg:
+                _set_text(var_elem, "type", str(var_cfg["type"]))
+            if "value" in var_cfg:
+                _set_text(var_elem, "value", _format_value(var_cfg["value"], float))
+
+
+# ============================================================================
+# Main entry (dispatch)
+# ============================================================================
+
 def apply_solve_settings(root: ET.Element, config: Dict) -> ET.Element:
-    """Main entry: apply all solve and transient config sections to a FloXML tree."""
+    """Main entry: apply all solve, model, and transient config sections to a FloXML tree."""
     solve = _find_or_create_solve(root)
 
     if "overall_control" in config:
@@ -345,8 +511,22 @@ def apply_solve_settings(root: ET.Element, config: Dict) -> ET.Element:
     if "solver_controls" in config:
         _apply_solver_controls(solve, config["solver_controls"])
 
-    if "transient" in config:
-        _apply_transient_settings(root, config)
+    # Model-level settings
+    model_keys = ("modeling", "turbulence", "gravity", "global", "initial_variables", "transient")
+    if any(k in config for k in model_keys):
+        model = _find_or_create_model(root)
+        if "modeling" in config:
+            _apply_modeling(model, config["modeling"])
+        if "turbulence" in config:
+            _apply_turbulence(model, config["turbulence"])
+        if "gravity" in config:
+            _apply_gravity(model, config["gravity"])
+        if "global" in config:
+            _apply_global(model, config["global"])
+        if "initial_variables" in config:
+            _apply_initial_variables(model, config["initial_variables"])
+        if "transient" in config:
+            _apply_transient_settings(root, config)
 
     return root
 
@@ -464,8 +644,10 @@ def _read_controls_sheet(ws, entry_tag: str) -> List[Dict]:
             for col, key, ftype in (
                 ("false_time_step", "false_time_step", str),
                 ("false_time_step_user_value", "false_time_step_user_value", float),
+                ("false_time_step_damping_auto_multiplier", "false_time_step_damping_auto_multiplier", float),
                 ("terminal_residual", "terminal_residual", str),
-                ("terminal_residual_auto_multiplier", "terminal_residual_auto_multiplier", int),
+                ("terminal_residual_auto_multiplier", "terminal_residual_auto_multiplier", float),
+                ("terminal_residual_user_value", "terminal_residual_user_value", float),
                 ("inner_iterations", "inner_iterations", int),
             ):
                 raw = rd.get(col)
@@ -566,6 +748,150 @@ def _read_time_patches_sheet(ws) -> List[Dict]:
     return results
 
 
+def _read_key_value_sheet(ws, string_fields=(), bool_fields=(), float_fields=()) -> Dict:
+    """Generic reader for simple key-value sheets (single row or merged rows)."""
+    headers = [str(ws.cell(row=1, column=c).value or "").strip()
+               for c in range(1, ws.max_column + 1)]
+    if not headers or not headers[0]:
+        return {}
+
+    result: Dict = {}
+    for row in range(2, ws.max_row + 1):
+        rd = _row_dict(ws, row, headers)
+        if not rd:
+            continue
+
+        for col_name in string_fields:
+            raw = rd.get(col_name)
+            if raw is not None and str(raw).strip():
+                result[col_name] = str(raw).strip()
+
+        for col_name in bool_fields:
+            v = _parse_bool(rd.get(col_name))
+            if v is not None:
+                result[col_name] = v
+
+        for col_name in float_fields:
+            raw = rd.get(col_name)
+            if raw is not None and (not isinstance(raw, str) or raw.strip()):
+                try:
+                    result[col_name] = float(raw)
+                except (ValueError, TypeError):
+                    pass
+
+    return result
+
+
+def _read_modeling_sheet(ws) -> Dict:
+    """Read modeling sheet."""
+    data = _read_key_value_sheet(
+        ws,
+        string_fields=MODELING_STRING_FIELDS,
+        bool_fields=MODELING_BOOL_FIELDS,
+        float_fields=MODELING_FLOAT_FIELDS,
+    )
+    return {"modeling": data} if data else {}
+
+
+def _read_turbulence_sheet(ws) -> Dict:
+    """Read turbulence sheet."""
+    data = _read_key_value_sheet(
+        ws,
+        string_fields=("type", "turbulence_type"),
+        bool_fields=("lvel_k_epsilon_stratification",),
+        float_fields=("capped_lvel_multiplier",),
+    )
+    # revised_algebraic sub-columns: ra_velocity, ra_length
+    headers = [str(ws.cell(row=1, column=c).value or "").strip()
+               for c in range(1, ws.max_column + 1)]
+    for row in range(2, ws.max_row + 1):
+        rd = _row_dict(ws, row, headers)
+        ra: Dict = {}
+        for sub_key, col in (("velocity", "ra_velocity"), ("length", "ra_length")):
+            raw = rd.get(col)
+            if raw is not None and (not isinstance(raw, str) or raw.strip()):
+                try:
+                    ra[sub_key] = float(raw)
+                except (ValueError, TypeError):
+                    pass
+        if ra:
+            data["revised_algebraic"] = ra
+    return {"turbulence": data} if data else {}
+
+
+def _read_gravity_sheet(ws) -> Dict:
+    """Read gravity sheet."""
+    data = _read_key_value_sheet(
+        ws,
+        string_fields=("type", "normal_direction", "value_type"),
+        float_fields=("gravity_value", "angled_x", "angled_y", "angled_z"),
+    )
+    # angled_direction triplet
+    ad: Dict = {}
+    for axis, col in (("x", "angled_x"), ("y", "angled_y"), ("z", "angled_z")):
+        if col in data:
+            ad[axis] = data.pop(col)
+    if ad:
+        data["angled_direction"] = ad
+    return {"gravity": data} if data else {}
+
+
+def _read_global_sheet(ws) -> Dict:
+    """Read global sheet."""
+    float_fields = list(GLOBAL_FIELDS.keys()) + [f"concentration_{i}" for i in range(1, 16)]
+    # string fields: ambient_transient, radiant_transient
+    data = _read_key_value_sheet(
+        ws,
+        string_fields=("ambient_transient", "radiant_transient"),
+        float_fields=[f for f in float_fields if GLOBAL_FIELDS.get(f) is float or f.startswith("concentration_")],
+    )
+    return {"global": data} if data else {}
+
+
+def _read_initial_variables_sheet(ws) -> Dict:
+    """Read initial_variables sheet -> dict with variable entries."""
+    headers = [str(ws.cell(row=1, column=c).value or "").strip()
+               for c in range(1, ws.max_column + 1)]
+    if not headers or not headers[0]:
+        return {}
+
+    result: Dict = {}
+    for row in range(2, ws.max_row + 1):
+        rd = _row_dict(ws, row, headers)
+        if not rd:
+            continue
+
+        for field in ("initial_solution_name", "initial_solution_id"):
+            raw = rd.get(field)
+            if raw is not None and str(raw).strip():
+                result[field] = str(raw).strip()
+
+        if "use_initial_for_all" in headers:
+            v = _parse_bool(rd.get("use_initial_for_all"))
+            if v is not None:
+                result["use_initial_for_all"] = v
+
+        # variable field values: columns named like pressure_type, pressure_value, etc.
+        for var_name in _INITIAL_VAR_NAMES:
+            type_col = f"{var_name}_type"
+            val_col = f"{var_name}_value"
+            if type_col in headers or val_col in headers:
+                var_cfg: Dict = {}
+                raw_type = rd.get(type_col)
+                if raw_type is not None and str(raw_type).strip():
+                    var_cfg["type"] = str(raw_type).strip()
+                raw_val = rd.get(val_col)
+                if raw_val is not None and (not isinstance(raw_val, str) or raw_val.strip()):
+                    try:
+                        var_cfg["value"] = float(raw_val)
+                    except (ValueError, TypeError):
+                        pass
+                if var_cfg:
+                    result[var_name] = var_cfg
+
+    return {"initial_variables": result} if result else {}
+
+
 def load_excel(path: Path) -> Dict:
     try:
         from openpyxl import load_workbook as _load_wb
@@ -574,6 +900,31 @@ def load_excel(path: Path) -> Dict:
 
     wb = _load_wb(str(path), read_only=True, data_only=True)
     config: Dict = {}
+
+    # modeling
+    if "modeling" in wb.sheetnames:
+        data = _read_modeling_sheet(wb["modeling"])
+        config.update(data)
+
+    # turbulence
+    if "turbulence" in wb.sheetnames:
+        data = _read_turbulence_sheet(wb["turbulence"])
+        config.update(data)
+
+    # gravity
+    if "gravity" in wb.sheetnames:
+        data = _read_gravity_sheet(wb["gravity"])
+        config.update(data)
+
+    # global
+    if "global" in wb.sheetnames:
+        data = _read_global_sheet(wb["global"])
+        config.update(data)
+
+    # initial_variables
+    if "initial_variables" in wb.sheetnames:
+        data = _read_initial_variables_sheet(wb["initial_variables"])
+        config.update(data)
 
     # overall_control
     if "overall_control" in wb.sheetnames:
@@ -643,73 +994,130 @@ def create_template_excel(output_path: str) -> None:
         for idx in range(1, ws.max_column + 1):
             ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = w
 
-    # ── Sheet 1: overall_control ──
+    # ── Sheet 1: modeling ──
     ws1 = wb.active
-    ws1.title = "overall_control"
+    ws1.title = "modeling"
     _headers(ws1, [
-        "outer_iterations", "fan_relaxation", "estimated_free_convection_velocity",
-        "solver_option", "monitor_convergence",
-        "active_plate_conduction", "use_double_precision",
-        "network_assembly_block_correction", "freeze_flow", "store_error_field",
-        "error_field_variable",
-        "required_accuracy", "num_iterations", "residual_threshold",
+        "solution", "dimensionality", "radiation", "joule_heating",
+        "store_mass_flux", "store_heat_flux", "store_surface_temp",
+        "store_grad_t", "store_bn_sc", "store_power_density",
+        "store_mean_radiant_temperature",
     ])
-    example1 = [500, 0.9, 0.2, "multi_grid", "true",
-                "false", "false", "false", "false", "false",
-                "", 0.2, 45, 200]
+    example1 = ["flow_heat", "3d", "on", "false",
+                "false", "false", "false", "false", "false", "false", "false"]
     for c, val in enumerate(example1, 1):
         ws1.cell(row=2, column=c, value=val)
     _widths(ws1)
 
-    # ── Sheet 2: variable_controls ──
-    ws2 = wb.create_sheet("variable_controls")
-    _headers(ws2, [
-        "variable", "false_time_step", "false_time_step_user_value",
-        "terminal_residual", "terminal_residual_auto_multiplier", "inner_iterations",
-    ])
-    for r, (var, fts, ftsv, tr, tram, ii) in enumerate([
-        ("x_velocity", "user", 1.5, "automatic", 1, 1),
-        ("y_velocity", "user", 1.5, "automatic", 1, 1),
-        ("z_velocity", "user", 1.5, "automatic", 1, 1),
-        ("temperature", "user", 1.5, "automatic", 1, 1),
-    ], 2):
-        ws2.cell(row=r, column=1, value=var)
-        ws2.cell(row=r, column=2, value=fts)
-        ws2.cell(row=r, column=3, value=ftsv)
-        ws2.cell(row=r, column=4, value=tr)
-        ws2.cell(row=r, column=5, value=tram)
-        ws2.cell(row=r, column=6, value=ii)
+    # ── Sheet 2: turbulence ──
+    ws2 = wb.create_sheet("turbulence")
+    _headers(ws2, ["type", "turbulence_type", "lvel_k_epsilon_stratification",
+                    "capped_lvel_multiplier", "ra_velocity", "ra_length"])
+    example2 = ["laminar", "", "false", "", "", ""]
+    for c, val in enumerate(example2, 1):
+        if val != "":
+            ws2.cell(row=2, column=c, value=val)
     _widths(ws2)
 
-    # ── Sheet 3: solver_controls ──
-    ws3 = wb.create_sheet("solver_controls")
-    _headers(ws3, ["variable", "linear_relaxation", "error_compute_frequency"])
+    # ── Sheet 3: gravity ──
+    ws3 = wb.create_sheet("gravity")
+    _headers(ws3, ["type", "normal_direction", "value_type", "gravity_value",
+                    "angled_x", "angled_y", "angled_z"])
+    example3 = ["normal", "neg_y", "default", "", "", "", ""]
+    for c, val in enumerate(example3, 1):
+        if val != "":
+            ws3.cell(row=2, column=c, value=val)
+    _widths(ws3)
+
+    # ── Sheet 4: global ──
+    ws4 = wb.create_sheet("global")
+    _headers(ws4, ["datum_pressure", "ambient_temperature", "radiant_temperature",
+                    "ambient_transient", "radiant_transient"])
+    example4 = [101325.0, 25.0, 25.0, "", ""]
+    for c, val in enumerate(example4, 1):
+        if val != "":
+            ws4.cell(row=2, column=c, value=val)
+    _widths(ws4)
+
+    # ── Sheet 5: initial_variables ──
+    ws5 = wb.create_sheet("initial_variables")
+    iv_headers = ["initial_solution_name", "initial_solution_id", "use_initial_for_all"]
+    for var_name in ("pressure", "x_velocity", "y_velocity", "z_velocity", "temperature"):
+        iv_headers.extend([f"{var_name}_type", f"{var_name}_value"])
+    _headers(ws5, iv_headers)
+    example5 = ["", "", "false",
+                "automatic", "", "automatic", "", "automatic", "", "automatic", "",
+                "user_specified", 25.0]
+    for c, val in enumerate(example5, 1):
+        if val != "":
+            ws5.cell(row=2, column=c, value=val)
+    _widths(ws5)
+
+    # ── Sheet 6: overall_control ──
+    ws6 = wb.create_sheet("overall_control")
+    _headers(ws6, [
+        "outer_iterations", "fan_relaxation", "estimated_free_convection_velocity",
+        "solver_option", "monitor_convergence",
+        "active_plate_conduction", "use_double_precision", "multi_grid_damping",
+        "network_assembly_block_correction", "freeze_flow", "store_error_field",
+        "error_field_variable",
+        "required_accuracy", "num_iterations", "residual_threshold",
+    ])
+    example6 = [500, 0.9, 0.2, "multi_grid", "true",
+                "false", "false", "false", "false", "false", "false",
+                "", 0.2, 45, 200]
+    for c, val in enumerate(example6, 1):
+        ws6.cell(row=2, column=c, value=val)
+    _widths(ws6)
+
+    # ── Sheet 7: variable_controls ──
+    ws7 = wb.create_sheet("variable_controls")
+    _headers(ws7, [
+        "variable", "false_time_step", "false_time_step_user_value",
+        "false_time_step_damping_auto_multiplier",
+        "terminal_residual", "terminal_residual_auto_multiplier",
+        "terminal_residual_user_value", "inner_iterations",
+    ])
+    for r, row_data in enumerate([
+        ("x_velocity", "user", 1.5, 0, "automatic", 1, "", 1),
+        ("y_velocity", "user", 1.5, 0, "automatic", 1, "", 1),
+        ("z_velocity", "user", 1.5, 0, "automatic", 1, "", 1),
+        ("temperature", "user", 1.5, 0, "automatic", 1, "", 1),
+    ], 2):
+        for c, val in enumerate(row_data, 1):
+            if val != "":
+                ws7.cell(row=r, column=c, value=val)
+    _widths(ws7)
+
+    # ── Sheet 8: solver_controls ──
+    ws8 = wb.create_sheet("solver_controls")
+    _headers(ws8, ["variable", "linear_relaxation", "error_compute_frequency"])
     for r, (var, lr, ecf) in enumerate([
         ("pressure", 0.3, 0),
         ("temperature", 0.7, 0),
     ], 2):
-        ws3.cell(row=r, column=1, value=var)
-        ws3.cell(row=r, column=2, value=lr)
-        ws3.cell(row=r, column=3, value=ecf)
-    _widths(ws3)
+        ws8.cell(row=r, column=1, value=var)
+        ws8.cell(row=r, column=2, value=lr)
+        ws8.cell(row=r, column=3, value=ecf)
+    _widths(ws8)
 
-    # ── Sheet 4: transient_overall ──
-    ws4 = wb.create_sheet("transient_overall")
-    _headers(ws4, ["start_time", "end_time", "duration", "keypoint_tolerance"])
+    # ── Sheet 9: transient_overall ──
+    ws9 = wb.create_sheet("transient_overall")
+    _headers(ws9, ["start_time", "end_time", "duration", "keypoint_tolerance"])
     for c, val in enumerate([0, 60, 60, 0.0001], 1):
-        ws4.cell(row=2, column=c, value=val)
-    _widths(ws4)
+        ws9.cell(row=2, column=c, value=val)
+    _widths(ws9)
 
-    # ── Sheet 5: transient_save_times ──
-    ws5 = wb.create_sheet("transient_save_times")
-    _headers(ws5, ["save_time"])
+    # ── Sheet 10: transient_save_times ──
+    ws10 = wb.create_sheet("transient_save_times")
+    _headers(ws10, ["save_time"])
     for r, val in enumerate([0, 30, 60], 2):
-        ws5.cell(row=r, column=1, value=val)
-    _widths(ws5)
+        ws10.cell(row=r, column=1, value=val)
+    _widths(ws10)
 
-    # ── Sheet 6: time_patches ──
-    ws6 = wb.create_sheet("time_patches")
-    _headers(ws6, [
+    # ── Sheet 11: time_patches ──
+    ws11 = wb.create_sheet("time_patches")
+    _headers(ws11, [
         "name", "start_time", "end_time",
         "step_control", "additional_steps", "minimum_number", "maximum_size",
         "step_distribution", "distribution_index",
@@ -720,8 +1128,8 @@ def create_template_excel(output_path: str) -> None:
     ], 2):
         for c, val in enumerate(row_data, 1):
             if val is not None:
-                ws6.cell(row=r, column=c, value=val)
-    _widths(ws6)
+                ws11.cell(row=r, column=c, value=val)
+    _widths(ws11)
 
     wb.save(output_path)
     print(f"[OK] Template created: {output_path}")
