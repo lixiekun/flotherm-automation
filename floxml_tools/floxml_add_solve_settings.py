@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """
-Add/update FloTHERM solve settings (<solve>) and transient settings (<transient>)
-in an existing FloXML project using JSON or Excel config.
+往 FloXML 里塞求解设置和瞬态设置，支持 JSON 和 Excel 两种配置方式。
 
-Supported sections:
+能配的东西：
+  <solve> 下面：
+    - overall_control   迭代次数、求解器类型、收敛判据那些
+    - variable_controls 每个变量（速度、温度）的求解调参
+    - solver_controls   压力、温度的线性松弛之类的
 
-  Solve settings (<solve>):
-  1. overall_control  – outer iterations, solver option, convergence, booleans
-  2. variable_controls – per-variable (x/y/z_velocity, temperature) solver tuning
-  3. solver_controls   – per-variable linear solver settings (pressure, temperature, …)
+  <model> 下面：
+    - modeling          求解类型（流动+传热/纯导热等）、辐射开关
+    - turbulence        层流/湍流
+    - gravity           重力
+    - global            基准压力、环境温度
+    - initial_variables 初始值
+    - transient         瞬态时间设置（时间段、保存时刻、时间片）
 
-  Transient settings (<model>/<transient>):
-  4. overall_transient – start_time, end_time, duration, keypoint_tolerance
-  5. time_patches      – named time intervals with step control and distribution
-  6. save_times        – time points at which to save solution snapshots
-
-Usage:
+用法：
   python -m floxml_tools.floxml_add_solve_settings model.xml --config solve.json -o out.xml
   python -m floxml_tools.floxml_add_solve_settings model.xml --config solve.xlsx -o out.xml
   python -m floxml_tools.floxml_add_solve_settings --create-template template.xlsx
@@ -31,7 +32,7 @@ import xml.etree.ElementTree as ET
 
 
 # ============================================================================
-# XML helpers (same pattern as floxml_add_volume_regions.py)
+# XML 操作的小工具
 # ============================================================================
 
 def _set_text(parent: ET.Element, tag: str, text: str) -> ET.Element:
@@ -50,13 +51,12 @@ def _find_or_create(parent: ET.Element, tag: str) -> ET.Element:
 
 
 def _find_or_create_solve(root: ET.Element) -> ET.Element:
-    """Find existing <solve> or create it (inserted before <grid> if possible)."""
+    """找 <solve>，没有就建一个，尽量插到 <grid> 前面"""
     solve = root.find("solve")
     if solve is not None:
         return solve
 
     solve = ET.Element("solve")
-    # Insert before <grid> or <solution_domain> for tidy ordering
     insert_before = None
     for idx, child in enumerate(list(root)):
         if child.tag in ("grid", "solution_domain"):
@@ -70,7 +70,7 @@ def _find_or_create_solve(root: ET.Element) -> ET.Element:
 
 
 # ============================================================================
-# Section builders
+# <solve> 下面几个子节点
 # ============================================================================
 
 BOOL_FIELDS = (
@@ -105,7 +105,7 @@ CONVERGENCE_FIELDS = {
 
 
 def _format_value(value, python_type):
-    """Convert a config value to the correct type and return its XML text form."""
+    """把配置值转成 XML 里要写的字符串，顺便处理格式"""
     if python_type is bool:
         if isinstance(value, bool):
             return "true" if value else "false"
@@ -117,16 +117,15 @@ def _format_value(value, python_type):
         fval = float(value)
         if fval == int(fval):
             return str(int(fval))
-        # Use fixed-point format then strip trailing zeros to avoid scientific notation
+        # 用定点格式避免科学计数法，去掉尾巴上的0
         return f"{fval:.15f}".rstrip('0').rstrip('.')
     return str(value)
 
 
 def _apply_overall_control(solve: ET.Element, cfg: Dict) -> None:
-    """Create/update <overall_control> inside <solve>."""
+    """写 <overall_control>"""
     oc = _find_or_create(solve, "overall_control")
 
-    # Simple scalar fields
     for field in BOOL_FIELDS:
         if field in cfg:
             _set_text(oc, field, _format_value(cfg[field], bool))
@@ -143,7 +142,7 @@ def _apply_overall_control(solve: ET.Element, cfg: Dict) -> None:
         if field in cfg:
             _set_text(oc, field, _format_value(cfg[field], str))
 
-    # convergence_values sub-element
+    # convergence_values 子节点
     cv_cfg = cfg.get("convergence_values")
     if cv_cfg and isinstance(cv_cfg, dict):
         cv = _find_or_create(oc, "convergence_values")
@@ -151,7 +150,7 @@ def _apply_overall_control(solve: ET.Element, cfg: Dict) -> None:
             if fname in cv_cfg:
                 _set_text(cv, fname, _format_value(cv_cfg[fname], ftype))
 
-    # monitor_point_transient_termination_criteria
+    # 监控点瞬态终止条件
     mpttc_cfg = cfg.get("monitor_point_transient_termination_criteria")
     if mpttc_cfg and isinstance(mpttc_cfg, dict):
         mpttc = _find_or_create(oc, "monitor_point_transient_termination_criteria")
@@ -172,7 +171,7 @@ def _apply_overall_control(solve: ET.Element, cfg: Dict) -> None:
 
 
 def _apply_variable_controls(solve: ET.Element, controls: List[Dict]) -> None:
-    """Create/update <variable_controls> with multiple <variable_control> entries."""
+    """写 <variable_controls>，每个变量一条"""
     vc_parent = _find_or_create(solve, "variable_controls")
 
     for ctrl_cfg in controls:
@@ -180,7 +179,7 @@ def _apply_variable_controls(solve: ET.Element, controls: List[Dict]) -> None:
         if not variable:
             continue
 
-        # Find existing entry for this variable, or create new
+        # 找已有的同名变量，没有就新建
         entry = None
         for child in vc_parent.findall("variable_control"):
             v_elem = child.find("variable")
@@ -206,7 +205,7 @@ def _apply_variable_controls(solve: ET.Element, controls: List[Dict]) -> None:
 
 
 def _apply_solver_controls(solve: ET.Element, controls: List[Dict]) -> None:
-    """Create/update <solver_controls> with multiple <solver_control> entries."""
+    """写 <solver_controls>，线性松弛那些"""
     sc_parent = _find_or_create(solve, "solver_controls")
 
     for ctrl_cfg in controls:
@@ -214,7 +213,6 @@ def _apply_solver_controls(solve: ET.Element, controls: List[Dict]) -> None:
         if not variable:
             continue
 
-        # Find existing entry for this variable, or create new
         entry = None
         for child in sc_parent.findall("solver_control"):
             v_elem = child.find("variable")
@@ -235,7 +233,7 @@ def _apply_solver_controls(solve: ET.Element, controls: List[Dict]) -> None:
 
 
 # ============================================================================
-# Transient settings (<model>/<transient>)
+# 瞬态设置 <model>/<transient>
 # ============================================================================
 
 OVERALL_TRANSIENT_FIELDS = {
@@ -258,7 +256,6 @@ TIME_PATCH_FIELDS = {
 
 
 def _find_or_create_model(root: ET.Element) -> ET.Element:
-    """Find or create <model> element."""
     model = root.find("model")
     if model is None:
         model = ET.SubElement(root, "model")
@@ -266,7 +263,6 @@ def _find_or_create_model(root: ET.Element) -> ET.Element:
 
 
 def _find_or_create_modeling(model: ET.Element) -> ET.Element:
-    """Find or create <modeling> inside <model>."""
     modeling = model.find("modeling")
     if modeling is None:
         modeling = ET.SubElement(model, "modeling")
@@ -274,13 +270,13 @@ def _find_or_create_modeling(model: ET.Element) -> ET.Element:
 
 
 def _apply_transient_toggle(model: ET.Element, enabled: bool) -> None:
-    """Set <modeling>/<transient> true/false."""
+    """把 <modeling>/<transient> 设成 true/false"""
     modeling = _find_or_create_modeling(model)
     _set_text(modeling, "transient", "true" if enabled else "false")
 
 
 def _apply_overall_transient(model: ET.Element, cfg: Dict) -> None:
-    """Create/update <model>/<transient>/<overall_transient>."""
+    """写整体瞬态参数（起始时间、终止时间、duration、keypoint容差）"""
     transient = _find_or_create(model, "transient")
     ot = _find_or_create(transient, "overall_transient")
 
@@ -290,11 +286,10 @@ def _apply_overall_transient(model: ET.Element, cfg: Dict) -> None:
 
 
 def _apply_save_times(model: ET.Element, times: List[float]) -> None:
-    """Create/update <model>/<transient>/<transient_save_times>."""
+    """写保存时刻，先清掉旧的再写新的"""
     transient = _find_or_create(model, "transient")
     st_parent = _find_or_create(transient, "transient_save_times")
 
-    # Remove existing save_time entries and re-create
     for old in st_parent.findall("save_time"):
         st_parent.remove(old)
 
@@ -304,7 +299,7 @@ def _apply_save_times(model: ET.Element, times: List[float]) -> None:
 
 
 def _apply_time_patches(model: ET.Element, patches: List[Dict]) -> None:
-    """Create/update <model>/<transient>/<time_patches>."""
+    """写时间片，按 name 匹配已有的"""
     transient = _find_or_create(model, "transient")
     tp_parent = _find_or_create(transient, "time_patches")
 
@@ -313,7 +308,6 @@ def _apply_time_patches(model: ET.Element, patches: List[Dict]) -> None:
         if not name:
             continue
 
-        # Find existing time_patch by name, or create new
         entry = None
         for child in tp_parent.findall("time_patch"):
             n = child.find("name")
@@ -331,34 +325,29 @@ def _apply_time_patches(model: ET.Element, patches: List[Dict]) -> None:
 
 
 def _apply_transient_settings(root: ET.Element, config: Dict) -> None:
-    """Apply all transient config sections."""
+    """把 transient 那一坨都写上"""
     transient_cfg = config.get("transient")
     if not transient_cfg:
         return
 
     model = _find_or_create_model(root)
 
-    # Enable transient in <modeling>
+    # 先把 modeling 里的 transient 开关打开
     _apply_transient_toggle(model, True)
 
-    # overall_transient
     if "overall_transient" in transient_cfg:
         _apply_overall_transient(model, transient_cfg["overall_transient"])
 
-    # save_times
     if "save_times" in transient_cfg:
         _apply_save_times(model, transient_cfg["save_times"])
 
-    # time_patches
     if "time_patches" in transient_cfg:
         _apply_time_patches(model, transient_cfg["time_patches"])
 
 
 # ============================================================================
-# Main entry
+# <model> 下面其他几个子节点
 # ============================================================================
-
-# --- Model section builders ---
 
 MODELING_STRING_FIELDS = (
     "solution",       # flow_heat | flow_only | conduction_only
@@ -387,7 +376,7 @@ MODELING_FLOAT_FIELDS = (
 
 
 def _apply_modeling(model: ET.Element, cfg: Dict) -> None:
-    """Create/update <model>/<modeling>."""
+    """写 <modeling>，求解类型、辐射、各种存储开关"""
     modeling = _find_or_create_modeling(model)
 
     for field in MODELING_STRING_FIELDS:
@@ -404,7 +393,7 @@ def _apply_modeling(model: ET.Element, cfg: Dict) -> None:
 
 
 def _apply_turbulence(model: ET.Element, cfg: Dict) -> None:
-    """Create/update <model>/<turbulence>."""
+    """写 <turbulence>，层流/湍流模型"""
     turb = _find_or_create(model, "turbulence")
 
     for field in ("type", "turbulence_type"):
@@ -418,7 +407,7 @@ def _apply_turbulence(model: ET.Element, cfg: Dict) -> None:
         _set_text(turb, "capped_lvel_multiplier",
                   _format_value(cfg["capped_lvel_multiplier"], float))
 
-    # revised_algebraic sub-element
+    # revised_algebraic 里有个 velocity 和 length
     ra_cfg = cfg.get("revised_algebraic")
     if ra_cfg and isinstance(ra_cfg, dict):
         ra = _find_or_create(turb, "revised_algebraic")
@@ -429,7 +418,7 @@ def _apply_turbulence(model: ET.Element, cfg: Dict) -> None:
 
 
 def _apply_gravity(model: ET.Element, cfg: Dict) -> None:
-    """Create/update <model>/<gravity>."""
+    """写 <gravity>"""
     grav = _find_or_create(model, "gravity")
 
     for field in ("type", "normal_direction", "value_type"):
@@ -439,7 +428,7 @@ def _apply_gravity(model: ET.Element, cfg: Dict) -> None:
     if "gravity_value" in cfg:
         _set_text(grav, "gravity_value", _format_value(cfg["gravity_value"], float))
 
-    # angled_direction (triplet)
+    # 角度方向是个三元组
     ad_cfg = cfg.get("angled_direction")
     if ad_cfg and isinstance(ad_cfg, dict):
         ad = _find_or_create(grav, "angled_direction")
@@ -458,13 +447,14 @@ GLOBAL_FIELDS = {
 
 
 def _apply_global(model: ET.Element, cfg: Dict) -> None:
-    """Create/update <model>/<global>."""
+    """写 <global>，基准压力、环境温度那些"""
     g = _find_or_create(model, "global")
 
     for fname, ftype in GLOBAL_FIELDS.items():
         if fname in cfg:
             _set_text(g, fname, _format_value(cfg[fname], ftype))
 
+    # 浓度字段 concentration_1 ~ concentration_15，一般用不到
     for i in range(1, 16):
         key = f"concentration_{i}"
         if key in cfg:
@@ -478,7 +468,7 @@ _INITIAL_VAR_NAMES = [
 
 
 def _apply_initial_variables(model: ET.Element, cfg: Dict) -> None:
-    """Create/update <model>/<initial_variables>."""
+    """写 <initial_variables>，每个变量可以设 type 和 value"""
     iv = _find_or_create(model, "initial_variables")
 
     for field in ("initial_solution_name", "initial_solution_id"):
@@ -499,11 +489,11 @@ def _apply_initial_variables(model: ET.Element, cfg: Dict) -> None:
 
 
 # ============================================================================
-# Main entry (dispatch)
+# 总入口
 # ============================================================================
 
 def apply_solve_settings(root: ET.Element, config: Dict) -> ET.Element:
-    """Main entry: apply all solve, model, and transient config sections to a FloXML tree."""
+    """主函数，把 JSON/Excel 里配的东西全部写到 FloXML 上"""
     solve = _find_or_create_solve(root)
 
     if "overall_control" in config:
@@ -515,7 +505,7 @@ def apply_solve_settings(root: ET.Element, config: Dict) -> ET.Element:
     if "solver_controls" in config:
         _apply_solver_controls(solve, config["solver_controls"])
 
-    # Model-level settings
+    # <model> 下面的设置
     model_keys = ("modeling", "turbulence", "gravity", "global", "initial_variables", "transient")
     if any(k in config for k in model_keys):
         model = _find_or_create_model(root)
@@ -536,7 +526,7 @@ def apply_solve_settings(root: ET.Element, config: Dict) -> ET.Element:
 
 
 # ============================================================================
-# JSON config loader
+# 读 JSON 配置
 # ============================================================================
 
 def load_json(path: Path) -> Dict:
@@ -545,7 +535,7 @@ def load_json(path: Path) -> Dict:
 
 
 # ============================================================================
-# Excel config loader
+# 读 Excel 配置
 # ============================================================================
 
 def _parse_bool(value):
@@ -571,6 +561,7 @@ def _parse_number(value):
 
 
 def _row_dict(ws, row: int, headers: List[str]) -> Dict:
+    """把一行读成 dict"""
     values = [ws.cell(row=row, column=c).value for c in range(1, len(headers) + 1)]
     if all(v is None for v in values):
         return {}
@@ -578,7 +569,7 @@ def _row_dict(ws, row: int, headers: List[str]) -> Dict:
 
 
 def _read_overall_control_sheet(ws) -> Dict:
-    """Read overall_control sheet -> single dict (merged across rows)."""
+    """读 overall_control sheet，多行合并成一个 dict"""
     headers = [str(ws.cell(row=1, column=c).value or "").strip()
                for c in range(1, ws.max_column + 1)]
     if not headers or not headers[0]:
@@ -590,7 +581,7 @@ def _read_overall_control_sheet(ws) -> Dict:
         if not rd:
             continue
 
-        # Top-level scalar fields
+        # 数值和字符串字段
         for col_name, target_name, parser in (
             ("outer_iterations", "outer_iterations", lambda v: int(float(v)) if v is not None else None),
             ("fan_relaxation", "fan_relaxation", _parse_number),
@@ -604,13 +595,13 @@ def _read_overall_control_sheet(ws) -> Dict:
                 if parsed is not None:
                     result[target_name] = parsed
 
-        # Boolean fields
+        # 布尔字段
         for col_name in BOOL_FIELDS:
             v = _parse_bool(rd.get(col_name))
             if v is not None:
                 result[col_name] = v
 
-        # Convergence values
+        # 收敛判据
         cv: Dict = {}
         for col_name, ftype in CONVERGENCE_FIELDS.items():
             raw = rd.get(col_name)
@@ -626,7 +617,7 @@ def _read_overall_control_sheet(ws) -> Dict:
 
 
 def _read_controls_sheet(ws, entry_tag: str) -> List[Dict]:
-    """Read variable_controls or solver_controls sheet -> list of dicts."""
+    """读 variable_controls 或 solver_controls sheet，每行一条"""
     headers = [str(ws.cell(row=1, column=c).value or "").strip()
                for c in range(1, ws.max_column + 1)]
     if not headers or not headers[0]:
@@ -679,7 +670,7 @@ def _read_controls_sheet(ws, entry_tag: str) -> List[Dict]:
 
 
 def _read_transient_overall_sheet(ws) -> Dict:
-    """Read transient_overall sheet -> single dict (merged across rows)."""
+    """读 transient_overall sheet"""
     headers = [str(ws.cell(row=1, column=c).value or "").strip()
                for c in range(1, ws.max_column + 1)]
     if not headers or not headers[0]:
@@ -701,7 +692,7 @@ def _read_transient_overall_sheet(ws) -> Dict:
 
 
 def _read_transient_save_times_sheet(ws) -> List[float]:
-    """Read transient_save_times sheet -> list of time values."""
+    """读 save_times，一列数值"""
     headers = [str(ws.cell(row=1, column=c).value or "").strip()
                for c in range(1, ws.max_column + 1)]
     if not headers or not headers[0]:
@@ -722,7 +713,7 @@ def _read_transient_save_times_sheet(ws) -> List[float]:
 
 
 def _read_time_patches_sheet(ws) -> List[Dict]:
-    """Read time_patches sheet -> list of time_patch dicts."""
+    """读 time_patches，每行一个时间片"""
     headers = [str(ws.cell(row=1, column=c).value or "").strip()
                for c in range(1, ws.max_column + 1)]
     if not headers or not headers[0]:
@@ -753,7 +744,7 @@ def _read_time_patches_sheet(ws) -> List[Dict]:
 
 
 def _read_key_value_sheet(ws, string_fields=(), bool_fields=(), float_fields=()) -> Dict:
-    """Generic reader for simple key-value sheets (single row or merged rows)."""
+    """通用的 key-value sheet 读取，适合 modeling/gravity/global 这种简单结构"""
     headers = [str(ws.cell(row=1, column=c).value or "").strip()
                for c in range(1, ws.max_column + 1)]
     if not headers or not headers[0]:
@@ -787,7 +778,6 @@ def _read_key_value_sheet(ws, string_fields=(), bool_fields=(), float_fields=())
 
 
 def _read_modeling_sheet(ws) -> Dict:
-    """Read modeling sheet."""
     data = _read_key_value_sheet(
         ws,
         string_fields=MODELING_STRING_FIELDS,
@@ -798,14 +788,13 @@ def _read_modeling_sheet(ws) -> Dict:
 
 
 def _read_turbulence_sheet(ws) -> Dict:
-    """Read turbulence sheet."""
     data = _read_key_value_sheet(
         ws,
         string_fields=("type", "turbulence_type"),
         bool_fields=("lvel_k_epsilon_stratification",),
         float_fields=("capped_lvel_multiplier",),
     )
-    # revised_algebraic sub-columns: ra_velocity, ra_length
+    # revised_algebraic 的两个子列
     headers = [str(ws.cell(row=1, column=c).value or "").strip()
                for c in range(1, ws.max_column + 1)]
     for row in range(2, ws.max_row + 1):
@@ -824,13 +813,12 @@ def _read_turbulence_sheet(ws) -> Dict:
 
 
 def _read_gravity_sheet(ws) -> Dict:
-    """Read gravity sheet."""
     data = _read_key_value_sheet(
         ws,
         string_fields=("type", "normal_direction", "value_type"),
         float_fields=("gravity_value", "angled_x", "angled_y", "angled_z"),
     )
-    # angled_direction triplet
+    # angled_direction 拆出来
     ad: Dict = {}
     for axis, col in (("x", "angled_x"), ("y", "angled_y"), ("z", "angled_z")):
         if col in data:
@@ -841,9 +829,7 @@ def _read_gravity_sheet(ws) -> Dict:
 
 
 def _read_global_sheet(ws) -> Dict:
-    """Read global sheet."""
     float_fields = list(GLOBAL_FIELDS.keys()) + [f"concentration_{i}" for i in range(1, 16)]
-    # string fields: ambient_transient, radiant_transient
     data = _read_key_value_sheet(
         ws,
         string_fields=("ambient_transient", "radiant_transient"),
@@ -853,7 +839,7 @@ def _read_global_sheet(ws) -> Dict:
 
 
 def _read_initial_variables_sheet(ws) -> Dict:
-    """Read initial_variables sheet -> dict with variable entries."""
+    """读 initial_variables，列名格式是 pressure_type, pressure_value 这样"""
     headers = [str(ws.cell(row=1, column=c).value or "").strip()
                for c in range(1, ws.max_column + 1)]
     if not headers or not headers[0]:
@@ -875,7 +861,6 @@ def _read_initial_variables_sheet(ws) -> Dict:
             if v is not None:
                 result["use_initial_for_all"] = v
 
-        # variable field values: columns named like pressure_type, pressure_value, etc.
         for var_name in _INITIAL_VAR_NAMES:
             type_col = f"{var_name}_type"
             val_col = f"{var_name}_value"
@@ -905,61 +890,46 @@ def load_excel(path: Path) -> Dict:
     wb = _load_wb(str(path), read_only=True, data_only=True)
     config: Dict = {}
 
-    # modeling
+    # 按顺序读各个 sheet，有哪个读哪个
     if "modeling" in wb.sheetnames:
-        data = _read_modeling_sheet(wb["modeling"])
-        config.update(data)
+        config.update(_read_modeling_sheet(wb["modeling"]))
 
-    # turbulence
     if "turbulence" in wb.sheetnames:
-        data = _read_turbulence_sheet(wb["turbulence"])
-        config.update(data)
+        config.update(_read_turbulence_sheet(wb["turbulence"]))
 
-    # gravity
     if "gravity" in wb.sheetnames:
-        data = _read_gravity_sheet(wb["gravity"])
-        config.update(data)
+        config.update(_read_gravity_sheet(wb["gravity"]))
 
-    # global
     if "global" in wb.sheetnames:
-        data = _read_global_sheet(wb["global"])
-        config.update(data)
+        config.update(_read_global_sheet(wb["global"]))
 
-    # initial_variables
     if "initial_variables" in wb.sheetnames:
-        data = _read_initial_variables_sheet(wb["initial_variables"])
-        config.update(data)
+        config.update(_read_initial_variables_sheet(wb["initial_variables"]))
 
-    # overall_control
     if "overall_control" in wb.sheetnames:
-        data = _read_overall_control_sheet(wb["overall_control"])
-        config.update(data)
+        config.update(_read_overall_control_sheet(wb["overall_control"]))
 
-    # variable_controls
     if "variable_controls" in wb.sheetnames:
         data = _read_controls_sheet(wb["variable_controls"], "variable_controls")
         if data:
             config["variable_controls"] = data
 
-    # solver_controls
     if "solver_controls" in wb.sheetnames:
         data = _read_controls_sheet(wb["solver_controls"], "solver_controls")
         if data:
             config["solver_controls"] = data
 
-    # transient_overall
+    # 瞬态相关的三个 sheet 合并到 transient 下面
     if "transient_overall" in wb.sheetnames:
         data = _read_transient_overall_sheet(wb["transient_overall"])
         if data:
             config.setdefault("transient", {}).setdefault("overall_transient", {}).update(data)
 
-    # transient_save_times
     if "transient_save_times" in wb.sheetnames:
         data = _read_transient_save_times_sheet(wb["transient_save_times"])
         if data:
             config.setdefault("transient", {})["save_times"] = data
 
-    # time_patches
     if "time_patches" in wb.sheetnames:
         data = _read_time_patches_sheet(wb["time_patches"])
         if data:
@@ -977,7 +947,7 @@ def load_config(path: Path) -> Dict:
 
 
 # ============================================================================
-# Excel template generator
+# 生成 Excel 模板
 # ============================================================================
 
 def create_template_excel(output_path: str) -> None:
@@ -1140,7 +1110,7 @@ def create_template_excel(output_path: str) -> None:
 
 
 # ============================================================================
-# XML indentation
+# XML 缩进
 # ============================================================================
 
 def indent_xml(elem: ET.Element, level: int = 0) -> None:
@@ -1157,18 +1127,18 @@ def indent_xml(elem: ET.Element, level: int = 0) -> None:
 
 
 # ============================================================================
-# CLI
+# 命令行入口
 # ============================================================================
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Add/update solve settings in a FloXML project via JSON or Excel config"
+        description="往 FloXML 里加求解/瞬态设置"
     )
-    parser.add_argument("input", nargs="?", help="Input FloXML file")
-    parser.add_argument("--config", help="Solve config file (.json or .xlsx)")
-    parser.add_argument("-o", "--output", help="Output FloXML file")
+    parser.add_argument("input", nargs="?", help="输入 FloXML 文件")
+    parser.add_argument("--config", help="配置文件 (.json 或 .xlsx)")
+    parser.add_argument("-o", "--output", help="输出 FloXML 文件")
     parser.add_argument("--create-template", metavar="PATH",
-                        help="Create an example Excel template at PATH")
+                        help="生成一个 Excel 模板")
     args = parser.parse_args()
 
     if args.create_template:
@@ -1176,7 +1146,7 @@ def main() -> int:
         return 0
 
     if not args.input or not args.config:
-        parser.error("input and --config are required (unless using --create-template)")
+        parser.error("需要指定 input 和 --config（或者用 --create-template）")
 
     input_path = Path(args.input)
     config_path = Path(args.config)
@@ -1190,6 +1160,7 @@ def main() -> int:
     indent_xml(root)
     tree.write(output_path, encoding="utf-8", xml_declaration=True)
 
+    # 打印写了哪些东西
     sections = []
     if "overall_control" in config:
         sections.append("overall_control")
