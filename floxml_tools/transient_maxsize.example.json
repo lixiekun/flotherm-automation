@@ -1,0 +1,22 @@
+{
+  "transient": {
+    "overall_transient": {
+      "start_time": 0,
+      "end_time": 10,
+      "duration": 10,
+      "keypoint_tolerance": 0.0001
+    },
+    "save_times": [0, 5, 10],
+    "time_patches": [
+      {
+        "name": "First",
+        "start_time": 0,
+        "end_time": 10,
+        "step_control": "maximum_size",
+        "maximum_size": 5,
+        "step_distribution": "uniform",
+        "distribution_index": 1
+      }
+    ]
+  }
+}
