@@ -114,7 +114,11 @@ def _format_value(value, python_type):
     if python_type is int:
         return str(int(float(value)))
     if python_type is float:
-        return str(float(value))
+        fval = float(value)
+        if fval == int(fval):
+            return str(int(fval))
+        # Use fixed-point format then strip trailing zeros to avoid scientific notation
+        return f"{fval:.15f}".rstrip('0').rstrip('.')
     return str(value)
 
 
