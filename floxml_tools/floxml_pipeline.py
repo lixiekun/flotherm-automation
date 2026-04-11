@@ -2,17 +2,17 @@
 """FloXML build pipeline: combine wrap, grid/regions, and solve settings in one pass.
 
 Usage:
-    # Full pipeline
-    python -m floxml_tools.floxml_build geometry.xml --grid grid.json --solve solve.json --wrap -o project.xml
+    # Single config for both grid and solve
+    python -m floxml_tools.floxml_pipeline geometry.xml -c config.json --wrap -o project.xml
 
-    # Grid + solve only
-    python -m floxml_tools.floxml_build base.xml --grid grid.json --solve solve.json -o out.xml
+    # Separate configs still supported
+    python -m floxml_tools.floxml_pipeline base.xml --grid grid.json --solve solve.json -o out.xml
 
     # Grid only
-    python -m floxml_tools.floxml_build base.xml --grid grid.json -o out.xml
+    python -m floxml_tools.floxml_pipeline base.xml --grid grid.json -o out.xml
 
     # Solve only
-    python -m floxml_tools.floxml_build base.xml --solve solve.json -o out.xml
+    python -m floxml_tools.floxml_pipeline base.xml --solve solve.json -o out.xml
 """
 
 from __future__ import annotations
@@ -125,11 +125,31 @@ def wrap_element(
     return wrapped_root
 
 
+def _load_json(path: Path) -> dict:
+    """Load a JSON config file."""
+    import json
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+# Keys recognized by add_regions (grid/regions)
+_GRID_KEYS = {"grid_constraints", "object_constraints", "regions"}
+# Keys recognized by apply_solve_settings (model/solve)
+_SOLVE_KEYS = {
+    "modeling", "turbulence", "gravity", "global", "initial_variables",
+    "overall_control", "variable_controls", "solver_controls", "transient",
+}
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="FloXML build pipeline: wrap, grid/regions, and solve settings in one pass"
     )
     parser.add_argument("input", help="Input FloXML file (.xml)")
+    parser.add_argument(
+        "-c", "--config",
+        help="Unified config file (.json) containing both grid and solve settings",
+    )
     parser.add_argument("--grid", help="Grid/regions config file (.json or .xlsx)")
     parser.add_argument("--solve", help="Solve settings config file (.json or .xlsx)")
     parser.add_argument(
@@ -157,8 +177,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if not any([args.grid, args.solve, args.wrap]):
-        parser.error("At least one of --grid, --solve, or --wrap is required")
+    if not any([args.config, args.grid, args.solve, args.wrap]):
+        parser.error("At least one of -c, --grid, --solve, or --wrap is required")
 
     input_path = Path(args.input).resolve()
     if not input_path.is_file():
@@ -170,6 +190,41 @@ def main(argv: Optional[list[str]] = None) -> int:
         if args.output
         else input_path.with_name(f"{input_path.stem}_built.xml")
     )
+
+    # Resolve config sources: -c splits into grid + solve; --grid/--solve override
+    grid_config = None
+    solve_config = None
+
+    if args.config:
+        config_path = Path(args.config).resolve()
+        if not config_path.is_file():
+            print(f"[ERROR] Config not found: {config_path}", file=sys.stderr)
+            return 1
+        unified = _load_json(config_path)
+        # Split by recognized keys
+        grid_part = {k: v for k, v in unified.items() if k in _GRID_KEYS}
+        solve_part = {k: v for k, v in unified.items() if k in _SOLVE_KEYS}
+        unknown = set(unified) - _GRID_KEYS - _SOLVE_KEYS
+        if unknown:
+            print(f"[WARN] Unknown keys in config ignored: {unknown}", file=sys.stderr)
+        if grid_part:
+            grid_config = grid_part
+        if solve_part:
+            solve_config = solve_part
+
+    if args.grid:
+        grid_config_path = Path(args.grid).resolve()
+        if not grid_config_path.is_file():
+            print(f"[ERROR] Grid config not found: {grid_config_path}", file=sys.stderr)
+            return 1
+        grid_config = load_grid_config(grid_config_path)
+
+    if args.solve:
+        solve_config_path = Path(args.solve).resolve()
+        if not solve_config_path.is_file():
+            print(f"[ERROR] Solve config not found: {solve_config_path}", file=sys.stderr)
+            return 1
+        solve_config = load_solve_config(solve_config_path)
 
     try:
         tree = ET.parse(input_path)
@@ -184,22 +239,12 @@ def main(argv: Optional[list[str]] = None) -> int:
                 minimum_padding=args.minimum_padding,
             )
 
-        # Step 2: Add grid/regions (if requested)
-        if args.grid:
-            grid_config_path = Path(args.grid).resolve()
-            if not grid_config_path.is_file():
-                print(f"[ERROR] Grid config not found: {grid_config_path}", file=sys.stderr)
-                return 1
-            grid_config = load_grid_config(grid_config_path)
+        # Step 2: Add grid/regions (if config has grid keys)
+        if grid_config:
             root = add_regions(root, grid_config)
 
-        # Step 3: Add solve settings (if requested)
-        if args.solve:
-            solve_config_path = Path(args.solve).resolve()
-            if not solve_config_path.is_file():
-                print(f"[ERROR] Solve config not found: {solve_config_path}", file=sys.stderr)
-                return 1
-            solve_config = load_solve_config(solve_config_path)
+        # Step 3: Add solve settings (if config has solve keys)
+        if solve_config:
             root = apply_solve_settings(root, solve_config)
 
         # Step 4: Indent and write
@@ -214,9 +259,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     steps = []
     if args.wrap:
         steps.append("wrapped as project")
-    if args.grid:
+    if grid_config:
         steps.append("added grid/regions")
-    if args.solve:
+    if solve_config:
         steps.append("applied solve settings")
     print(f"[OK] {' -> '.join(steps)}: {output_path}")
     return 0
