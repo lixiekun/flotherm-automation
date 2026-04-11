@@ -23,6 +23,13 @@ from pathlib import Path
 from typing import Optional
 import xml.etree.ElementTree as ET
 
+# Ensure project root is on sys.path so `from floxml_tools.xxx` works
+# regardless of which directory the script is run from.
+_this_dir = Path(__file__).resolve().parent
+_project_root = _this_dir.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 from floxml_tools.floxml_add_volume_regions import (
     add_regions,
     load_config as load_grid_config,
