@@ -279,14 +279,14 @@ class FloXMLBuilder:
         _t(m, "solution", solution)
         _t(m, "radiation", radiation)
         _t(m, "dimensionality", dimensionality)
-        if transient:
-            _t(m, "transient", "true")
-        else:
-            _t(m, "transient", "false")
-        if joule_heating:
-            _t(m, "joule_heating", "true")
-        else:
-            _t(m, "joule_heating", "false")
+        _t(m, "transient", "true" if transient else "false")
+        _t(m, "joule_heating", "true" if joule_heating else "false")
+        # Default store options (required by FloTHERM)
+        for tag in ["store_mass_flux", "store_heat_flux", "store_surface_temp",
+                     "store_grad_t", "store_bn_sc", "store_power_density",
+                     "store_mean_radiant_temperature", "compute_capture_index",
+                     "user_defined_subgroups", "store_lma"]:
+            _t(m, tag, "false")
 
     def store_options(self, *, mass_flux: bool = False, heat_flux: bool = False,
                       surface_temp: bool = False, grad_t: bool = False,
@@ -409,53 +409,64 @@ class FloXMLBuilder:
         if concentrations:
             for i, c in enumerate(concentrations, 1):
                 _t(g, f"concentration_{i}", f"{c:.6g}")
+        else:
+            # FloTHERM requires concentration_1-5
+            for i in range(1, 6):
+                _t(g, f"concentration_{i}", "0")
 
     # ==================================================================
     # SOLVE section methods
     # ==================================================================
-    def overall_control(self, *, max_iterations: int = 1500,
-                        double_precision: bool = True,
-                        convergence_criterion: float = 0.2,
-                        monitor_point_check_freq: int = 30,
-                        min_iterations: int = 10,
-                        parallel: bool = False,
-                        autosolve: bool = False,
-                        autosolve_factor: float = 0.9,
-                        use_bc_resid: bool = False,
-                        print_frequency: int = 1,
-                        solution_interpolation: bool = False,
-                        autosolve_residual_criterion: bool = False,
-                        autosolve_use_single_factor: bool = True,
-                        autosolve_residual_factor: float = 0.2,
-                        autosolve_monitor_point_factor: bool = True,
-                        monitor_point_termination: Optional[str] = None) -> None:
-        """Write <overall_control> inside solve section."""
+    def overall_control(self, *,
+                        outer_iterations: int = 500,
+                        fan_relaxation: float = 1.0,
+                        free_convection_velocity: float = 0.2,
+                        monitor_convergence: bool = True,
+                        required_accuracy: float = 0.2,
+                        num_iterations: int = 45,
+                        residual_threshold: float = 200,
+                        solver_option: str = "multi_grid",
+                        active_plate_conduction: bool = False,
+                        double_precision: bool = False,
+                        network_block_correction: bool = False,
+                        freeze_flow: bool = False,
+                        store_error_field: bool = False) -> None:
+        """Write <overall_control> inside solve section (matching real FloTHERM schema)."""
         o = ET.SubElement(self._current, "overall_control")
-        _t(o, "max_iterations", str(max_iterations))
-        _t(o, "double_precision", "true" if double_precision else "false")
-        _t(o, "convergence_criterion", f"{convergence_criterion:.6g}")
-        _t(o, "monitor_point_check_frequency", str(monitor_point_check_freq))
-        _t(o, "min_iterations", str(min_iterations))
-        _t(o, "parallel", "true" if parallel else "false")
-        _t(o, "autosolve", "true" if autosolve else "false")
-        _t(o, "autosolve_factor", f"{autosolve_factor:.6g}")
-        _t(o, "use_bc_residuals", "true" if use_bc_resid else "false")
-        _t(o, "print_frequency", str(print_frequency))
-        _t(o, "solution_interpolation", "true" if solution_interpolation else "false")
-        _t(o, "autosolve_residual_criterion", "true" if autosolve_residual_criterion else "false")
-        _t(o, "autosolve_use_single_factor", "true" if autosolve_use_single_factor else "false")
-        _t(o, "autosolve_residual_factor", f"{autosolve_residual_factor:.6g}")
-        _t(o, "autosolve_monitor_point_factor", "true" if autosolve_monitor_point_factor else "false")
-        if monitor_point_termination:
-            _t(o, "monitor_point_termination", monitor_point_termination)
+        _t(o, "outer_iterations", str(outer_iterations))
+        _t(o, "fan_relaxation", f"{fan_relaxation:.6g}")
+        _t(o, "estimated_free_convection_velocity", f"{free_convection_velocity:.6g}")
+        if monitor_convergence:
+            _t(o, "monitor_convergence", "true")
+            cv = ET.SubElement(o, "convergence_values")
+            _t(cv, "required_accuracy", f"{required_accuracy:.6g}")
+            _t(cv, "num_iterations", str(num_iterations))
+            _t(cv, "residual_threshold", f"{residual_threshold:.6g}")
+        _t(o, "solver_option", solver_option)
+        _t(o, "active_plate_conduction", "true" if active_plate_conduction else "false")
+        _t(o, "use_double_precision", "true" if double_precision else "false")
+        _t(o, "network_assembly_block_correction", "true" if network_block_correction else "false")
+        _t(o, "freeze_flow", "true" if freeze_flow else "false")
+        _t(o, "store_error_field", "true" if store_error_field else "false")
+
+    @contextmanager
+    def variable_controls_section(self):
+        """Wrapper for <variable_controls> section."""
+        elem = ET.SubElement(self._current, "variable_controls")
+        prev = self._current
+        self._current = elem
+        try:
+            yield elem
+        finally:
+            self._current = prev
 
     def variable_control(self, variable: str, *,
-                         false_time_step_type: str = "automatic",
-                         false_time_step_multiplier: float = 1.0,
-                         false_time_step_value: float = 0,
-                         termination_residual_type: str = "automatic",
-                         termination_residual_multiplier: float = 1.0,
-                         termination_residual_value: float = 0,
+                         false_time_step: str = "automatic",
+                         false_time_step_auto_multiplier: float = 1.0,
+                         false_time_step_user_value: float = 0,
+                         terminal_residual: str = "automatic",
+                         terminal_residual_auto_multiplier: float = 1.0,
+                         terminal_residual_user_value: float = 0,
                          inner_iterations: int = 1) -> None:
         """Write a <variable_control> entry.
 
@@ -463,30 +474,38 @@ class FloXMLBuilder:
             variable: "pressure"|"x_velocity"|"y_velocity"|"z_velocity"|
                       "temperature"|"ke_turb"|"diss_turb"|
                       "concentration_1"..."concentration_5"|"potential"
+            false_time_step: "automatic" | "user"
+            terminal_residual: "automatic" | "user"
         """
         vc = ET.SubElement(self._current, "variable_control")
         _t(vc, "variable", variable)
-        _t(vc, "false_time_step_type", false_time_step_type)
-        if false_time_step_type == "automatic":
-            _t(vc, "false_time_step_auto_multiplier", f"{false_time_step_multiplier:.6g}")
+        _t(vc, "false_time_step", false_time_step)
+        if false_time_step == "automatic":
+            _t(vc, "false_time_step_auto_multiplier", f"{false_time_step_auto_multiplier:.6g}")
         else:
-            _t(vc, "false_time_step_user_value", f"{false_time_step_value:.6g}")
-        if termination_residual_type == "automatic":
-            _t(vc, "terminal_residual", "automatic")
-            _t(vc, "terminal_residual_auto_multiplier", f"{termination_residual_multiplier:.6g}")
+            _t(vc, "false_time_step_user_value", f"{false_time_step_user_value:.6g}")
+        _t(vc, "terminal_residual", terminal_residual)
+        if terminal_residual == "automatic":
+            _t(vc, "terminal_residual_auto_multiplier", f"{terminal_residual_auto_multiplier:.6g}")
         else:
-            _t(vc, "terminal_residual", "user")
-            _t(vc, "terminal_residual_user_value", f"{termination_residual_value:.6g}")
+            _t(vc, "terminal_residual_user_value", f"{terminal_residual_user_value:.6g}")
         _t(vc, "inner_iterations", str(inner_iterations))
+
+    @contextmanager
+    def solver_controls_section(self):
+        """Wrapper for <solver_controls> section."""
+        elem = ET.SubElement(self._current, "solver_controls")
+        prev = self._current
+        self._current = elem
+        try:
+            yield elem
+        finally:
+            self._current = prev
 
     def solver_control(self, variable: str, *,
                        linear_relaxation: float = 0.3,
                        error_compute_frequency: int = 0) -> None:
-        """Write a <solver_control> entry.
-
-        Args:
-            variable: same names as variable_control
-        """
+        """Write a <solver_control> entry."""
         sc = ET.SubElement(self._current, "solver_control")
         _t(sc, "variable", variable)
         _t(sc, "linear_relaxation", f"{linear_relaxation:.6g}")
@@ -1455,7 +1474,12 @@ def create_example_model() -> FloXMLBuilder:
 
     # SOLVE
     with b.solve_section():
-        b.overall_control(max_iterations=1500)
+        b.overall_control(outer_iterations=1500, double_precision=True)
+        with b.variable_controls_section():
+            b.variable_control("x_velocity", false_time_step="automatic")
+            b.variable_control("y_velocity", false_time_step="automatic")
+        with b.solver_controls_section():
+            b.solver_control("pressure", linear_relaxation=0.3)
 
     # GRID
     with b.grid_section():
