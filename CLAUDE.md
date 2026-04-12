@@ -58,6 +58,35 @@ python pack_editor.py model.pack --set-power U1_CPU 15.0 -o modified.pack
 python excel_floxml_generator.py materials --data materials.json -o output.xml
 ```
 
+### FloXML Generation (Python Builder)
+```bash
+# Generate example model
+python -m floxml_tools.floxml_builder --example -o output.xml
+```
+
+```python
+from floxml_tools.floxml_builder import FloXMLBuilder
+
+b = FloXMLBuilder("My Model")
+with b.model_section():
+    b.modeling_setup(solution="flow_heat", radiation="on")
+    b.gravity_setup(gravity_type="normal", direction="neg_z", value=9.81)
+    b.global_setup(ambient_temperature=300)
+with b.solve_section():
+    b.overall_control(outer_iterations=500)
+with b.grid_section():
+    b.system_grid(x_min_size=0.001, x_control=("max_size", 0.01))
+with b.attributes_section():
+    with b.materials_section():
+        b.create_material("Aluminum", k=160, rho=2300, cp=455)
+    with b.ambients_section():
+        b.create_ambient("Ambient", temperature=300)
+with b.geometry_section():
+    b.build_cuboid("Block", size=(1, 2, 3), material="Aluminum")
+b.build_solution_domain(size=(5, 5, 5), ambient="Ambient", fluid="Air")
+b.write("output.xml")
+```
+
 ## File Formats
 
 | Format | Description | Parser |
@@ -116,6 +145,7 @@ python excel_floxml_generator.py materials --data materials.json -o output.xml
 | `floxml_tools/floxml_grid_parser.py` | Parse grid settings from FloXML |
 | `floxml_tools/grid_config.py` | Grid configuration from Excel (system_grid, patches, constraints) |
 | `floxml_tools/wrap_geometry_floxml_as_project.py` | Wrap Assembly FloXML as Project FloXML |
+| `floxml_tools/floxml_builder.py` | **FloXML 项目生成器** — 用 Python 程序化构建完整 FloXML（VBA Class_XML_Subs_FCv11 的 Python 版） |
 | `excel_batch_simulation.py` | Multi-config batch simulation from Excel |
 | `batch_ecxml_solver.py` | Batch solve ECXML files using `flotherm -z` |
 | `excel_floxml_generator.py` | Generate FloXML via Excel COM automation |
@@ -169,3 +199,5 @@ pip install openpyxl pandas
 - `solution_domain` must be at root level, not inside `<geometry>`
 - Assembly FloXML needs wrapping to become a standalone project
 - Excel templates use VBA macros - macro names are auto-detected from `.xlsm` internals
+- FloXMLBuilder 生成的 XML 已通过 Simcenter Flotherm 2504 验证可正常导入
+- FloTHERM Schema 要求 `<modeling>` 包含 store_options，`<global>` 包含 concentration_1-5，`<solve>` 用 `outer_iterations`（非 `max_iterations`）
