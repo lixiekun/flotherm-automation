@@ -1213,9 +1213,9 @@ class ECXMLToFloXMLConverter:
                 injector = ConfigInjector(self.config.config_file)
                 injector.inject(root)
 
-            # 如果提供了源 FloXML，注入网格设置
+            # 如果提供了源 FloXML，注入设置（网格、model、solve、边界条件、属性等）
             if self.config.floxml_source:
-                self._inject_grid_from_floxml(root, self.config.floxml_source)
+                self._inject_from_floxml(root, self.config.floxml_source)
 
             # 确定输出路径
             if output_path is None:
@@ -1233,8 +1233,48 @@ class ECXMLToFloXMLConverter:
 
         return result
 
-    def _inject_grid_from_floxml(self, root: ET.Element, source_path: str) -> None:
-        """从源 PDML/FloXML 提取网格设置并注入到目标 root
+    # ------------------------------------------------------------------
+    # XML helper utilities (used by injection methods)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _find_child(parent: ET.Element, tag: str) -> Optional[ET.Element]:
+        """Find direct child by tag, ignoring XML namespace."""
+        child = parent.find(tag)
+        if child is not None:
+            return child
+        for c in parent:
+            ctag = c.tag.split('}')[1] if '}' in c.tag else c.tag
+            if ctag == tag:
+                return c
+        return None
+
+    @staticmethod
+    def _strip_ns(tag: str) -> str:
+        return tag.split('}')[1] if '}' in tag else tag
+
+    def _remove_child(self, parent: ET.Element, tag: str) -> None:
+        child = self._find_child(parent, tag)
+        if child is not None:
+            parent.remove(child)
+
+    @staticmethod
+    def _get_child_name(elem: ET.Element) -> str:
+        """Get the <name> text of an element, or ''."""
+        n = elem.find('name')
+        return n.text.strip() if n is not None and n.text else ''
+
+    def _inject_from_floxml(self, root: ET.Element, source_path: str) -> None:
+        """从源 PDML/FloXML 提取设置并注入到目标 root
+
+        注入内容：
+          1. <grid>（system_grid + patches）— 已有
+          2. <grid_constraints> — 已有
+          3. <region> — 已有
+          4. <model> — 整节替换
+          5. <solve> — 整节替换
+          6. <solution_domain> — 仅边界条件
+          7. <attributes> 子节 — ambients/fluids 合并，其余追加
 
         支持三种格式：
         1. XML 格式的 FloXML/PDML（直接解析）
@@ -1242,72 +1282,50 @@ class ECXMLToFloXMLConverter:
         3. .pack ZIP 压缩包（提取内部 XML）
         """
         from copy import deepcopy
-        import zipfile
-        import tempfile
 
         src_root = self._parse_pdml_source(source_path)
         if src_root is None:
-            print("[WARN] 无法解析源文件，跳过网格注入")
+            print("[WARN] 无法解析源文件，跳过注入")
             return
 
-        def _find_child(parent, tag):
-            child = parent.find(tag)
-            if child is not None:
-                return child
-            for c in parent:
-                if c.tag.split('}')[1] if '}' in c.tag else c.tag == tag:
-                    return c
-            return None
-
-        def _strip_ns(tag):
-            return tag.split('}')[1] if '}' in tag else tag
-
-        def _remove_child(parent, tag):
-            child = _find_child(parent, tag)
-            if child is not None:
-                parent.remove(child)
-
-        # 注入 <grid>（system_grid + patches）
-        src_grid = _find_child(src_root, 'grid')
+        # ---- 1. <grid>（system_grid + patches）----
+        src_grid = self._find_child(src_root, 'grid')
         if src_grid is not None:
-            _remove_child(root, 'grid')
+            self._remove_child(root, 'grid')
             root.insert(0, deepcopy(src_grid))
-            print(f"[OK] 已注入 <grid> (system_grid + patches)")
+            print("[OK] 已注入 <grid> (system_grid + patches)")
         else:
             print("[WARN] 源 FloXML 中未找到 <grid>")
 
-        # 注入 <grid_constraints>
-        src_gc = _find_child(src_root, 'grid_constraints')
+        # ---- 2. <grid_constraints> ----
+        src_gc = self._find_child(src_root, 'grid_constraints')
         if src_gc is None:
-            src_attrs = _find_child(src_root, 'attributes')
-            if src_attrs is not None:
-                src_gc = _find_child(src_attrs, 'grid_constraints')
+            src_attrs_for_gc = self._find_child(src_root, 'attributes')
+            if src_attrs_for_gc is not None:
+                src_gc = self._find_child(src_attrs_for_gc, 'grid_constraints')
         if src_gc is not None:
-            tgt_attrs = _find_child(root, 'attributes')
+            tgt_attrs = self._find_child(root, 'attributes')
             if tgt_attrs is not None:
-                _remove_child(tgt_attrs, 'grid_constraints')
+                self._remove_child(tgt_attrs, 'grid_constraints')
                 tgt_attrs.append(deepcopy(src_gc))
             else:
-                _remove_child(root, 'grid_constraints')
+                self._remove_child(root, 'grid_constraints')
                 root.append(deepcopy(src_gc))
-            count = sum(1 for c in src_gc if _strip_ns(c.tag) == 'grid_constraint_att')
+            count = sum(1 for c in src_gc if self._strip_ns(c.tag) == 'grid_constraint_att')
             print(f"[OK] 已注入 <grid_constraints> ({count} 个约束)")
         else:
             print("[WARN] 源 FloXML 中未找到 <grid_constraints>")
 
-        # 注入 region（网格区域定义，引用 grid_constraint）
-        # 递归收集源中所有 region（可能嵌套在 assembly/geometry 内）
-        src_geo = _find_child(src_root, 'geometry')
-        tgt_geo = _find_child(root, 'geometry')
+        # ---- 3. <region> ----
+        src_geo = self._find_child(src_root, 'geometry')
+        tgt_geo = self._find_child(root, 'geometry')
         if src_geo is not None and tgt_geo is not None:
             src_regions = list(src_geo.iter('region'))
             if src_regions:
-                # 按层级注入：顶层的 region 放到目标顶层，嵌套的按 assembly name 匹配
                 injected = 0
                 for src_reg in src_regions:
                     reg_copy = deepcopy(src_reg)
-                    name_el = reg_copy.find('name')
-                    reg_name = name_el.text if name_el is not None else ''
+                    reg_name = self._get_child_name(reg_copy)
 
                     # 判断是否在顶层 geometry 下
                     parent = None
@@ -1318,41 +1336,30 @@ class ECXMLToFloXMLConverter:
                     is_top_level = (parent is src_geo)
 
                     if is_top_level:
-                        # 注入到目标顶层 geometry
                         for c in list(tgt_geo):
                             if c.tag == 'region':
-                                n2 = c.find('name')
-                                if n2 is not None and n2.text == reg_name:
+                                if self._get_child_name(c) == reg_name:
                                     tgt_geo.remove(c)
                                     break
                         tgt_geo.append(reg_copy)
                         injected += 1
                     else:
-                        # 嵌套 region：找到源中所属的 assembly name，在目标中找同名 assembly 注入
-                        # 向上找父 assembly
                         asm_name = None
                         for p in src_geo.iter():
                             if p.tag == 'assembly' and src_reg in list(p.iter()):
                                 if p is not src_reg:
-                                    pn = p.find('name')
-                                    if pn is not None:
-                                        asm_name = pn.text
-                                        break
+                                    asm_name = self._get_child_name(p)
+                                    break
                         if asm_name:
-                            # 在目标中找同名 assembly
                             for tgt_asm in tgt_geo.iter('assembly'):
-                                tn = tgt_asm.find('name')
-                                if tn is not None and tn.text == asm_name:
+                                if self._get_child_name(tgt_asm) == asm_name:
                                     tgt_asm_geo = tgt_asm.find('geometry')
                                     if tgt_asm_geo is None:
                                         tgt_asm_geo = ET.SubElement(tgt_asm, 'geometry')
-                                    # 移除同名旧 region
                                     for c in list(tgt_asm_geo):
-                                        if c.tag == 'region':
-                                            n2 = c.find('name')
-                                            if n2 is not None and n2.text == reg_name:
-                                                tgt_asm_geo.remove(c)
-                                                break
+                                        if c.tag == 'region' and self._get_child_name(c) == reg_name:
+                                            tgt_asm_geo.remove(c)
+                                            break
                                     tgt_asm_geo.append(reg_copy)
                                     injected += 1
                                     break
@@ -1364,6 +1371,126 @@ class ECXMLToFloXMLConverter:
                 print("[WARN] 源 FloXML 中未找到 <geometry>")
             if tgt_geo is None:
                 print("[WARN] 目标 FloXML 中未找到 <geometry>")
+
+        # ---- 4. <model> — 整节替换 ----
+        src_model = self._find_child(src_root, 'model')
+        if src_model is not None:
+            self._remove_child(root, 'model')
+            # model 应在 name 之后、solve 之前
+            insert_idx = 1  # after <name>
+            root.insert(insert_idx, deepcopy(src_model))
+            print("[OK] 已注入 <model>")
+        else:
+            print("[WARN] 源 FloXML 中未找到 <model>")
+
+        # ---- 5. <solve> — 整节替换 ----
+        src_solve = self._find_child(src_root, 'solve')
+        if src_solve is not None:
+            self._remove_child(root, 'solve')
+            # solve 应在 model 之后、grid 之前
+            root.insert(2, deepcopy(src_solve))
+            print("[OK] 已注入 <solve>")
+        else:
+            print("[WARN] 源 FloXML 中未找到 <solve>")
+
+        # ---- 6. <solution_domain> — 仅注入边界条件 ----
+        src_sd = self._find_child(src_root, 'solution_domain')
+        tgt_sd = self._find_child(root, 'solution_domain')
+        if src_sd is not None and tgt_sd is not None:
+            boundary_tags = [
+                'x_low_boundary', 'x_high_boundary',
+                'y_low_boundary', 'y_high_boundary',
+                'z_low_boundary', 'z_high_boundary',
+                'x_low_ambient', 'x_high_ambient',
+                'y_low_ambient', 'y_high_ambient',
+                'z_low_ambient', 'z_high_ambient',
+                'fluid',
+            ]
+            injected_tags = []
+            for tag in boundary_tags:
+                src_el = self._find_child(src_sd, tag)
+                if src_el is not None:
+                    self._remove_child(tgt_sd, tag)
+                    tgt_sd.append(deepcopy(src_el))
+                    injected_tags.append(tag)
+            if injected_tags:
+                print(f"[OK] 已注入 solution_domain 边界条件 ({len(injected_tags)} 项)")
+            else:
+                print("[WARN] 源 FloXML solution_domain 中未找到边界条件")
+        else:
+            if src_sd is None:
+                print("[WARN] 源 FloXML 中未找到 <solution_domain>")
+            if tgt_sd is None:
+                print("[WARN] 目标 FloXML 中未找到 <solution_domain>")
+
+        # ---- 7. <attributes> 选择性注入 ----
+        self._inject_attributes(root, src_root)
+
+    def _inject_attributes(self, root: ET.Element, src_root: ET.Element) -> None:
+        """从源 FloXML 选择性注入 <attributes> 子节到目标。
+
+        策略：
+        - ambients / fluids: 按 name 去重合并（源覆盖目标同名项，新项追加）
+        - surfaces / thermals / radiations / resistances / fans / transients 等: 追加
+        - materials / sources: 跳过（ECXML 自带）
+        - grid_constraints: 已在上方处理，此处跳过
+        """
+        from copy import deepcopy
+
+        tgt_attrs = self._find_child(root, 'attributes')
+        src_attrs = self._find_child(src_root, 'attributes')
+        if src_attrs is None or tgt_attrs is None:
+            if src_attrs is None:
+                print("[WARN] 源 FloXML 中未找到 <attributes>")
+            return
+
+        # 按名称合并的子节
+        _MERGE_SECTIONS = ('ambients', 'fluids')
+        # 直接追加的子节
+        _APPEND_SECTIONS = (
+            'surfaces', 'thermals', 'radiations', 'resistances',
+            'fans', 'transients', 'surface_exchanges', 'controls',
+            'occupancies',
+        )
+        # 跳过的子节
+        _SKIP_SECTIONS = ('materials', 'sources', 'grid_constraints')
+
+        for section_tag in _MERGE_SECTIONS:
+            src_section = self._find_child(src_attrs, section_tag)
+            if src_section is None:
+                continue
+            tgt_section = self._find_child(tgt_attrs, section_tag)
+            if tgt_section is None:
+                tgt_attrs.append(deepcopy(src_section))
+                item_count = len(src_section)
+                print(f"[OK] 已注入 <{section_tag}> ({item_count} 项)")
+                continue
+            # 按 name 合并：收集目标已有名称，源中同名替换，新名追加
+            tgt_items_by_name: Dict[str, ET.Element] = {}
+            for item in list(tgt_section):
+                name = self._get_child_name(item)
+                if name:
+                    tgt_items_by_name[name] = item
+            for src_item in src_section:
+                name = self._get_child_name(src_item)
+                if name and name in tgt_items_by_name:
+                    tgt_section.remove(tgt_items_by_name[name])
+                    del tgt_items_by_name[name]
+                tgt_section.append(deepcopy(src_item))
+            print(f"[OK] 已合并 <{section_tag}> (源 {len(src_section)} 项)")
+
+        for section_tag in _APPEND_SECTIONS:
+            src_section = self._find_child(src_attrs, section_tag)
+            if src_section is None:
+                continue
+            tgt_section = self._find_child(tgt_attrs, section_tag)
+            if tgt_section is None:
+                tgt_attrs.append(deepcopy(src_section))
+            else:
+                for src_item in src_section:
+                    tgt_section.append(deepcopy(src_item))
+            item_count = len(src_section)
+            print(f"[OK] 已注入 <{section_tag}> ({item_count} 项)")
 
     def _parse_pdml_source(self, source_path: str) -> Optional[ET.Element]:
         """解析源 PDML/FloXML 文件，返回 root Element
