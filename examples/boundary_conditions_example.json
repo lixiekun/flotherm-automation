@@ -1,0 +1,164 @@
+{
+    "ambients": [
+        {
+            "name": "Ambient",
+            "pressure": 101325,
+            "temperature": 293,
+            "radiant_temperature": 293,
+            "heat_transfer_coeff": 12,
+            "velocity": [0, 0, 0],
+            "turbulent_kinetic_energy": 0.01,
+            "turbulent_dissipation_rate": 0.01
+        },
+        {
+            "name": "Forced Air",
+            "temperature": 300,
+            "velocity": [0, 0, 2.5],
+            "heat_transfer_coeff": 25
+        }
+    ],
+
+    "solution_domain": {
+        "x_low_boundary": "ambient",
+        "x_high_boundary": "ambient",
+        "y_low_boundary": "symmetry",
+        "y_high_boundary": "ambient",
+        "z_low_boundary": "wall",
+        "z_high_boundary": "opening",
+        "x_low_ambient": "Ambient",
+        "x_high_ambient": "Ambient",
+        "y_high_ambient": "Ambient",
+        "z_high_ambient": "Forced Air"
+    },
+
+    "surfaces": [
+        {
+            "name": "Paint",
+            "emissivity": 0.88,
+            "roughness": 0.5
+        },
+        {
+            "name": "Polished Metal",
+            "emissivity": 0.05,
+            "roughness": 0.1
+        },
+        {
+            "name": "PCB Surface",
+            "emissivity": 0.92,
+            "roughness": 0.8,
+            "display_settings": {
+                "color": [0.2, 0.6, 0.2],
+                "shininess": 0.5,
+                "brightness": 0.8
+            }
+        }
+    ],
+
+    "radiations": [
+        {
+            "name": "Default",
+            "surface": "discrete_ordinates",
+            "min_area": 0,
+            "subdivided_surface_tolerance": 0.01
+        },
+        {
+            "name": "Sub-Divided",
+            "surface": "subdivided_radiating",
+            "min_area": 0,
+            "subdivided_surface_tolerance": 0.01
+        }
+    ],
+
+    "sources": [
+        {
+            "name": "Heat Source",
+            "source_options": [
+                {
+                    "applies_to": "temperature",
+                    "type": "total",
+                    "value": 23.3
+                }
+            ],
+            "notes": "23.3W chip power"
+        },
+        {
+            "name": "CPU Power",
+            "source_options": [
+                {
+                    "applies_to": "temperature",
+                    "type": "total",
+                    "power": 65
+                },
+                {
+                    "applies_to": "x_velocity",
+                    "type": "total",
+                    "value": 0
+                }
+            ]
+        }
+    ],
+
+    "surface_exchanges": [
+        {
+            "name": "Surface HTC",
+            "heat_transfer_method": "surface",
+            "heat_transfer_coefficient": "calculated",
+            "reference_temperature": "calculated"
+        },
+        {
+            "name": "Constant HTC",
+            "heat_transfer_method": "surface",
+            "heat_transfer_coefficient": "constant",
+            "specified_constant_value": 15.5,
+            "reference_temperature": "specified",
+            "reference_temperature_value": 300
+        },
+        {
+            "name": "Fan Curve",
+            "heat_transfer_method": "surface",
+            "heat_transfer_coefficient": "profile",
+            "profile": [
+                { "speed": 0, "thermal_resistance": 2.5 },
+                { "speed": 1, "thermal_resistance": 1.2 },
+                { "speed": 2, "thermal_resistance": 0.8 },
+                { "speed": 3, "thermal_resistance": 0.5 },
+                { "speed": 5, "thermal_resistance": 0.3 }
+            ],
+            "reference_temperature": "calculated"
+        }
+    ],
+
+    "thermals": [
+        {
+            "name": "Conduction",
+            "thermal_model": "conduction",
+            "power": 12.5
+        },
+        {
+            "name": "Convection",
+            "thermal_model": "convection"
+        }
+    ],
+
+    "face_conditions": [
+        {
+            "target_names": ["Heatsink", "HeatSpread"],
+            "surface": "Polished Metal",
+            "radiation": "Sub-Divided",
+            "thermal": "Conduction"
+        },
+        {
+            "target_patterns": ["PCB*"],
+            "target_tags": ["plate"],
+            "surface": "PCB Surface",
+            "radiation": "Default",
+            "heat_transfer_coeff": 10
+        },
+        {
+            "target_names": ["Chip_U1"],
+            "surface": "Paint",
+            "thermal": "Conduction",
+            "surface_exchange": "Constant HTC"
+        }
+    ]
+}

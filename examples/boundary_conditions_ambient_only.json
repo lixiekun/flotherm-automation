@@ -1,0 +1,12 @@
+{
+    "ambients": [
+        {
+            "name": "Ambient",
+            "pressure": 101325,
+            "temperature": 293,
+            "radiant_temperature": 293,
+            "heat_transfer_coeff": 12,
+            "velocity": [0, 0, 0]
+        }
+    ]
+}
