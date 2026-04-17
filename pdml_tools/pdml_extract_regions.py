@@ -162,45 +162,89 @@ def extract_grid_constraints(root: ET.Element) -> List[Dict]:
     return results
 
 
+def _get_elem_position(elem: ET.Element) -> List[float]:
+    """从元素中提取 position"""
+    pos = elem.find("position")
+    if pos is not None:
+        return [_float_text(pos, "x"), _float_text(pos, "y"), _float_text(pos, "z")]
+    return [0.0, 0.0, 0.0]
+
+
+def _get_elem_size(elem: ET.Element) -> Optional[List[float]]:
+    """从元素中提取 size"""
+    size = elem.find("size")
+    if size is not None:
+        return [_float_text(size, "x"), _float_text(size, "y"), _float_text(size, "z")]
+    return None
+
+
 def extract_regions(root: ET.Element) -> List[Dict]:
+    """
+    提取所有 region，计算全局坐标（累积父级 assembly 偏移）。
+
+    FloXML geometry 是层级结构：assembly 包含子 geometry，子元素 position 是局部的。
+    这里递归遍历树，将 region 的 position 转为全局坐标。
+    同时保留 parent_assembly 和 local_position 供参考。
+    """
     results: List[Dict] = []
-    for elem in root.iter():
-        if _strip_ns(elem.tag) != "region":
-            continue
-        entry: Dict = {}
-        name = _text(elem, "name")
-        if name:
-            entry["name"] = name
-        v = _text(elem, "active")
-        if v is not None:
-            entry["active"] = v.lower() == "true"
-        v = _text(elem, "hidden")
-        if v is not None:
-            entry["hidden"] = v.lower() == "true"
-        pos = elem.find("position")
-        if pos is not None:
-            entry["position"] = [
-                _float_text(pos, "x"),
-                _float_text(pos, "y"),
-                _float_text(pos, "z"),
-            ]
-        size = elem.find("size")
-        if size is not None:
-            entry["size"] = [
-                _float_text(size, "x"),
-                _float_text(size, "y"),
-                _float_text(size, "z"),
-            ]
-        for tag in ("x_grid_constraint", "y_grid_constraint",
-                     "z_grid_constraint", "all_grid_constraint"):
-            v = _text(elem, tag)
-            if v:
-                entry[tag] = v
-        v = _text(elem, "localized_grid")
-        if v is not None:
-            entry["localized_grid"] = v.lower() == "true"
-        if entry:
-            results.append(entry)
+
+    def _visit(parent: ET.Element, offset: List[float], assembly_path: List[str]):
+        for elem in parent:
+            tag = _strip_ns(elem.tag)
+            name = _text(elem, "name") or ""
+            local_pos = _get_elem_position(elem)
+
+            # 计算全局坐标
+            global_pos = [offset[i] + local_pos[i] for i in range(3)]
+
+            if tag == "region":
+                entry: Dict = {"name": name}
+                v = _text(elem, "active")
+                if v is not None:
+                    entry["active"] = v.lower() == "true"
+                v = _text(elem, "hidden")
+                if v is not None:
+                    entry["hidden"] = v.lower() == "true"
+
+                # 全局坐标
+                entry["position"] = global_pos
+
+                size = _get_elem_size(elem)
+                if size:
+                    entry["size"] = size
+
+                # 如果在 assembly 内部，记录父级信息和局部坐标
+                if assembly_path:
+                    entry["parent_assembly"] = assembly_path[-1]
+                    entry["local_position"] = local_pos
+
+                for ctag in ("x_grid_constraint", "y_grid_constraint",
+                             "z_grid_constraint", "all_grid_constraint"):
+                    v = _text(elem, ctag)
+                    if v:
+                        entry[ctag] = v
+                v = _text(elem, "localized_grid")
+                if v is not None:
+                    entry["localized_grid"] = v.lower() == "true"
+                if entry:
+                    results.append(entry)
+
+            # 如果是 assembly，递归进入其 <geometry> 子节点
+            if tag == "assembly":
+                child_geom = elem.find("geometry")
+                if child_geom is not None:
+                    _visit(child_geom, global_pos, assembly_path + [name])
+            # 非 assembly 也可能有 <geometry>（如 enclosure）
+            elif tag not in ("region",):
+                child_geom = elem.find("geometry")
+                if child_geom is not None:
+                    _visit(child_geom, global_pos, assembly_path)
+
+    # 找到根 <geometry>
+    geometry = root.find("geometry")
+    if geometry is not None:
+        _visit(geometry, [0.0, 0.0, 0.0], [])
+
     return results
 
 
