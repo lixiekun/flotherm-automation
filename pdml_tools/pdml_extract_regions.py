@@ -4,8 +4,8 @@
 输出为 JSON 格式，可直接作为 floxml_add_volume_regions.py 的输入配置。
 
 支持:
-  - FloXML (.xml / .floxml) — XML 文本格式
-  - PDML (.pdml) — FloTHERM 二进制格式
+  - FloXML (.xml / .floxml) — XML 文本格式，直接解析
+  - PDML (.pdml) — FloTHERM 二进制格式，先转 FloXML 再提取
 
 用法:
     python pdml_tools/pdml_extract_regions.py model.pdml -o regions.json
@@ -14,15 +14,43 @@
 """
 
 import argparse
+import io
 import json
+import os
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 
 
 # ============================================================================
-# XML (FloXML) 提取
+# 自动检测格式
+# ============================================================================
+
+def is_binary_pdml(filepath: str) -> bool:
+    """检测文件是否为 PDML 二进制格式 (#FFFB)"""
+    try:
+        with open(filepath, "rb") as f:
+            header = f.read(200)
+        stripped = header.lstrip()
+        if stripped[:5] == b'<?xml' or stripped[:1] == b'<':
+            return False
+        newline_pos = header.find(b'\n')
+        if newline_pos > 0:
+            first_line = header[:newline_pos]
+            if first_line.startswith(b'#FFFB') or first_line.startswith(b'PDML'):
+                return True
+            if b'Flotherm' in first_line or b'FloTHERM' in first_line:
+                return True
+        if b'<?xml' not in header and filepath.lower().endswith('.pdml'):
+            return True
+        return False
+    except Exception:
+        return False
+
+
+# ============================================================================
+# FloXML 解析
 # ============================================================================
 
 def _strip_ns(tag: str) -> str:
@@ -83,7 +111,7 @@ def _parse_inflation(elem: ET.Element) -> Optional[Dict]:
     return infl if infl else None
 
 
-def extract_grid_constraints_xml(root: ET.Element) -> List[Dict]:
+def extract_grid_constraints(root: ET.Element) -> List[Dict]:
     results: List[Dict] = []
     for gc_parent in root.iter():
         if _strip_ns(gc_parent.tag) != "grid_constraints":
@@ -134,7 +162,7 @@ def extract_grid_constraints_xml(root: ET.Element) -> List[Dict]:
     return results
 
 
-def extract_regions_xml(root: ET.Element) -> List[Dict]:
+def extract_regions(root: ET.Element) -> List[Dict]:
     results: List[Dict] = []
     for elem in root.iter():
         if _strip_ns(elem.tag) != "region":
@@ -176,7 +204,7 @@ def extract_regions_xml(root: ET.Element) -> List[Dict]:
     return results
 
 
-def extract_object_constraints_xml(root: ET.Element) -> List[Dict]:
+def extract_object_constraints(root: ET.Element) -> List[Dict]:
     results: List[Dict] = []
     geometry_tags = {
         "cuboid", "source", "fan", "resistance", "prism", "tet",
@@ -209,140 +237,41 @@ def extract_object_constraints_xml(root: ET.Element) -> List[Dict]:
     return results
 
 
-def extract_all_xml(root: ET.Element) -> Dict:
+def extract_all_from_xml(root: ET.Element) -> Dict:
+    """从 FloXML ElementTree 提取所有 region 和 grid constraint 信息"""
     return {
-        "grid_constraints": extract_grid_constraints_xml(root),
-        "object_constraints": extract_object_constraints_xml(root),
-        "regions": extract_regions_xml(root),
+        "grid_constraints": extract_grid_constraints(root),
+        "object_constraints": extract_object_constraints(root),
+        "regions": extract_regions(root),
     }
 
 
 # ============================================================================
-# PDML 二进制提取
+# 入口：自动检测 + PDML 转换
 # ============================================================================
 
-def extract_all_pdml(filepath: str) -> Dict:
-    """从 PDML 二进制文件提取 region 和 grid constraint 信息"""
-    import os
-    import sys
-    # 确保项目根目录在 sys.path 中
+def _pdml_to_floxml_root(filepath: str) -> ET.Element:
+    """用 pdml_to_floxml_converter 将二进制 PDML 转为内存中的 FloXML ElementTree"""
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
-    from pdml_tools.pdml_to_floxml_converter import PDMLBinaryReader
+    from pdml_tools.pdml_to_floxml_converter import PDMLBinaryReader, FloXMLBuilder
 
     reader = PDMLBinaryReader(filepath)
     data = reader.read()
-
-    def _round(v, digits=10):
-        """Round floats from binary to remove IEEE 754 noise"""
-        return round(v, digits) if isinstance(v, float) else v
-
-    # 1. Grid Constraints
-    gc_list = []
-    for gc in data.grid_constraints:
-        entry: Dict = {"name": gc.name}
-        entry["enable_min_cell_size"] = gc.enable_min_cell_size
-        entry["min_cell_size"] = _round(gc.min_cell_size)
-        entry["number_cells_control"] = gc.number_cells_control
-        entry["min_number"] = gc.min_number
-        if gc.high_inflation_inflation_size > 0:
-            entry["high_inflation"] = {
-                "inflation_type": gc.high_inflation_inflation_type,
-                "inflation_size": _round(gc.high_inflation_inflation_size),
-                "number_cells_control": gc.high_inflation_number_cells_control,
-                "min_number": gc.high_inflation_min_number,
-            }
-        gc_list.append(entry)
-
-    # 2. Regions — 遍历 geometry tree
-    region_list = []
-    obj_constraint_list = []
-
-    def _visit_node(node, parent_path=()):
-        # 提取 region
-        if node.node_type == "region":
-            r_entry: Dict = {"name": node.name}
-            r_entry["active"] = node.active
-            if node.hidden:
-                r_entry["hidden"] = True
-            if node.position:
-                r_entry["position"] = [_round(v) for v in node.position]
-            if node.size:
-                r_entry["size"] = [_round(v) for v in node.size]
-            # 从 post_elements 中提取 grid constraint 引用
-            for frag in node.post_elements:
-                if frag.tag in ("all_grid_constraint", "x_grid_constraint",
-                                "y_grid_constraint", "z_grid_constraint"):
-                    r_entry[frag.tag] = frag.text
-            if node.localized_grid is not None:
-                r_entry["localized_grid"] = node.localized_grid
-            region_list.append(r_entry)
-        else:
-            # 提取非 region 对象上的 grid constraint
-            gc_refs = {}
-            for frag in node.post_elements:
-                if frag.tag in ("all_grid_constraint", "x_grid_constraint",
-                                "y_grid_constraint", "z_grid_constraint"):
-                    gc_refs[frag.tag] = frag.text
-            if gc_refs and node.name:
-                oc_entry: Dict = {"target_names": [node.name], "target_tags": [node.node_type]}
-                oc_entry.update(gc_refs)
-                if node.localized_grid is not None:
-                    oc_entry["localized_grid"] = node.localized_grid
-                obj_constraint_list.append(oc_entry)
-
-        # 递归子节点
-        for child in node.children:
-            _visit_node(child, parent_path + (node.name,))
-
-    if data.geometry:
-        _visit_node(data.geometry)
-
-    return {
-        "grid_constraints": gc_list,
-        "object_constraints": obj_constraint_list,
-        "regions": region_list,
-    }
-
-
-# ============================================================================
-# 自动检测格式 & 公共接口
-# ============================================================================
-
-def is_binary_pdml(filepath: str) -> bool:
-    """检测文件是否为 PDML 二进制格式 (#FFFB)"""
-    try:
-        with open(filepath, "rb") as f:
-            header = f.read(200)
-        # XML 文件以 <?xml 或直接 <tag> 开头
-        stripped = header.lstrip()
-        if stripped[:5] == b'<?xml' or stripped[:1] == b'<':
-            return False
-        # PDML 二进制：首行以 #FFFB 开头 (Simcenter Flotherm 2504+)
-        # 或以 "PDML" 开头 (旧版本)
-        newline_pos = header.find(b'\n')
-        if newline_pos > 0:
-            first_line = header[:newline_pos]
-            if first_line.startswith(b'#FFFB') or first_line.startswith(b'PDML'):
-                return True
-            if b'Flotherm' in first_line or b'FloTHERM' in first_line:
-                return True
-        # 兜底：文件中无 <?xml 且扩展名是 .pdml → 视为二进制
-        if b'<?xml' not in header and filepath.lower().endswith('.pdml'):
-            return True
-        return False
-    except Exception:
-        return False
+    builder = FloXMLBuilder()
+    return builder.build(data)
 
 
 def extract_all(filepath: str) -> Dict:
-    """自动检测格式并提取"""
+    """自动检测格式：PDML 先转 FloXML，然后统一从 XML 提取"""
     if is_binary_pdml(filepath):
-        return extract_all_pdml(filepath)
+        print(f"[INFO] Detected binary PDML, converting to FloXML first...", file=sys.stderr)
+        root = _pdml_to_floxml_root(filepath)
     else:
         tree = ET.parse(filepath)
-        return extract_all_xml(tree.getroot())
+        root = tree.getroot()
+    return extract_all_from_xml(root)
 
 
 # ============================================================================
@@ -433,7 +362,6 @@ Output JSON can be used directly:
         config = extract_all(str(input_path))
     except ET.ParseError as e:
         print(f"[ERROR] XML parse failed: {e}", file=sys.stderr)
-        print("Hint: If this is a binary PDML file, it will be auto-detected.", file=sys.stderr)
         return 1
     except Exception as e:
         print(f"[ERROR] {type(e).__name__}: {e}", file=sys.stderr)
