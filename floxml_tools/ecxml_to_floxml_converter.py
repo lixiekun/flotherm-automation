@@ -16,6 +16,7 @@ ECXML 是器件级热模型交换格式，缺少:
 from __future__ import annotations
 
 import argparse
+import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Iterable
@@ -664,7 +665,7 @@ class FloXMLBuilder:
             domain_pos = (sd.x, sd.y, sd.z)
             domain_size = (sd.width, sd.height, sd.depth)
         else:
-            components = self._collect_all_cuboids(ecxml_data)
+            components = self._collect_all_cuboids_with_global_position(ecxml_data)
             bounds = self._calculate_bounds(components)
             domain_pos, domain_size = self._calculate_domain(bounds)
 
@@ -688,6 +689,34 @@ class FloXMLBuilder:
             collect_from_assembly(ecxml_data.root_assembly)
 
         return components
+
+    def _collect_all_cuboids_with_global_position(self, ecxml_data: ECXMLData) -> List[CuboidData]:
+        """收集所有 cuboid 并累加 assembly 层级偏移，返回全局坐标的 cuboid 列表"""
+        global_cuboids = []
+
+        for c in ecxml_data.root_cuboids:
+            global_cuboids.append(copy.deepcopy(c))
+
+        if ecxml_data.root_assembly:
+            self._collect_with_offset(ecxml_data.root_assembly, 0.0, 0.0, 0.0, global_cuboids)
+
+        return global_cuboids
+
+    def _collect_with_offset(self, assembly: AssemblyData, parent_x: float, parent_y: float, parent_z: float, result: List[CuboidData]):
+        """递归收集 cuboid，累加 assembly 偏移"""
+        gx = parent_x + assembly.position_x
+        gy = parent_y + assembly.position_y
+        gz = parent_z + assembly.position_z
+
+        for c in assembly.cuboids:
+            gc = copy.deepcopy(c)
+            gc.x += gx
+            gc.y += gy
+            gc.z += gz
+            result.append(gc)
+
+        for sub in assembly.sub_assemblies:
+            self._collect_with_offset(sub, gx, gy, gz, result)
 
     def _collect_all_sources(self, ecxml_data: ECXMLData) -> List[SourceData]:
         """收集所有 source 数据，包括 assembly 内的 source。"""
