@@ -2438,7 +2438,6 @@ class PDMLBinaryReader:
         return [node for node in nodes if node not in nested]
 
     def _attach_assembly_children(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
-        # Check if any node has level info (level > 0)
         has_level_info = any(node.level > 0 for node in nodes)
 
         if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
@@ -2446,24 +2445,41 @@ class PDMLBinaryReader:
                 return self._attach_compact_layout_children(nodes)
             return self._attach_heatsink_children(nodes)
 
-        # Use level-based hierarchy when level info is available
-        if has_level_info:
-            return self._attach_by_level(nodes)
+        # For feature_rich_layout: use name-based matching as primary signal.
+        # PDML level bytes are unreliable for hierarchy; a node belongs to an
+        # assembly only when its name contains "[AssemblyName,".
+        return self._attach_by_name_match(nodes)
 
-        # Fallback to name-based parent detection (for legacy files without level info)
-        assemblies = [node for node in nodes if node.node_type == 'assembly']
+    def _attach_by_name_match(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
+        """Build hierarchy using name-based matching.
+
+        In FloTHERM PDML, a node belongs to an assembly when its name contains
+        ``[AssemblyName,``.  This is far more reliable than the level byte signal.
+
+        Unmatched nodes remain at the top level, preserving their original order.
+        """
+        import re as _re
+
+        assemblies = [n for n in nodes if n.node_type == 'assembly']
+        assigned: Set[int] = set()
+
+        # Pre-compute the immediate parent name for each node that has a bracket
+        # pattern.  E.g. "R22 [1206, 13-23825-07]" → immediate parent = "1206".
+        for node in nodes:
+            m = _re.search(r'\[([^,\]]+)', node.name)
+            if m is None:
+                continue
+            parent_name = m.group(1).strip()
+            for asm in assemblies:
+                if asm.name == parent_name:
+                    asm.children.append(node)
+                    assigned.add(id(node))
+                    break
+
+        # Build result preserving original order
         top_level: List[PDMLGeometryNode] = []
         for node in nodes:
-            parent = next(
-                (
-                    assembly for assembly in assemblies
-                    if node is not assembly and f'[{assembly.name},' in node.name
-                ),
-                None,
-            )
-            if parent is not None:
-                parent.children.append(node)
-            else:
+            if id(node) not in assigned:
                 top_level.append(node)
         return top_level
 
@@ -2762,7 +2778,23 @@ class PDMLBinaryReader:
         nodes = [self._build_geometry_node_from_record(record) for record in self._find_geometry_records()]
         nodes = self._collapse_controller_children(nodes)
         root.children.extend(self._attach_assembly_children(nodes))
+
+        # Convert absolute positions to relative positions.
+        # FloXML requires child positions to be relative to their parent assembly.
+        self._convert_to_relative_positions(root)
+
         data.geometry = root
+
+    def _convert_to_relative_positions(self, node: PDMLGeometryNode) -> None:
+        """Recursively convert absolute positions to parent-relative positions."""
+        if not node.children:
+            return
+        px, py, pz = node.position
+        for child in node.children:
+            # Subtract parent position to get relative position
+            cx, cy, cz = child.position
+            child.position = (cx - px, cy - py, cz - pz)
+            self._convert_to_relative_positions(child)
 
     def _iter_geometry_bounds(
         self,
