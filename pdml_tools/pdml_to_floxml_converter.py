@@ -2445,9 +2445,11 @@ class PDMLBinaryReader:
                 return self._attach_compact_layout_children(nodes)
             return self._attach_heatsink_children(nodes)
 
-        # For feature_rich_layout: use name-based matching as primary signal.
-        # PDML level bytes are unreliable for hierarchy; a node belongs to an
-        # assembly only when its name contains "[AssemblyName,".
+        # For feature_rich_layout: hybrid strategy.
+        # 1. Name-based matching for nodes with [AssemblyName, pattern.
+        # 2. Level-based grouping for remaining unmatched nodes (e.g. PCB models).
+        if has_level_info:
+            return self._attach_by_level_sequential(nodes)
         return self._attach_by_name_match(nodes)
 
     def _attach_by_name_match(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
@@ -2482,6 +2484,126 @@ class PDMLBinaryReader:
             if id(node) not in assigned:
                 top_level.append(node)
         return top_level
+
+    def _attach_by_level_sequential(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
+        """Build hierarchy using level bytes + sequential ordering.
+
+        Two-pass hybrid strategy:
+        1. **Name-match pass**: nodes with ``[AsmName,`` in their name are
+           attached to the corresponding assembly.
+        2. **Level-based pass**: remaining unmatched nodes use level bytes
+           and sequential order. Only level-based assemblies participate
+           in the stack; name-matched assemblies are excluded from the
+           stack so they don't absorb unrelated subsequent nodes.
+
+        This handles both all.pdml (single assembly with bracket-named children)
+        and PCB.pdml (deep hierarchy with no bracket naming conventions).
+        """
+        import re as _re
+
+        top_level: List[PDMLGeometryNode] = []
+        assigned: Set[int] = set()
+        name_matched_assemblies: Set[int] = set()
+
+        # --- Pass 1: name-based matching (bracket pattern) ---
+        assemblies = [n for n in nodes if n.node_type == 'assembly']
+        for node in nodes:
+            m = _re.search(r'\[([^,\]]+)', node.name)
+            if m is None:
+                continue
+            parent_name = m.group(1).strip()
+            for asm in assemblies:
+                if asm.name == parent_name:
+                    asm.children.append(node)
+                    assigned.add(id(node))
+                    # Track which assemblies received name-matched children
+                    name_matched_assemblies.add(id(asm))
+                    break
+
+        # Collect unmatched nodes in original order for pass 2
+        unmatched = [n for n in nodes if id(n) not in assigned]
+
+        # --- Pass 2: level-based sequential grouping for unmatched nodes ---
+        # Only assemblies that did NOT receive name-matched children participate
+        # in the level-based stack. This prevents e.g. "1206" assembly from
+        # absorbing unrelated non-bracket nodes that happen to follow it.
+        asm_stack: List[PDMLGeometryNode] = []
+
+        def _current_asm() -> Optional[PDMLGeometryNode]:
+            return asm_stack[-1] if asm_stack else None
+
+        for node in unmatched:
+            level = getattr(node, 'level', 0)
+            if level < 0:
+                level = 0
+            if level > 10:
+                level = 10
+
+            if node.node_type == 'assembly':
+                if id(node) in name_matched_assemblies:
+                    # This assembly was a name-match target in pass 1.
+                    # Don't push it onto the level-based stack.
+                    top_level.append(node)
+                    continue
+
+                # Level-based placement for non-name-matched assemblies
+                if level >= 3:
+                    parent = _current_asm()
+                    if parent is not None:
+                        parent.children.append(node)
+                    else:
+                        top_level.append(node)
+                    asm_stack.append(node)
+                elif level == 2:
+                    if len(asm_stack) > 1:
+                        asm_stack.pop()
+                        parent = _current_asm()
+                        if parent is not None:
+                            parent.children.append(node)
+                        else:
+                            top_level.append(node)
+                    elif len(asm_stack) == 1:
+                        asm_stack.pop()
+                        top_level.append(node)
+                    else:
+                        top_level.append(node)
+                    asm_stack.append(node)
+                else:
+                    # Level 0/1
+                    parent = _current_asm()
+                    if parent is not None:
+                        parent.children.append(node)
+                    else:
+                        top_level.append(node)
+                    asm_stack.append(node)
+            else:
+                # Non-assembly unmatched node: use level bytes
+                if level >= 3 and asm_stack:
+                    asm_stack[-1].children.append(node)
+                elif level == 2 and len(asm_stack) > 1:
+                    asm_stack[-2].children.append(node)
+                elif level == 2 and len(asm_stack) == 1:
+                    asm_stack[-1].children.append(node)
+                elif level == 1 and asm_stack:
+                    asm_stack[-1].children.append(node)
+                else:
+                    top_level.append(node)
+
+        return top_level
+
+    @staticmethod
+    def _find_assembly_by_name(
+        top_level: List[PDMLGeometryNode], name: str
+    ) -> Optional[PDMLGeometryNode]:
+        """Search the tree for an assembly with the given name."""
+        for node in top_level:
+            if node.node_type == 'assembly' and node.name == name:
+                return node
+            if node.node_type == 'assembly' and node.children:
+                result = PDMLBinaryReader._find_assembly_by_name(node.children, name)
+                if result is not None:
+                    return result
+        return None
 
     def _attach_by_level(self, nodes: List[PDMLGeometryNode]) -> List[PDMLGeometryNode]:
         """Attach children using the C1 hierarchy heuristic.
