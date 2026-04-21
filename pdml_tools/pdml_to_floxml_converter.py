@@ -810,6 +810,39 @@ class PDMLBinaryReader:
             return tuple(values[:dimensions])
         return tuple(0.0 for _ in range(dimensions))
 
+    def _extract_size_orientation_matrix(
+        self, base_offset: int,
+    ) -> Tuple[Optional[Tuple[float, ...]], Optional[Tuple[Tuple[float, float, float], ...]]]:
+        """Extract size and orientation from the 3x3 matrix in PDML binary.
+
+        The PDML stores a size*orientation matrix as 9 consecutive doubles
+        (each 9 bytes apart: 1 marker + 8-byte BE double) near rel ~280-370.
+        Row magnitudes give the size; normalised rows give the orientation.
+
+        Returns (size, orientation) or (None, None) if no matrix found.
+        """
+        import math as _math
+
+        all_doubles = self._read_relative_doubles(base_offset, 270, 380)
+        for i in range(len(all_doubles) - 8):
+            group = all_doubles[i:i + 9]
+            rels = [g[0] for g in group]
+            vals = [g[1] for g in group]
+            gaps = [rels[j + 1] - rels[j] for j in range(8)]
+            if all(g == 9 for g in gaps):
+                rows = [vals[0:3], vals[3:6], vals[6:9]]
+                mags = [_math.sqrt(sum(v * v for v in r)) for r in rows]
+                size = tuple(mags)
+                orient = []
+                for r, m in zip(rows, mags):
+                    if m > 1e-15:
+                        orient.append((r[0] / m, r[1] / m, r[2] / m))
+                    else:
+                        orient.append((0.0, 0.0, 0.0))
+                return size, tuple(orient)
+
+        return None, None
+
     def _identity_orientation(self) -> Tuple[Tuple[float, float, float], ...]:
         return (
             (1.0, 0.0, 0.0),
@@ -1990,13 +2023,23 @@ class PDMLBinaryReader:
         base_offset = record['offset']
         name = record['name']
         level = record.get('level', 1)  # Get level info for hierarchy
+
+        # Extract size and orientation from the 3x3 matrix in the binary.
+        matrix_size, matrix_orient = self._extract_size_orientation_matrix(base_offset)
+        if matrix_size is not None and matrix_orient is not None:
+            size = matrix_size
+            orientation = matrix_orient
+        else:
+            size = self._extract_standard_size(base_offset, 3)
+            orientation = self._identity_orientation()
+
         node = PDMLGeometryNode(
             node_type=node_type,
             name=name,
             level=level,
             position=self._extract_standard_position(base_offset),
-            size=self._extract_standard_size(base_offset, 3),
-            orientation=self._extract_orientation(base_offset),
+            size=size,
+            orientation=orientation,
             localized_grid=False,
         )
 
@@ -2304,11 +2347,6 @@ class PDMLBinaryReader:
                 base = (base[0], base[1], base[2]) if len(base) >= 3 else (0.02, 0.02, 0.0035)
                 sink_type = "pin_fin"
             node.size = None
-            node.orientation = (
-                (1.0, 0.0, 0.0),
-                (0.0, 0.0, 1.0),
-                (0.0, 1.0, 0.0),
-            )
             node.emit_active = False
             node.pre_elements.extend([
                 self._fragment("heat_sink_type", sink_type),
