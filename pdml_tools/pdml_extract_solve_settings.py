@@ -177,12 +177,11 @@ def extract_initial_variables(root: ET.Element) -> Optional[Dict]:
     if v is not None:
         result["use_initial_for_all"] = v
 
-    variables: List[Dict] = []
     for child in iv:
         tag = _strip_ns(child.tag)
         if tag in ("use_initial_for_all",):
             continue
-        var_entry: Dict[str, str] = {"variable": tag}
+        var_entry: Dict[str, Any] = {}
         v = _text(child, "type")
         if v is not None:
             var_entry["type"] = v
@@ -192,10 +191,9 @@ def extract_initial_variables(root: ET.Element) -> Optional[Dict]:
                 var_entry["value"] = float(v)
             except ValueError:
                 var_entry["value"] = v
-        variables.append(var_entry)
+        if var_entry:
+            result[tag] = var_entry
 
-    if variables:
-        result["variables"] = variables
     return result if result else None
 
 
@@ -688,10 +686,11 @@ def print_summary(config: Dict) -> None:
 
     iv = config.get("initial_variables", {})
     if iv:
-        vars_list = iv.get("variables", [])
+        vars_list = [k for k in iv if k not in ("use_initial_for_all",)]
         print(f"\nInitial Variables ({len(vars_list)}):")
-        for v in vars_list:
-            print(f"  - {v.get('variable', '?')}: type={v.get('type', '?')}, "
+        for var_name in vars_list:
+            v = iv[var_name]
+            print(f"  - {var_name}: type={v.get('type', '?')}, "
                   f"value={v.get('value', 'N/A')}")
 
     oc = config.get("overall_control", {})
