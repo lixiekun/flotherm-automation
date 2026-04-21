@@ -86,7 +86,8 @@ class PDMLTimePatch:
     start_time: float = 0.0
     end_time: float = 30.0
     step_control: str = "minimum_number"
-    minimum_number: int = 15
+    minimum_number: Optional[int] = None
+    max_size: Optional[float] = None
     step_distribution: str = "increasing_power"
     distribution_index: float = 1.4
 
@@ -1728,24 +1729,32 @@ class PDMLBinaryReader:
             if 2 in fields and 'double' in fields[2]:
                 tp.end_time = fields[2]['double']
 
-            # Extract minimum_number from idx=3 compound field:
-            # 0a 02 00 e0 03 0c 03 00 90 02 03 BE_INT_4B
-            # After the 0x0090 typed value (vt=0x02), the 0x03 prefix precedes the int.
+            # Field [3] → step_control + value
+            # Two possible formats:
+            #   minimum_number: 0a 02 00 e0 03 0c 03 00 90 02 03 BE_INT_4B
+            #   max_size:       0a 02 00 e0 03 0c 03 00 90 01 06 BE_DOUBLE
+            # The byte after 0x0090 determines the type: 0x02=int, 0x01=double
             raw_bytes = self.data[scan_start:scan_end]
             for k in range(len(raw_bytes) - 14):
                 if (raw_bytes[k] == 0x0a and raw_bytes[k+1] == 0x02
                         and raw_bytes[k+2] == 0x00 and raw_bytes[k+3] == 0xE0
                         and raw_bytes[k+4] == 3):
-                    # Found idx=3 marker, skip 0c 03 00 90 02 then read 03 + INT_4B
                     j = k + 5
-                    if (j + 5 < len(raw_bytes) and raw_bytes[j] == 0x0c and raw_bytes[j+1] == 0x03
-                            and raw_bytes[j+4] == 0x02):
-                        # Skip to the 0x03 int prefix: 0c 03 00 90 02 [03 INT4B]
+                    if j + 5 < len(raw_bytes) and raw_bytes[j] == 0x0c and raw_bytes[j+1] == 0x03:
+                        vt = raw_bytes[j + 4]
                         m = j + 5
-                        if m + 5 < len(raw_bytes) and raw_bytes[m] == 0x03:
+                        if vt == 0x02 and m + 5 < len(raw_bytes) and raw_bytes[m] == 0x03:
+                            # Integer value → step_control = minimum_number
                             min_num = struct.unpack('>I', raw_bytes[m+1:m+5])[0]
-                            if 1 <= min_num <= 10000:
+                            if 1 <= min_num <= 100000:
+                                tp.step_control = "minimum_number"
                                 tp.minimum_number = min_num
+                        elif vt == 0x01 and m + 9 < len(raw_bytes) and raw_bytes[m] == 0x06:
+                            # Double value → step_control = max_size
+                            max_sz = struct.unpack('>d', raw_bytes[m+1:m+9])[0]
+                            if max_sz > 0:
+                                tp.step_control = "max_size"
+                                tp.max_size = max_sz
                     break
 
             # Field [4] → distribution type
@@ -3442,11 +3451,13 @@ class FloXMLBuilder:
                 ("start_time", f"{tp.start_time:.6g}"),
                 ("end_time", f"{tp.end_time:.6g}"),
                 ("step_control", tp.step_control),
-                ("minimum_number", str(tp.minimum_number)),
+                ("minimum_number", str(tp.minimum_number) if tp.minimum_number is not None else "15"),
                 ("step_distribution", tp.step_distribution),
                 ("distribution_index", f"{tp.distribution_index:.6g}"),
             ):
                 self._append_text(time_patch, tag, text)
+            if tp.step_control == "max_size" and tp.max_size is not None:
+                self._append_text(time_patch, "max_size", f"{tp.max_size:.6g}")
 
     def _build_initial_variables_section(self, parent: ET.Element, model: PDMLModelSettings):
         iv = model.initial_variables
