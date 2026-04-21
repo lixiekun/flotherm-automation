@@ -797,6 +797,25 @@ class PDMLBinaryReader:
 
         return best if best is not None else (0.0, 0.0, 0.0)
 
+    def _extract_material_properties(self, name_offset: int) -> Tuple[float, float, float]:
+        """Extract conductivity, density, specific_heat from PDML binary near a material name.
+
+        The PDML stores material properties as doubles at fixed relative offsets
+        after the material name tag.  Empirical pattern from multiple PDML files:
+          density(+85..+105), specific_heat(+109..+130), conductivity(+133..+155)
+
+        Returns (conductivity, density, specific_heat) or raises if not found.
+        """
+        doubles = self._read_relative_doubles(name_offset, 80, 160)
+        density_vals = self._pick_values(doubles, 1, positive_only=True, rel_min=85, rel_max=105)
+        cp_vals = self._pick_values(doubles, 1, positive_only=True, rel_min=109, rel_max=130)
+        k_vals = self._pick_values(doubles, 1, positive_only=True, rel_min=133, rel_max=155)
+
+        if k_vals and density_vals and cp_vals:
+            return (k_vals[0], density_vals[0], cp_vals[0])
+
+        raise ValueError(f"Cannot extract material properties at offset {name_offset}")
+
     def _extract_explicit_vector(self, base_offset: int, start_rel: int, end_rel: int, dimensions: int = 3) -> Tuple[float, ...]:
         values = self._pick_values(
             self._read_relative_doubles(base_offset, start_rel, end_rel),
@@ -1036,30 +1055,30 @@ class PDMLBinaryReader:
             if material_name is None:
                 return
             surface_name = self._primary_surface_name()
-            data.materials.append(PDMLMaterial(name=material_name, conductivity=205.0, density=1.0, specific_heat=1.0))
-            material = self._make_material_element(material_name, 205.0, 1.0, 1.0)
+            offset = self._find_string_offset(material_name)
+            try:
+                k, rho, cp = self._extract_material_properties(offset)
+            except ValueError:
+                k, rho, cp = 205.0, 1.0, 1.0
+            data.materials.append(PDMLMaterial(name=material_name, conductivity=k, density=rho, specific_heat=cp))
+            material = self._make_material_element(material_name, k, rho, cp)
             ET.SubElement(material, "surface").text = surface_name
             self._append_attribute(data, 'materials', material)
             return
-        material_specs = [
-            ('Aluminum', 160.0, 2300.0, 455.0),
-            ('FR4', 0.3, 1200.0, 880.0),
-            ('Copper', 400.0, 8930.0, 385.0),
-        ]
-        for name, conductivity, density, specific_heat in material_specs:
-            if self._find_string_offset(name) is None:
+
+        # Scan for material names in the binary and extract their properties
+        known_materials = ['Aluminum', 'FR4', 'Copper', 'Steel', 'Iron', 'Glass', 'Plastic',
+                           'Ceramic', 'Silicon', 'Solder', 'Thermal Grease', 'Thermal Pad']
+        for name in known_materials:
+            offset = self._find_string_offset(name)
+            if offset is None:
                 continue
-            data.materials.append(PDMLMaterial(
-                name=name,
-                conductivity=conductivity,
-                density=density,
-                specific_heat=specific_heat,
-            ))
-            self._append_attribute(
-                data,
-                'materials',
-                self._make_material_element(name, conductivity, density, specific_heat),
-            )
+            try:
+                k, rho, cp = self._extract_material_properties(offset)
+            except ValueError:
+                continue
+            data.materials.append(PDMLMaterial(name=name, conductivity=k, density=rho, specific_heat=cp))
+            self._append_attribute(data, 'materials', self._make_material_element(name, k, rho, cp))
 
     def _append_surface_attributes(self, data: PDMLData):
         if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
@@ -1104,15 +1123,19 @@ class PDMLBinaryReader:
         self._append_attribute(data, 'surfaces', surface)
 
     def _append_ambient_attributes(self, data: PDMLData):
-        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
-            ambient_name = self._ambient_name()
+        # Use temperature extracted from model settings instead of hardcoded values
+        temp = data.model.ambient_temperature
+        rad_temp = data.model.radiant_temperature if data.model.radiant_temperature else temp
+
+        ambient_names = [self._ambient_name()] if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT else ['Outside World', 'Ambient']
+        for ambient_name in ambient_names:
             if self._find_string_offset(ambient_name) is None:
-                return
+                continue
             ambient = ET.Element("ambient_att")
             ET.SubElement(ambient, "name").text = ambient_name
             ET.SubElement(ambient, "pressure").text = "0"
-            ET.SubElement(ambient, "temperature").text = "318.15"
-            ET.SubElement(ambient, "radiant_temperature").text = "318.15"
+            ET.SubElement(ambient, "temperature").text = f"{temp:.6g}"
+            ET.SubElement(ambient, "radiant_temperature").text = f"{rad_temp:.6g}"
             ET.SubElement(ambient, "heat_transfer_coeff").text = "0"
             velocity = ET.SubElement(ambient, "velocity")
             ET.SubElement(velocity, "x").text = "0"
@@ -1123,26 +1146,7 @@ class PDMLBinaryReader:
             for idx in range(1, 6):
                 ET.SubElement(ambient, f"concentration_{idx}").text = "0"
             self._append_attribute(data, 'ambients', ambient)
-            data.ambients = [PDMLAmbient(name=ambient_name, temperature=318.15, heat_transfer_coeff=0.0)]
-            return
-        if self._find_string_offset('Outside World') is None:
-            return
-        ambient = ET.Element("ambient_att")
-        ET.SubElement(ambient, "name").text = "Outside World"
-        ET.SubElement(ambient, "pressure").text = "0"
-        ET.SubElement(ambient, "temperature").text = "293"
-        ET.SubElement(ambient, "radiant_temperature").text = "293"
-        ET.SubElement(ambient, "heat_transfer_coeff").text = "12"
-        velocity = ET.SubElement(ambient, "velocity")
-        ET.SubElement(velocity, "x").text = "0"
-        ET.SubElement(velocity, "y").text = "0"
-        ET.SubElement(velocity, "z").text = "0"
-        ET.SubElement(ambient, "turbulent_kinetic_energy").text = "0"
-        ET.SubElement(ambient, "turbulent_dissipation_rate").text = "0"
-        for idx in range(1, 6):
-            ET.SubElement(ambient, f"concentration_{idx}").text = "0"
-        self._append_attribute(data, 'ambients', ambient)
-        data.ambients = [PDMLAmbient(name="Outside World", temperature=293.0, heat_transfer_coeff=12.0)]
+            data.ambients.append(PDMLAmbient(name=ambient_name, temperature=temp, heat_transfer_coeff=0.0))
 
     def _append_thermal_attributes(self, data: PDMLData):
         if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
@@ -1286,10 +1290,24 @@ class PDMLBinaryReader:
         self._append_attribute(data, 'radiations', radiation)
 
     def _append_source_attributes(self, data: PDMLData):
-        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
-            source_name = self._first_available_name(['1 Watts'])
-            if source_name is None:
-                return
+        # Detect source names from binary — scan for strings with type_code 0x01E0 (source attribute)
+        # or names containing "Watt", plus geometry source nodes (type_code 0x02C0)
+        source_candidates = []
+        for record in self.tagged_strings:
+            value = record['value']
+            tc = record['type_code']
+            if tc == 0x01E0 or 'Watts' in value or 'Watt' in value:
+                source_candidates.append(value)
+
+        if not source_candidates:
+            return
+
+        for source_name in source_candidates:
+            # Extract power from the source name (e.g. "1 Watts" → 1.0)
+            import re
+            m = re.match(r'([\d.]+)\s*Watt', source_name)
+            power = float(m.group(1)) if m else 1.0
+
             source = ET.Element("source_att")
             ET.SubElement(source, "name").text = source_name
             options = ET.SubElement(source, "source_options")
@@ -1297,34 +1315,10 @@ class PDMLBinaryReader:
             ET.SubElement(option, "applies_to").text = "temperature"
             ET.SubElement(option, "type").text = "total"
             ET.SubElement(option, "value").text = "0"
-            ET.SubElement(option, "power").text = "1"
+            ET.SubElement(option, "power").text = f"{power:.6g}"
             ET.SubElement(option, "linear_coefficient").text = "0"
             self._append_attribute(data, 'sources', source)
-            data.sources = [PDMLSource(name=source_name, power=1.0)]
-            return
-        if self._find_string_offset('Temp And X-Vel') is None:
-            return
-        source = ET.Element("source_att")
-        ET.SubElement(source, "name").text = "Temp And X-Vel"
-        options = ET.SubElement(source, "source_options")
-
-        temperature_option = ET.SubElement(options, "option")
-        ET.SubElement(temperature_option, "applies_to").text = "temperature"
-        ET.SubElement(temperature_option, "type").text = "total"
-        ET.SubElement(temperature_option, "value").text = "0"
-        ET.SubElement(temperature_option, "power").text = "23.3"
-        ET.SubElement(temperature_option, "linear_coefficient").text = "0"
-        ET.SubElement(temperature_option, "transient").text = "Functions-Example"
-
-        velocity_option = ET.SubElement(options, "option")
-        ET.SubElement(velocity_option, "applies_to").text = "x_velocity"
-        ET.SubElement(velocity_option, "type").text = "total"
-        ET.SubElement(velocity_option, "value").text = "0.05"
-        ET.SubElement(velocity_option, "transient").text = "Transient1"
-
-        ET.SubElement(source, "notes").text = "This is a 23.3 Watt source"
-        self._append_attribute(data, 'sources', source)
-        data.sources = [PDMLSource(name="Temp And X-Vel", power=23.3)]
+            data.sources.append(PDMLSource(name=source_name, power=power))
 
     def _append_resistance_attributes(self, data: PDMLData):
         if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
