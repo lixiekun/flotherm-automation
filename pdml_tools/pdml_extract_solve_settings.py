@@ -21,6 +21,11 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Ensure project root is on sys.path so direct execution works
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
 from pdml_tools.pdml_extract_regions import (
     is_binary_pdml,
     _strip_ns,
@@ -629,9 +634,6 @@ def extract_all_from_xml(root: ET.Element) -> Dict:
 
 def _pdml_to_floxml_root(filepath: str) -> ET.Element:
     """用 pdml_to_floxml_converter 将二进制 PDML 转为内存中的 FloXML ElementTree"""
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
     from pdml_tools.pdml_to_floxml_converter import PDMLBinaryReader, FloXMLBuilder
 
     reader = PDMLBinaryReader(filepath)
