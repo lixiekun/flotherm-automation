@@ -817,6 +817,30 @@ class PDMLBinaryReader:
             (0.0, 0.0, 1.0),
         )
 
+    def _extract_orientation(self, base_offset: int) -> Tuple[Tuple[float, float, float], ...]:
+        """Extract 3x3 orientation matrix from PDML binary (rel ~260-340).
+
+        Layout: 9 doubles forming local_x(i,j,k), local_y(i,j,k), local_z(i,j,k).
+        Falls back to identity if extraction fails.
+        """
+        doubles = self._read_relative_doubles(base_offset, 255, 345)
+        # Filter for orientation-like values: each double should be 0, 1, or -1
+        orient_vals = []
+        for rel_pos, val in doubles:
+            if abs(val) < 1e-9:
+                orient_vals.append(0.0)
+            elif abs(abs(val) - 1.0) < 1e-6:
+                orient_vals.append(val)
+            else:
+                orient_vals = []  # Non-orientation value found, reset
+        if len(orient_vals) >= 9:
+            return (
+                (orient_vals[0], orient_vals[1], orient_vals[2]),
+                (orient_vals[3], orient_vals[4], orient_vals[5]),
+                (orient_vals[6], orient_vals[7], orient_vals[8]),
+            )
+        return self._identity_orientation()
+
     def _fragment(self, tag: str, text: Optional[Any] = None, children: Optional[List[XMLFragment]] = None) -> XMLFragment:
         if isinstance(text, float):
             text = f"{text:.6g}"
@@ -1972,7 +1996,7 @@ class PDMLBinaryReader:
             level=level,
             position=self._extract_standard_position(base_offset),
             size=self._extract_standard_size(base_offset, 3),
-            orientation=self._identity_orientation(),
+            orientation=self._extract_orientation(base_offset),
             localized_grid=False,
         )
 
@@ -2101,11 +2125,7 @@ class PDMLBinaryReader:
             return self._finalize_geometry_node(node)
 
         if node_type == 'region':
-            node.orientation = (
-                (1.0, 0.0, 0.0),
-                (0.0, 0.0, 1.0),
-                (0.0, 1.0, 0.0),
-            )
+            # Orientation already extracted from binary above
             # Extract grid constraint reference and localized_grid from binary
             gc_ref, localized_grid = self._extract_region_grid_constraint(base_offset)
             if gc_ref is not None:
