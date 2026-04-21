@@ -767,6 +767,36 @@ class PDMLBinaryReader:
             return tuple(values[:dimensions])
         return tuple(0.0 for _ in range(dimensions))
 
+    def _extract_monitor_point_position(self, base_offset: int) -> Tuple[float, float, float]:
+        """Extract monitor_point position by scanning for a triple of evenly-spaced doubles.
+
+        Monitor point positions appear at variable offsets depending on the PDML
+        layout.  The standard position range (rel 380-410) is too narrow — some
+        PDMLs store the z coordinate at rel 412 or even at rel 332 (PCB files).
+        Instead of a fixed window, we scan the post-tag region and look for
+        three consecutive doubles that are each 9 bytes apart (marker + 8-byte BE
+        double), preferring the triple that contains at least one non-trivial value.
+        """
+        TRIVIAL = {0.0, 1.0, -1.0}
+        NOISE_RANGE = (1e-250, 1e-100)
+
+        all_doubles = self._read_relative_doubles(base_offset, 200, 500)
+        is_meaningful = lambda v: v not in TRIVIAL and abs(v) > 1e-6 and abs(v) < 1e15 and not (NOISE_RANGE[0] < abs(v) < NOISE_RANGE[1])
+
+        best: Optional[Tuple[float, float, float]] = None
+        for i in range(len(all_doubles) - 2):
+            r1, v1 = all_doubles[i]
+            r2, v2 = all_doubles[i + 1]
+            r3, v3 = all_doubles[i + 2]
+            if (r2 - r1) == 9 and (r3 - r2) == 9:
+                triple = (v1, v2, v3)
+                if any(is_meaningful(v) for v in triple):
+                    return triple
+                if best is None:
+                    best = triple
+
+        return best if best is not None else (0.0, 0.0, 0.0)
+
     def _extract_explicit_vector(self, base_offset: int, start_rel: int, end_rel: int, dimensions: int = 3) -> Tuple[float, ...]:
         values = self._pick_values(
             self._read_relative_doubles(base_offset, start_rel, end_rel),
@@ -2086,6 +2116,7 @@ class PDMLBinaryReader:
             return self._finalize_geometry_node(node)
 
         if node_type == 'monitor_point':
+            node.position = self._extract_monitor_point_position(base_offset)
             node.size = None
             node.orientation = None
             node.localized_grid = None
