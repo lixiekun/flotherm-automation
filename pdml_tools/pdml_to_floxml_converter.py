@@ -460,21 +460,31 @@ class PDMLBinaryReader:
                     reserved = struct.unpack('>H', self.data[pos+4:pos+6])[0]
                     # 使用大端序解析长度
                     length = struct.unpack('>I', self.data[pos+6:pos+10])[0]
-                    if 0 < length < 4096 and pos + 10 + length <= len(self.data):
-                        str_data = self.data[pos+10:pos+10+length]
-                        try:
-                            value = str_data.decode('utf-8', errors='replace')
-                            if value.strip():
-                                clean = value.strip()
-                                self.strings[pos] = clean
-                                self.tagged_strings.append({
-                                    'offset': pos,
-                                    'type_code': type_code,
-                                    'reserved': reserved,
-                                    'value': clean,
-                                })
-                        except:
-                            pass
+                    if length < 4096 and pos + 10 + length <= len(self.data):
+                        if length == 0:
+                            # Empty-name tagged strings serve as section markers
+                            # (e.g. 0x00F0 transient parent) — record them for lookup
+                            self.tagged_strings.append({
+                                'offset': pos,
+                                'type_code': type_code,
+                                'reserved': reserved,
+                                'value': '',
+                            })
+                        else:
+                            str_data = self.data[pos+10:pos+10+length]
+                            try:
+                                value = str_data.decode('utf-8', errors='replace')
+                                if value.strip():
+                                    clean = value.strip()
+                                    self.strings[pos] = clean
+                                    self.tagged_strings.append({
+                                        'offset': pos,
+                                        'type_code': type_code,
+                                        'reserved': reserved,
+                                        'value': clean,
+                                    })
+                            except:
+                                pass
             pos += 1
 
     def _extract_project_name(self) -> str:
@@ -1586,9 +1596,10 @@ class PDMLBinaryReader:
           [3] double → (reserved / duplicate)
           [4] double → (reserved / duplicate)
           [5] double → keypoint_tolerance
-        If not found, transient_settings remains None (builder will use defaults).
+          [6] compound → save_times count
+        After the parent fields, scans for save_time doubles.
         """
-        # Find the 0x00F0 parent tagged string (like time patches use 0x00E0)
+        # Find the 0x00F0 parent tagged string (empty name, length=0)
         parent_offset = None
         for record in self.tagged_strings:
             if record['type_code'] == 0x00F0:
@@ -1598,11 +1609,7 @@ class PDMLBinaryReader:
         if parent_offset is None:
             return
 
-        # Scan child fields starting just past the parent tagged string header
-        # Parent format: 07 02 00 F0 reserved(2B) length(4B) [data] [trailer]
-        # Skip past the header: 10 bytes minimum + any string data
-        skip = 10  # marker(2) + tc(2) + reserved(2) + length(4)
-        # Find the first 0x0A child field marker after the parent
+        skip = 10
         scan_start = parent_offset + skip
         scan_end = min(scan_start + 500, len(self.data) - 20)
 
@@ -1619,8 +1626,66 @@ class PDMLBinaryReader:
             if 5 in fields and 'double' in fields[5]:
                 ts.keypoint_tolerance = fields[5]['double']
                 has_data = True
+
+            # Extract save_times from field 6 compound and surrounding data
+            save_count = 0
+            if 6 in fields and 'flag' in fields[6]:
+                save_count = fields[6]['flag']
+
+            if save_count > 0:
+                save_times = self._extract_save_times(parent_offset, ts.end_time, save_count, ts.start_time)
+                if save_times is not None:
+                    ts.save_times = save_times
+
             if has_data:
                 model.transient_settings = ts
+
+    def _extract_save_times(self, parent_offset: int, end_time: float, count: int, start_time: float) -> Optional[List[float]]:
+        """Extract save_times from the binary near the transient section.
+
+        Scans the 0x00F0 parent's child area for doubles in [start_time, end_time]
+        that represent solution snapshot times.
+        """
+        # The save_times are stored as child fields of the 0x00F0 parent,
+        # typically in higher field indices (7+).  Scan for them in the
+        # region between the parent header and the next section marker.
+        search_start = parent_offset + 10
+        # Look for the next 0x07 0x02 section marker that ISN'T a child field
+        search_end = search_start + 600
+        for i in range(search_start + 200, min(search_start + 600, len(self.data) - 10)):
+            # A top-level section marker has 07 02 followed by a type code
+            # that is NOT 0x00F0 (which would be a child field)
+            if self.data[i:i+2] == b'\x07\x02':
+                tc = struct.unpack('>H', self.data[i+2:i+4])[0]
+                if tc != 0x00F0:
+                    search_end = i
+                    break
+
+        doubles = self._read_relative_doubles(search_start, 0, search_end - search_start)
+        end_time_abs = abs(end_time) if end_time else 60.0
+
+        # Collect doubles in [0, end_time] that look like save times
+        candidates = []
+        for rel, val in doubles:
+            if 0 <= val <= end_time_abs:
+                candidates.append(val)
+
+        # Remove duplicates (start_time, end_time, duration often appear)
+        unique = sorted(set(round(v, 6) for v in candidates))
+        # Filter out start_time and end_time themselves if count is small
+        if count <= 2:
+            filtered = [v for v in unique if v != end_time_abs or v == 0]
+        else:
+            filtered = unique
+
+        if len(filtered) >= count:
+            return filtered[:count]
+
+        # Fallback for count=1: start_time is the default save time
+        if count == 1:
+            return [start_time]
+
+        return None
 
     def _extract_time_patches_from_binary(self, model: PDMLModelSettings):
         """Extract time patches using tc=0x00E0 fields.
