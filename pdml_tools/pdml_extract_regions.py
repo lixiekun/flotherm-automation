@@ -178,24 +178,107 @@ def _get_elem_size(elem: ET.Element) -> Optional[List[float]]:
     return None
 
 
+def _get_elem_orientation(elem: ET.Element) -> List[List[float]]:
+    """从元素中提取 orientation 矩阵，默认为单位矩阵"""
+    orient = elem.find("orientation")
+    if orient is None:
+        return [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    matrix = []
+    for axis in ("local_x", "local_y", "local_z"):
+        ax = orient.find(axis)
+        if ax is not None:
+            matrix.append([_float_text(ax, c) for c in ("i", "j", "k")])
+        else:
+            idx = len(matrix)
+            row = [0, 0, 0]
+            row[idx] = 1
+            matrix.append(row)
+    return matrix
+
+
+_IDENTITY = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+
+
+def _is_identity(m: List[List[float]]) -> bool:
+    for i in range(3):
+        for j in range(3):
+            expected = 1.0 if i == j else 0.0
+            if abs(m[i][j] - expected) > 1e-9:
+                return False
+    return True
+
+
+def _local_to_parent_pos(
+    local_pos: List[float],
+    size: Optional[List[float]],
+    orientation: List[List[float]],
+) -> List[float]:
+    """Transform local min-corner position to parent coordinate system.
+
+    For diagonal matrices (axis flips only):
+      flipped axis: parent = -local - size  (min-corner convention)
+      normal axis:  parent = local
+
+    For non-diagonal matrices (axis swaps), uses bounding-box corner transform.
+    """
+    if _is_identity(orientation):
+        return list(local_pos)
+
+    size = size or [0.0, 0.0, 0.0]
+
+    # Check if purely diagonal (axis flips only)
+    is_diagonal = all(
+        abs(orientation[i][j]) < 1e-9 for i in range(3) for j in range(3) if i != j
+    )
+
+    if is_diagonal:
+        result = [0.0, 0.0, 0.0]
+        for i in range(3):
+            if orientation[i][i] < 0:
+                result[i] = -local_pos[i] - size[i]
+            else:
+                result[i] = local_pos[i]
+        return result
+
+    # General case: transform all 8 bounding-box corners, return min
+    corners = []
+    for dx in (0, 1):
+        for dy in (0, 1):
+            for dz in (0, 1):
+                lx = local_pos[0] + size[0] * dx
+                ly = local_pos[1] + size[1] * dy
+                lz = local_pos[2] + size[2] * dz
+                px = orientation[0][0]*lx + orientation[0][1]*ly + orientation[0][2]*lz
+                py = orientation[1][0]*lx + orientation[1][1]*ly + orientation[1][2]*lz
+                pz = orientation[2][0]*lx + orientation[2][1]*ly + orientation[2][2]*lz
+                corners.append((px, py, pz))
+
+    return [
+        min(c[i] for c in corners)
+        for i in range(3)
+    ]
+
+
 def extract_regions(root: ET.Element) -> List[Dict]:
     """
-    提取所有 region，计算全局坐标（累积父级 assembly 偏移）。
+    提取所有 region，计算全局坐标（累积父级 assembly 偏移 + orientation 变换）。
 
     FloXML geometry 是层级结构：assembly 包含子 geometry，子元素 position 是局部的。
-    这里递归遍历树，将 region 的 position 转为全局坐标。
+    这里递归遍历树，将 region 的 position 转为全局坐标，考虑 assembly 的 orientation。
     同时保留 parent_assembly 和 local_position 供参考。
     """
     results: List[Dict] = []
 
-    def _visit(parent: ET.Element, offset: List[float], assembly_path: List[str]):
+    def _visit(parent: ET.Element, offset: List[float], parent_orient: List[List[float]], assembly_path: List[str]):
         for elem in parent:
             tag = _strip_ns(elem.tag)
             name = _text(elem, "name") or ""
             local_pos = _get_elem_position(elem)
+            elem_size = _get_elem_size(elem)
 
-            # 计算全局坐标
-            global_pos = [offset[i] + local_pos[i] for i in range(3)]
+            # Apply parent's orientation to convert local pos to parent coords
+            transformed = _local_to_parent_pos(local_pos, elem_size, parent_orient)
+            global_pos = [offset[i] + transformed[i] for i in range(3)]
 
             if tag == "region":
                 entry: Dict = {"name": name}
@@ -206,14 +289,11 @@ def extract_regions(root: ET.Element) -> List[Dict]:
                 if v is not None:
                     entry["hidden"] = v.lower() == "true"
 
-                # 全局坐标
                 entry["position"] = global_pos
 
-                size = _get_elem_size(elem)
-                if size:
-                    entry["size"] = size
+                if elem_size:
+                    entry["size"] = elem_size
 
-                # 如果在 assembly 内部，记录父级信息和局部坐标
                 if assembly_path:
                     entry["parent_assembly"] = assembly_path[-1]
                     entry["local_position"] = local_pos
@@ -231,19 +311,19 @@ def extract_regions(root: ET.Element) -> List[Dict]:
 
             # 如果是 assembly，递归进入其 <geometry> 子节点
             if tag == "assembly":
+                orient = _get_elem_orientation(elem)
                 child_geom = elem.find("geometry")
                 if child_geom is not None:
-                    _visit(child_geom, global_pos, assembly_path + [name])
+                    _visit(child_geom, global_pos, orient, assembly_path + [name])
             # 非 assembly 也可能有 <geometry>（如 enclosure）
             elif tag not in ("region",):
                 child_geom = elem.find("geometry")
                 if child_geom is not None:
-                    _visit(child_geom, global_pos, assembly_path)
+                    _visit(child_geom, global_pos, parent_orient, assembly_path)
 
-    # 找到根 <geometry>
     geometry = root.find("geometry")
     if geometry is not None:
-        _visit(geometry, [0.0, 0.0, 0.0], [])
+        _visit(geometry, [0.0, 0.0, 0.0], _IDENTITY, [])
 
     return results
 
