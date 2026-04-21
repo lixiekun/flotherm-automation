@@ -983,6 +983,62 @@ class PDMLBinaryReader:
             ])]),
         ]
 
+    def _build_supply_extract_fragments_from_records(self, parent_offset: int, kind: str, type_code: int) -> List[XMLFragment]:
+        """Build supply/extract fragments from binary records near a parent geometry node."""
+        fragments = []
+        for rec in self.tagged_strings:
+            if rec['type_code'] != type_code:
+                continue
+            # Only include records that are near the parent (within 5000 bytes after parent)
+            if not (parent_offset < rec['offset'] < parent_offset + 5000):
+                continue
+            name = rec['value']
+            off = rec['offset']
+            if kind == 'supply':
+                sp = self._extract_supply_params(off)
+                pos = sp.get('position') or (0, 0, 0)
+                sz = sp.get('size') or (0.12, 0.22)
+            else:
+                ep = self._extract_extract_params(off)
+                pos = ep.get('position') or (1, 1, 1)
+                sz = ep.get('size') or (0.22, 0.33)
+
+            frag = self._fragment(kind, children=[
+                self._fragment("name", name),
+                self._fragment("active", "true"),
+                self._fragment("position", children=[self._fragment("x", pos[0] if pos[0] is not None else 0), self._fragment("y", pos[1] if pos[1] is not None else 0), self._fragment("z", pos[2] if pos[2] is not None else 0)]),
+                self._fragment("size", children=[self._fragment("x", sz[0] if sz[0] is not None else 0.12), self._fragment("y", sz[1] if sz[1] is not None else 0.22)]),
+            ])
+            if kind == 'supply':
+                frag.children.extend([
+                    self._fragment("free_area_ratio", "1"),
+                    self._fragment("direction_type", "normal"),
+                    self._fragment("turbulent_kinetic_energy", "0"),
+                    self._fragment("turbulent_dissipation_rate", "0"),
+                ])
+            fragments.append(frag)
+        # Fallback to hardcoded if no records found
+        if not fragments:
+            if kind == 'supply':
+                fragments.append(self._fragment(kind, children=[
+                    self._fragment("name", "Supply1"),
+                    self._fragment("active", "true"),
+                    self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0")]),
+                    self._fragment("size", children=[self._fragment("x", "0.12"), self._fragment("y", "0.22")]),
+                    self._fragment("free_area_ratio", "1"),
+                    self._fragment("direction_type", "normal"),
+                    self._fragment("turbulent_kinetic_energy", "0"),
+                    self._fragment("turbulent_dissipation_rate", "0"),
+                ]))
+            else:
+                fragments.append(self._fragment(kind, children=[
+                    self._fragment("name", "Extract1"),
+                    self._fragment("active", "true"),
+                    self._fragment("position", children=[self._fragment("x", "1"), self._fragment("y", "1"), self._fragment("z", "1")]),
+                    self._fragment("size", children=[self._fragment("x", "0.22"), self._fragment("y", "0.33")]),
+                ]))
+        return fragments
+
     def _apply_sample_model_defaults(self, model: PDMLModelSettings):
         """Apply sample-calibrated defaults before attempting generic extraction."""
         model.solution = "flow_heat"
@@ -2360,6 +2416,167 @@ class PDMLBinaryReader:
                 return (vals[i], vals[i+1], vals[i+2])
         return None
 
+    def _extract_geom_doubles(self, base_offset: int, start: int, end: int) -> Dict[int, float]:
+        """Extract doubles near a geometry record as {relative_offset: value}."""
+        return {rel: val for rel, val in self._read_relative_doubles(base_offset, start, end)}
+
+    def _pick_double_near(self, doubles: Dict[int, float], near: int, tolerance: int = 30) -> Optional[float]:
+        """Pick a double value closest to a given relative offset."""
+        best_val = None
+        best_dist = tolerance + 1
+        for rel, val in doubles.items():
+            dist = abs(rel - near)
+            if dist <= tolerance and dist < best_dist:
+                best_val = val
+                best_dist = dist
+        return best_val
+
+    def _extract_fixed_flow_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 640, 800)
+        return {
+            'volume_flow_rate': self._pick_double_near(d, 680),
+            'free_area_ratio': self._pick_double_near(d, 775) or self._pick_double_near(d, 756),
+        }
+
+    def _extract_perforated_plate_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 650, 830)
+        return {
+            'side_length': self._pick_double_near(d, 657),
+            'pitch_x': self._pick_double_near(d, 681),
+            'pitch_y': self._pick_double_near(d, 690),
+            'loss_coefficient': self._pick_double_near(d, 778),
+        }
+
+    def _extract_recirc_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 480, 560)
+        return {
+            'flow_rate': self._pick_double_near(d, 490),
+            'temperature_change': self._pick_double_near(d, 543),
+        }
+
+    def _extract_rack_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 540, 650)
+        return {
+            'power_dissipation': self._pick_double_near(d, 589),
+            'temperature_change': self._pick_double_near(d, 637),
+        }
+
+    def _extract_cooler_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 480, 660)
+        return {
+            'flow_rate': self._pick_double_near(d, 491),
+            'temperature_set_point': self._pick_double_near(d, 653),
+        }
+
+    def _extract_pcb_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 590, 740)
+        return {
+            'thickness': self._pick_double_near(d, 644),
+            'percent_conductor': self._pick_double_near(d, 683),
+        }
+
+    def _extract_die_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 640, 720)
+        return {
+            'uniform_power': self._pick_double_near(d, 673),
+        }
+
+    def _extract_heatpipe_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 480, 950)
+        return {
+            'max_heat_flow': self._pick_double_near(d, 492),
+            'thermal_resistance': self._pick_double_near(d, 516),
+            'cuboid_size': (
+                self._pick_double_near(d, 801),
+                self._pick_double_near(d, 810),
+                self._pick_double_near(d, 819),
+            ),
+        }
+
+    def _extract_tec_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 530, 890)
+        return {
+            'ceramic_thickness': self._pick_double_near(d, 878),
+            'hot_side_1': {
+                'temperature': self._pick_double_near(d, 638),
+                'q_max': self._pick_double_near(d, 734),
+                'delta_t_max': self._pick_double_near(d, 686),
+                'i_max': self._pick_double_near(d, 782),
+                'v_max': self._pick_double_near(d, 830),
+            },
+            'hot_side_2': {
+                'temperature': self._pick_double_near(d, 662),
+                'q_max': self._pick_double_near(d, 758),
+                'delta_t_max': self._pick_double_near(d, 710),
+                'i_max': self._pick_double_near(d, 806),
+                'v_max': self._pick_double_near(d, 854),
+            },
+        }
+
+    def _extract_diffuser_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 570, 630)
+        return {
+            'volume_flow_rate': self._pick_double_near(d, 586),
+            'jet_angle': self._pick_double_near(d, 610),
+        }
+
+    def _extract_controller_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 400, 700)
+        # starting_frequency is 1.5e9, look for large double
+        freq = None
+        for rel, val in d.items():
+            if val > 1e8:
+                freq = val
+                break
+        return {'starting_frequency': freq}
+
+    def _extract_heatsink_fin_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 800, 940)
+        return {
+            'fin_height': self._pick_double_near(d, 822),
+            'uniform_width': self._pick_double_near(d, 831),
+            'tapered_tip_width': self._pick_double_near(d, 840),
+        }
+
+    def _extract_heatsink_pin_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 800, 940)
+        return {
+            'pin_height': self._pick_double_near(d, 820),
+            'uniform_length': self._pick_double_near(d, 885),
+            'uniform_width': self._pick_double_near(d, 829),
+            'tapered_length': self._pick_double_near(d, 857),
+            'tapered_base_width': self._pick_double_near(d, 866),
+            'tapered_tip_width': self._pick_double_near(d, 904),
+        }
+
+    def _extract_supply_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 500, 620)
+        return {
+            'position': (
+                self._pick_double_near(d, 503),
+                self._pick_double_near(d, 512),
+                self._pick_double_near(d, 521),
+            ),
+            'size': (
+                self._pick_double_near(d, 540),
+                self._pick_double_near(d, 549),
+            ),
+        }
+
+    def _extract_extract_params(self, base_offset: int) -> Dict[str, Any]:
+        d = self._extract_geom_doubles(base_offset, 500, 570)
+        return {
+            'position': (
+                self._pick_double_near(d, 504),
+                self._pick_double_near(d, 513),
+                self._pick_double_near(d, 522),
+            ),
+            'size': (
+                self._pick_double_near(d, 541),
+                self._pick_double_near(d, 550),
+            ),
+        }
+
     def _extract_wall_thickness(self, base_offset: int) -> Optional[str]:
         """Extract wall thickness from PDML binary for enclosures."""
         doubles = self._read_relative_doubles(base_offset, 300, 350)
@@ -2430,30 +2647,19 @@ class PDMLBinaryReader:
             node.material = None
         elif node.node_type == 'fixed_flow':
             node.size = (node.size[0], node.size[1]) if node.size else (1.1, 2.2)
-            if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
-                node.mid_elements.append(self._fragment("free_area_ratio", "1"))
-                node.post_elements.extend([
-                    self._fragment("flow", children=[
-                    self._fragment("flow_type", "volume_flow_rate"),
-                        self._fragment("volume_flow_rate", "0.001"),
-                    ]),
-                    self._fragment("flow_direction", "inflow"),
-                    self._fragment("flow_angle", "normal"),
-                    self._fragment("transparent_to_radiation", "false"),
-                    self._fragment("inflow_ambient", self._ambient_name()),
-                ])
-            else:
-                node.mid_elements.append(self._fragment("free_area_ratio", "0.99"))
-                node.post_elements.extend([
-                    self._fragment("flow", children=[
-                        self._fragment("flow_type", "volume_flow_rate"),
-                        self._fragment("volume_flow_rate", "0.05"),
-                    ]),
-                    self._fragment("flow_direction", "inflow"),
-                    self._fragment("flow_angle", "normal"),
-                    self._fragment("transparent_to_radiation", "false"),
-                    self._fragment("inflow_ambient", self._ambient_name()),
-                ])
+            ff = self._extract_fixed_flow_params(base_offset)
+            node.mid_elements.append(self._fragment("free_area_ratio", ff.get('free_area_ratio') or ("1" if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT else "0.99")))
+            node.post_elements.extend([
+                self._fragment("flow", children=[
+                self._fragment("flow_type", "volume_flow_rate"),
+                    self._fragment("volume_flow_rate", ff.get('volume_flow_rate') or ("0.001" if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT else "0.05")),
+                ]),
+                self._fragment("flow_direction", "inflow"),
+                self._fragment("flow_angle", "normal"),
+                self._fragment("transparent_to_radiation", "false"),
+                self._fragment("inflow_ambient", self._ambient_name()),
+            ])
+            if self.profile != self.COMPACT_FORCED_FLOW_LAYOUT:
                 gc_name = self._primary_grid_constraint_name()
                 if gc_name:
                     node.post_elements.extend([
@@ -2463,14 +2669,15 @@ class PDMLBinaryReader:
                     ])
         elif node.node_type == 'perforated_plate':
             node.size = (node.size[0], node.size[1]) if node.size else (1.2, 1.2)
+            pp = self._extract_perforated_plate_params(base_offset)
             node.post_elements.extend([
                 self._fragment("hole_type", "hexagonal"),
-                self._fragment("side_length", "0.005"),
-                self._fragment("coverage", children=[self._fragment("pitch", children=[self._fragment("x", "0.02"), self._fragment("y", "0.03")])]),
+                self._fragment("side_length", pp.get('side_length') or "0.005"),
+                self._fragment("coverage", children=[self._fragment("pitch", children=[self._fragment("x", pp.get('pitch_x') or "0.02"), self._fragment("y", pp.get('pitch_y') or "0.03")])]),
                 self._fragment("straighten_flow", "high_side"),
                 self._fragment("resistance_model", "standard"),
                 self._fragment("loss_coefficient_based_on", "approach_velocity"),
-                self._fragment("loss_coefficient", "+22.12"),
+                self._fragment("loss_coefficient", f"+{pp.get('loss_coefficient', 22.12):.6g}" if pp.get('loss_coefficient') else "+22.12"),
             ])
             gc_name = self._primary_grid_constraint_name()
             if gc_name:
@@ -2481,44 +2688,24 @@ class PDMLBinaryReader:
         elif node.node_type == 'recirc_device':
             node.size = None
             node.localized_grid = None
+            rp = self._extract_recirc_params(base_offset)
+            supply_frags = self._build_supply_extract_fragments_from_records(base_offset, 'supply', 0x0820)
+            extract_frags = self._build_supply_extract_fragments_from_records(base_offset, 'extract', 0x0830)
             node.post_elements.extend([
                 self._fragment("flow_type", "volume_flow_rate"),
-                self._fragment("flow_rate", "0.55"),
+                self._fragment("flow_rate", rp.get('flow_rate') or "0.55"),
                 self._fragment("thermal_properties", "temperature_change"),
-                self._fragment("temperature_change", "13.3"),
-                self._fragment("supplies", children=[self._fragment("supply", children=[
-                    self._fragment("name", "Supply1"),
-                    self._fragment("active", "true"),
-                    self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0")]),
-                    self._fragment("orientation", children=[
-                        self._fragment("local_x", children=[self._fragment("i", "1"), self._fragment("j", "0"), self._fragment("k", "0")]),
-                        self._fragment("local_y", children=[self._fragment("i", "0"), self._fragment("j", "1"), self._fragment("k", "0")]),
-                        self._fragment("local_z", children=[self._fragment("i", "0"), self._fragment("j", "0"), self._fragment("k", "1")]),
-                    ]),
-                    self._fragment("size", children=[self._fragment("x", "0.12"), self._fragment("y", "0.22")]),
-                    self._fragment("free_area_ratio", "1"),
-                    self._fragment("direction_type", "normal"),
-                    self._fragment("turbulent_kinetic_energy", "0"),
-                    self._fragment("turbulent_dissipation_rate", "0"),
-                ])]),
-                self._fragment("extracts", children=[self._fragment("extract", children=[
-                    self._fragment("name", "Extract1"),
-                    self._fragment("active", "true"),
-                    self._fragment("position", children=[self._fragment("x", "1"), self._fragment("y", "1"), self._fragment("z", "1")]),
-                    self._fragment("orientation", children=[
-                        self._fragment("local_x", children=[self._fragment("i", "0"), self._fragment("j", "1"), self._fragment("k", "0")]),
-                        self._fragment("local_y", children=[self._fragment("i", "1"), self._fragment("j", "0"), self._fragment("k", "0")]),
-                        self._fragment("local_z", children=[self._fragment("i", "0"), self._fragment("j", "0"), self._fragment("k", "1")]),
-                    ]),
-                    self._fragment("size", children=[self._fragment("x", "0.22"), self._fragment("y", "0.33")]),
-                ])]),
+                self._fragment("temperature_change", rp.get('temperature_change') or "13.3"),
+                self._fragment("supplies", children=supply_frags),
+                self._fragment("extracts", children=extract_frags),
             ])
         elif node.node_type == 'rack':
             node.size = None
+            rp = self._extract_rack_params(base_offset)
             post = [
-                self._fragment("power_dissipation", "12500"),
+                self._fragment("power_dissipation", rp.get('power_dissipation') or "12500"),
                 self._fragment("flow_type", "temperature_change"),
-                self._fragment("temperature_change", "12.2"),
+                self._fragment("temperature_change", rp.get('temperature_change') or "12.2"),
             ]
             gc_name = self._primary_grid_constraint_name()
             if gc_name:
@@ -2527,10 +2714,11 @@ class PDMLBinaryReader:
             node.tail_elements.extend(self._make_supply_extract_fragments())
         elif node.node_type == 'cooler':
             node.size = None
+            cp = self._extract_cooler_params(base_offset)
             node.post_elements.extend([
                 self._fragment("airflow_type", "fixed"),
-                self._fragment("flow_rate", "100"),
-                self._fragment("temperature_set_point", "34"),
+                self._fragment("flow_rate", cp.get('flow_rate') or "100"),
+                self._fragment("temperature_set_point", cp.get('temperature_set_point') or "34"),
                 self._fragment("temperature_set_point_location", "supply"),
                 self._fragment("capacity_limit", "none"),
             ])
@@ -2558,14 +2746,15 @@ class PDMLBinaryReader:
             ]))
             node.post_elements.append(self._fragment("modeling_method", "detailed"))
             if sink_type == "plate_fin":
+                fp = self._extract_heatsink_fin_params(base_offset)
                 node.post_elements.append(self._fragment("plate_definition", children=[
                     self._fragment("number_internal_fins", "31"),
                     self._fragment("internal_fins", children=[
-                        self._fragment("fin_height", "0.02"),
+                        self._fragment("fin_height", fp.get('fin_height') or "0.02"),
                         self._fragment("fin_style", "uniform"),
-                        self._fragment("uniform_width", "0.001"),
-                        self._fragment("tapered_base_width", "0.001"),
-                        self._fragment("tapered_tip_width", "0.0005"),
+                        self._fragment("uniform_width", fp.get('uniform_width') or "0.001"),
+                        self._fragment("tapered_base_width", fp.get('uniform_width') or "0.001"),
+                        self._fragment("tapered_tip_width", fp.get('tapered_tip_width') or "0.0005"),
                     ]),
                     self._fragment("center_gap", "0"),
                     self._fragment("high_side_fin_inset", "0"),
@@ -2578,16 +2767,17 @@ class PDMLBinaryReader:
                     ]),
                 ]))
             else:
+                pp = self._extract_heatsink_pin_params(base_offset)
                 node.post_elements.append(self._fragment("pin_definition", children=[
                     self._fragment("pin_geometry", children=[
-                        self._fragment("pin_height", "0.0165"),
+                        self._fragment("pin_height", pp.get('pin_height') or "0.0165"),
                         self._fragment("pin_style", "uniform"),
                         self._fragment("pin_type", "rectangular"),
-                        self._fragment("uniform_length", "0.002"),
-                        self._fragment("uniform_width", "0.0016"),
-                        self._fragment("tapered_length", "0.002"),
-                        self._fragment("tapered_base_width", "0.0016"),
-                        self._fragment("tapered_tip_width", "0.001"),
+                        self._fragment("uniform_length", pp.get('uniform_length') or "0.002"),
+                        self._fragment("uniform_width", pp.get('uniform_width') or "0.0016"),
+                        self._fragment("tapered_length", pp.get('tapered_length') or "0.002"),
+                        self._fragment("tapered_base_width", pp.get('tapered_base_width') or "0.0016"),
+                        self._fragment("tapered_tip_width", pp.get('tapered_tip_width') or "0.001"),
                         self._fragment("circular_diameter", "0.001"),
                         self._fragment("circular_base_diameter", "0.001"),
                         self._fragment("circular_tip_diameter", "0.0005"),
@@ -2607,23 +2797,25 @@ class PDMLBinaryReader:
             node.size = self._extract_explicit_vector(base_offset, 310, 335, 2)
             node.position = self._extract_explicit_vector(base_offset, 440, 465, 3)
             node.orientation_before_position = True
+            pcb = self._extract_pcb_params(base_offset)
             node.post_elements.extend([
-                self._fragment("thickness", "0.0016"),
+                self._fragment("thickness", pcb.get('thickness') or "0.0016"),
                 self._fragment("keypoint_component_height", "false"),
                 self._fragment("heat_dissipated_to_air", "0"),
                 self._fragment("top_roughness_height", "0"),
                 self._fragment("bottom_roughness_height", "0"),
                 self._fragment("modeling_level", "conducting"),
                 self._fragment("conducting_type", "percent_conductor_by_vol"),
-                self._fragment("percent_conductor_by_vol", "12"),
+                self._fragment("percent_conductor_by_vol", pcb.get('percent_conductor') or "12"),
                 self._fragment("dielectric_material", self._first_available_name(['FR4'], 'FR4') or 'FR4'),
                 self._fragment("conductor_material", self._first_available_name(['Copper'], 'Copper') or 'Copper'),
             ])
         elif node.node_type == 'die':
             node.active_before_name = True
+            dp = self._extract_die_params(base_offset)
             node.post_elements.extend([
                 self._fragment("power_dissipation_type", "uniform"),
-                self._fragment("uniform_power", "3.233"),
+                self._fragment("uniform_power", dp.get('uniform_power') or "3.233"),
                 self._fragment("die_material", self._primary_material_name()),
             ])
         elif node.node_type == 'cutout':
@@ -2635,27 +2827,33 @@ class PDMLBinaryReader:
         elif node.node_type == 'heatpipe':
             node.size = None
             node.orientation_before_position = True
+            hp = self._extract_heatpipe_params(base_offset)
+            csize = hp.get('cuboid_size') or (0.002, 0.002, 0.045)
             node.tail_elements.extend([
-                self._fragment("effective_thermal_resistance", "0.33"),
-                self._fragment("maximum_heat_flow", "12"),
+                self._fragment("effective_thermal_resistance", hp.get('thermal_resistance') or "0.33"),
+                self._fragment("maximum_heat_flow", hp.get('max_heat_flow') or "12"),
                 self._fragment("network_cuboids", children=[
                     self._fragment("network_cuboid", children=[
                         self._fragment("name", "Heat Pipe Geometry"),
                         self._fragment("position", children=[self._fragment("x", "0"), self._fragment("y", "0"), self._fragment("z", "0")]),
-                        self._fragment("size", children=[self._fragment("x", "0.002"), self._fragment("y", "0.002"), self._fragment("z", "0.045")]),
+                        self._fragment("size", children=[self._fragment("x", csize[0] or 0.002), self._fragment("y", csize[1] or 0.002), self._fragment("z", csize[2] or 0.045)]),
                         self._fragment("localized_grid", "false"),
                     ])
                 ]),
             ])
         elif node.node_type == 'tec':
+            tp = self._extract_tec_params(base_offset)
+            hs1 = tp.get('hot_side_1', {})
+            hs2 = tp.get('hot_side_2', {})
             node.post_elements.extend([
-                self._fragment("ceramic_thickness", "0.0005"),
+                self._fragment("ceramic_thickness", tp.get('ceramic_thickness') or "0.0005"),
                 self._fragment("ceramic_material", self._primary_material_name()),
                 self._fragment("operational_current", "1"),
-                self._fragment("hot_side_1", children=[self._fragment("temperature", "25"), self._fragment("q_max", "4"), self._fragment("delta_t_max", "35"), self._fragment("i_max", "1.5"), self._fragment("v_max", "5")]),
-                self._fragment("hot_side_2", children=[self._fragment("temperature", "50"), self._fragment("q_max", "2"), self._fragment("delta_t_max", "44"), self._fragment("i_max", "1.6"), self._fragment("v_max", "5")]),
+                self._fragment("hot_side_1", children=[self._fragment("temperature", hs1.get('temperature') or "25"), self._fragment("q_max", hs1.get('q_max') or "4"), self._fragment("delta_t_max", hs1.get('delta_t_max') or "35"), self._fragment("i_max", hs1.get('i_max') or "1.5"), self._fragment("v_max", hs1.get('v_max') or "5")]),
+                self._fragment("hot_side_2", children=[self._fragment("temperature", hs2.get('temperature') or "50"), self._fragment("q_max", hs2.get('q_max') or "2"), self._fragment("delta_t_max", hs2.get('delta_t_max') or "44"), self._fragment("i_max", hs2.get('i_max') or "1.6"), self._fragment("v_max", hs2.get('v_max') or "5")]),
             ])
         elif node.node_type == 'square_diffuser':
+            dp = self._extract_diffuser_params(base_offset)
             node.post_elements.extend([
                 self._fragment("active_jets", children=[
                     self._fragment("x_high_jet", "true"),
@@ -2663,8 +2861,8 @@ class PDMLBinaryReader:
                     self._fragment("y_high_jet", "true"),
                     self._fragment("y_low_jet", "true"),
                 ]),
-                self._fragment("volume_flow_rate", "0.2"),
-                self._fragment("jet_angle", "15"),
+                self._fragment("volume_flow_rate", dp.get('volume_flow_rate') or "0.2"),
+                self._fragment("jet_angle", dp.get('jet_angle') or "15"),
                 self._fragment("ambient", "Outside World"),
             ])
         elif node.node_type == 'controller':
@@ -2672,9 +2870,10 @@ class PDMLBinaryReader:
             node.orientation = None
             node.size = None
             node.localized_grid = None
+            cp = self._extract_controller_params(base_offset)
             node.pre_elements.extend([
                 self._fragment("control", "Control:0"),
-                self._fragment("starting_frequency", "1500000000"),
+                self._fragment("starting_frequency", cp.get('starting_frequency') or "1500000000"),
                 self._fragment("thigh_frequency_switching_criteria", "all_monitor_points"),
             ])
         return self._finalize_geometry_node(node)
