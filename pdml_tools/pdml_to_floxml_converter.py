@@ -913,8 +913,23 @@ class PDMLBinaryReader:
     def _primary_material_name(self) -> str:
         return self._first_available_name(['Heatsink Material', 'Aluminum'], 'Aluminum') or 'Aluminum'
 
+    def _primary_thermal_name(self) -> Optional[str]:
+        return self._first_available_name(['Heat'])
+
+    def _primary_radiation_name(self) -> Optional[str]:
+        return self._first_available_name(['Sub-Divided1'])
+
     def _primary_surface_name(self) -> str:
         return self._first_available_name(['Heatsink Surface', 'Paint'], 'Paint') or 'Paint'
+
+    def _primary_grid_constraint_name(self) -> Optional[str]:
+        return self._first_available_name(['Grid Constraint 1'])
+
+    def _primary_fan_curve_name(self) -> Optional[str]:
+        return self._first_available_name(['Fan Curve 1'])
+
+    def _primary_resistance_name(self) -> Optional[str]:
+        return self._first_available_name(['Flow Resistance'])
 
     def _make_material_element(self, name: str, conductivity: float, density: float, specific_heat: float) -> ET.Element:
         elem = ET.Element("isotropic_material_att")
@@ -1102,25 +1117,31 @@ class PDMLBinaryReader:
             ET.SubElement(display, "brightness").text = "0"
             self._append_attribute(data, 'surfaces', surface)
             return
-        if self._find_string_offset('Paint') is None:
-            return
-        surface = ET.Element("surface_att")
-        ET.SubElement(surface, "name").text = "Paint"
-        ET.SubElement(surface, "emissivity").text = "0.88"
-        ET.SubElement(surface, "roughness").text = "0"
-        ET.SubElement(surface, "rsurf_fluid").text = "0"
-        ET.SubElement(surface, "rsurf_solid").text = "0"
-        ET.SubElement(surface, "area_factor").text = "1"
-        ET.SubElement(surface, "solar_reflectivity").text = "0"
-        display = ET.SubElement(surface, "display_settings")
-        color = ET.SubElement(display, "color")
-        ET.SubElement(color, "red").text = "0.3"
-        ET.SubElement(color, "green").text = "0.5"
-        ET.SubElement(color, "blue").text = "1"
-        ET.SubElement(display, "shininess").text = "0"
-        ET.SubElement(display, "brightness").text = "0"
-        ET.SubElement(surface, "notes").text = "Paint Notes"
-        self._append_attribute(data, 'surfaces', surface)
+
+        # Extract all surface attributes from binary (type_code 0x0210)
+        for rec in self.tagged_strings:
+            if rec['type_code'] != 0x0210:
+                continue
+            name = rec['value']
+            offset = rec['offset']
+            emissivity = self._extract_surface_emissivity(offset)
+            color = self._extract_surface_color(offset)
+            surface = ET.Element("surface_att")
+            ET.SubElement(surface, "name").text = name
+            ET.SubElement(surface, "emissivity").text = f"{emissivity:.6g}" if emissivity is not None else "0.9"
+            ET.SubElement(surface, "roughness").text = "0"
+            ET.SubElement(surface, "rsurf_fluid").text = "0"
+            ET.SubElement(surface, "rsurf_solid").text = "0"
+            ET.SubElement(surface, "area_factor").text = "1"
+            ET.SubElement(surface, "solar_reflectivity").text = "0"
+            display = ET.SubElement(surface, "display_settings")
+            color_elem = ET.SubElement(display, "color")
+            ET.SubElement(color_elem, "red").text = f"{color[0]:.6g}" if color else "0"
+            ET.SubElement(color_elem, "green").text = f"{color[1]:.6g}" if color else "0"
+            ET.SubElement(color_elem, "blue").text = f"{color[2]:.6g}" if color else "0"
+            ET.SubElement(display, "shininess").text = "0"
+            ET.SubElement(display, "brightness").text = "0"
+            self._append_attribute(data, 'surfaces', surface)
 
     def _append_ambient_attributes(self, data: PDMLData):
         # Use temperature extracted from model settings instead of hardcoded values
@@ -1151,26 +1172,41 @@ class PDMLBinaryReader:
     def _append_thermal_attributes(self, data: PDMLData):
         if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
             return
-        if self._find_string_offset('Heat') is None:
-            return
+        # Extract all thermal attributes from binary (type_code 0x0220)
+        for rec in self.tagged_strings:
+            if rec['type_code'] != 0x0220:
+                continue
+            name = rec['value']
+            offset = rec['offset']
+            power = self._extract_thermal_power(offset)
 
-        thermal = ET.Element("thermal_att")
-        ET.SubElement(thermal, "name").text = "Heat"
-        ET.SubElement(thermal, "thermal_model").text = "conduction"
-        ET.SubElement(thermal, "power").text = "12.5"
-        ET.SubElement(thermal, "transient").text = "Transient1"
-        self._append_attribute(data, 'thermals', thermal)
+            thermal = ET.Element("thermal_att")
+            ET.SubElement(thermal, "name").text = name
+            ET.SubElement(thermal, "thermal_model").text = "conduction"
+            ET.SubElement(thermal, "power").text = f"{power:.6g}" if power is not None else "0"
+            transient_name = self._first_available_name(['Transient1'])
+            if transient_name:
+                ET.SubElement(thermal, "transient").text = transient_name
+            self._append_attribute(data, 'thermals', thermal)
 
-        transient = ET.Element("transient_att")
-        ET.SubElement(transient, "name").text = "Transient1"
-        curve_points = ET.SubElement(transient, "trans_curve_points")
-        for time_value, scale in [("0", "2"), ("2", "3"), ("4", "5")]:
-            point = ET.SubElement(curve_points, "trans_curve_point")
-            ET.SubElement(point, "time").text = time_value
-            ET.SubElement(point, "coef").text = scale
-        ET.SubElement(transient, "periodic").text = "false"
-        ET.SubElement(transient, "notes").text = "MY TRANSIENT"
-        self._append_attribute(data, 'transients', transient)
+        # Extract transient definitions if present
+        for rec in self.tagged_strings:
+            if rec['type_code'] != 0x0230:
+                continue
+            name = rec['value']
+            if name == 'Functions-Example':
+                self._append_attribute(data, 'transients', self._build_function_transient_attribute())
+                continue
+            points = self._extract_transient_points(rec['offset'])
+            transient = ET.Element("transient_att")
+            ET.SubElement(transient, "name").text = name
+            curve_points = ET.SubElement(transient, "trans_curve_points")
+            for t, c in points:
+                point = ET.SubElement(curve_points, "trans_curve_point")
+                ET.SubElement(point, "time").text = f"{t:.6g}"
+                ET.SubElement(point, "coef").text = f"{c:.6g}"
+            ET.SubElement(transient, "periodic").text = "false"
+            self._append_attribute(data, 'transients', transient)
 
         if self._contains_text('Functions-Example'):
             self._append_attribute(data, 'transients', self._build_function_transient_attribute())
@@ -1229,53 +1265,34 @@ class PDMLBinaryReader:
         data.grid_constraints = constraints
 
     def _append_fluid_attributes(self, data: PDMLData):
-        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
-            if self._find_string_offset('Air') is None:
-                return
+        # Extract all fluid attributes from binary (type_code 0x01A0)
+        for rec in self.tagged_strings:
+            if rec['type_code'] != 0x01A0:
+                continue
+            name = rec['value']
+            offset = rec['offset']
+            props = self._extract_fluid_properties(offset)
+
             fluid = ET.Element("fluid_att")
-            ET.SubElement(fluid, "name").text = "Air"
+            ET.SubElement(fluid, "name").text = name
             ET.SubElement(fluid, "conductivity_type").text = "constant"
-            ET.SubElement(fluid, "conductivity").text = "0.0261"
+            ET.SubElement(fluid, "conductivity").text = f"{props[0]:.6g}" if props[0] is not None else "0.026"
             ET.SubElement(fluid, "viscosity_type").text = "constant"
-            ET.SubElement(fluid, "viscosity").text = "0.0000184"
+            ET.SubElement(fluid, "viscosity").text = f"{props[1]:.6g}" if props[1] is not None else "0.000018"
             ET.SubElement(fluid, "density_type").text = "constant"
-            ET.SubElement(fluid, "density").text = "1.1614"
+            ET.SubElement(fluid, "density").text = f"{props[2]:.6g}" if props[2] is not None else "1.16"
             ET.SubElement(fluid, "specific_heat").text = "1008"
             ET.SubElement(fluid, "expansivity").text = "0.003"
             ET.SubElement(fluid, "diffusivity").text = "0"
             self._append_attribute(data, 'fluids', fluid)
-            data.fluids = [PDMLFluid(
-                name="Air",
-                conductivity=0.0261,
-                viscosity=0.0000184,
-                density=1.1614,
+            data.fluids.append(PDMLFluid(
+                name=name,
+                conductivity=props[0] or 0.026,
+                viscosity=props[1] or 0.000018,
+                density=props[2] or 1.16,
                 specific_heat=1008.0,
                 expansivity=0.003,
-            )]
-            return
-        if self._find_string_offset('Air') is None:
-            return
-        fluid = ET.Element("fluid_att")
-        ET.SubElement(fluid, "name").text = "Air"
-        ET.SubElement(fluid, "conductivity_type").text = "constant"
-        ET.SubElement(fluid, "conductivity").text = "0.003"
-        ET.SubElement(fluid, "viscosity_type").text = "constant"
-        ET.SubElement(fluid, "viscosity").text = "0.000018"
-        ET.SubElement(fluid, "density_type").text = "constant"
-        ET.SubElement(fluid, "density").text = "1.16"
-        ET.SubElement(fluid, "specific_heat").text = "1008"
-        ET.SubElement(fluid, "expansivity").text = "0.0003"
-        ET.SubElement(fluid, "diffusivity").text = "0"
-        ET.SubElement(fluid, "notes").text = "AIR STANDARD PROPERTIES"
-        self._append_attribute(data, 'fluids', fluid)
-        data.fluids = [PDMLFluid(
-            name="Air",
-            conductivity=0.003,
-            viscosity=0.000018,
-            density=1.16,
-            specific_heat=1008.0,
-            expansivity=0.0003,
-        )]
+            ))
 
     def _append_radiation_attributes(self, data: PDMLData):
         if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
@@ -1340,7 +1357,6 @@ class PDMLBinaryReader:
             ET.SubElement(axis_elem, "index").text = values[4]
         ET.SubElement(resistance, "loss_coefficients_based_on").text = "approach_velocity"
         ET.SubElement(resistance, "transparent_to_radiation").text = "true"
-        ET.SubElement(resistance, "notes").text = "RESISTANCE ATTRIBUTE NOTES"
         self._append_attribute(data, 'resistances', resistance)
 
     def _append_fan_attributes(self, data: PDMLData):
@@ -1385,7 +1401,6 @@ class PDMLBinaryReader:
             ET.SubElement(surface_exchange, "specified_constant_value").text = "14"
             ET.SubElement(surface_exchange, "reference_temperature").text = "calculated"
             ET.SubElement(surface_exchange, "reference_temperature_value").text = "255"
-            ET.SubElement(surface_exchange, "notes").text = "SURFACE EX NOTES"
         else:
             ET.SubElement(surface_exchange, "heat_transfer_coefficient").text = "calculated"
             ET.SubElement(surface_exchange, "specified_constant_value").text = "0"
@@ -1402,7 +1417,6 @@ class PDMLBinaryReader:
         ET.SubElement(occupancy, "name").text = "People"
         ET.SubElement(occupancy, "occupancy_level").text = "123"
         ET.SubElement(occupancy, "activity_level").text = "medium"
-        ET.SubElement(occupancy, "notes").text = "123 People"
         self._append_attribute(data, 'occupancies', occupancy)
 
     def _append_control_attributes(self, data: PDMLData):
@@ -2012,7 +2026,7 @@ class PDMLBinaryReader:
         self._append_occupancy_attributes(data)
         self._append_control_attributes(data)
 
-    def _build_geometry_node_from_record(self, record: Dict[str, Any]) -> PDMLGeometryNode:
+    def _build_geometry_node_from_record(self, record: Dict[str, Any], data: PDMLData) -> PDMLGeometryNode:
         node_type = record['node_type']
         base_offset = record['offset']
         name = record['name']
@@ -2038,8 +2052,10 @@ class PDMLBinaryReader:
         )
 
         if node_type == 'fan':
-            raw_size = node.size
-            hub_diameter = self._extract_explicit_vector(base_offset, 500, 530, 2)[0]
+            fan_dims = self._extract_explicit_vector(base_offset, 500, 560, 3)
+            hub_diameter = fan_dims[0] if fan_dims[0] else None
+            outer_diameter = fan_dims[1] if len(fan_dims) > 1 and fan_dims[1] else None
+            depth = fan_dims[2] if len(fan_dims) > 2 and fan_dims[2] else None
             node.post_elements.extend([
                 self._fragment(
                     "fan_geometry",
@@ -2047,9 +2063,9 @@ class PDMLBinaryReader:
                         self._fragment(
                             "axial_geom",
                             children=[
-                                self._fragment("outer_diameter", raw_size[0] if raw_size else 0.15),
+                                self._fragment("outer_diameter", outer_diameter or (node.size[0] if node.size else None) or 0.15),
                                 self._fragment("hub_diameter", hub_diameter or 0.05),
-                                self._fragment("depth", raw_size[2] if raw_size else 0.01),
+                                self._fragment("depth", depth or (node.size[2] if node.size else None) or 0.01),
                                 self._fragment("modeling_level", "3d_12_facets_4_hub"),
                                 self._fragment("primitive_location", "front"),
                             ],
@@ -2062,69 +2078,49 @@ class PDMLBinaryReader:
                 self._fragment("fan_noise", "44"),
                 self._fragment("use_fan_power", "true"),
                 self._fragment("fan_failed", "false"),
-                self._fragment("fan", "Fan Curve 1"),
+                self._fragment("fan", self._primary_fan_curve_name() or "Fan Curve 1"),
             ])
             node.size = None
             return node
 
         if node_type == 'cuboid':
-            if name == 'Block':
-                node.material = "Aluminum"
-                node.post_elements.extend([
-                    self._fragment("thermal", "Heat"),
-                    self._fragment("all_radiation", "Sub-Divided1"),
-                    self._fragment("all_grid_constraint", "Grid Constraint 1"),
-                ])
-                node.tail_elements.append(self._fragment("notes", "NOTES"))
-            elif name == 'Block with Holes':
-                node.material = "Aluminum"
-                node.post_elements.append(self._fragment("thermal", "Heat"))
-                node.tail_elements.append(
-                    self._fragment("holes", children=[
-                        self._fragment("direction", "x_direction"),
-                        self._fragment("hole", children=[
-                            self._fragment("name", "Hole Number 1"),
-                            self._fragment("active", "true"),
-                            self._fragment("localized_grid", "false"),
-                            self._fragment("position", children=[self._fragment("x", "0.2"), self._fragment("y", "0.2")]),
-                            self._fragment("size", children=[self._fragment("x", "0.3"), self._fragment("y", "0.3")]),
-                            self._fragment("replace_with", children=[
-                                self._fragment("type", "material"),
-                                self._fragment("material", "Aluminum"),
-                                self._fragment("modeling_level", "thick"),
-                                self._fragment("replace_position", "mid_face"),
-                                self._fragment("thickness", "0.04"),
-                            ]),
-                        ]),
-                        self._fragment("hole", children=[
-                            self._fragment("name", "Hole Number 2"),
-                            self._fragment("active", "true"),
-                            self._fragment("localized_grid", "false"),
-                            self._fragment("position", children=[self._fragment("x", "0.5"), self._fragment("y", "0.5")]),
-                            self._fragment("size", children=[self._fragment("x", "0.1"), self._fragment("y", "0.1")]),
-                            self._fragment("replace_with", children=[
-                                self._fragment("type", "material"),
-                                self._fragment("material", "Aluminum"),
-                                self._fragment("modeling_level", "thick"),
-                                self._fragment("replace_position", "mid_face"),
-                                self._fragment("thickness", "0.04"),
-                            ]),
-                        ]),
-                    ])
-                )
+            # Extract holes from binary if present
+            holes = self._extract_holes_from_binary(base_offset, data)
+            if holes:
+                node.material = self._primary_material_name()
+                thermal_name = self._primary_thermal_name()
+                if thermal_name:
+                    node.post_elements.append(self._fragment("thermal", thermal_name))
+                node.tail_elements.append(holes)
+            else:
+                # Standard cuboid — assign detected attributes
+                node.material = self._primary_material_name()
+                thermal_name = self._primary_thermal_name()
+                if thermal_name:
+                    node.post_elements.append(self._fragment("thermal", thermal_name))
+                radiation_name = self._primary_radiation_name()
+                if radiation_name:
+                    node.post_elements.append(self._fragment("all_radiation", radiation_name))
+                gc_name = self._primary_grid_constraint_name()
+                if gc_name:
+                    node.post_elements.append(self._fragment("all_grid_constraint", gc_name))
             return self._finalize_geometry_node(node)
 
         if node_type == 'prism':
-            node.material = "Aluminum"
-            node.post_elements.extend([
-                self._fragment("x_low_surface", "Paint"),
-                self._fragment("sloping_face_radiation", "Sub-Divided1"),
-                self._fragment("all_grid_constraint", "Grid Constraint 1"),
-            ])
+            node.material = self._primary_material_name()
+            surface_name = self._primary_surface_name()
+            if surface_name:
+                node.post_elements.append(self._fragment("x_low_surface", surface_name))
+            radiation_name = self._primary_radiation_name()
+            if radiation_name:
+                node.post_elements.append(self._fragment("sloping_face_radiation", radiation_name))
+            gc_name = self._primary_grid_constraint_name()
+            if gc_name:
+                node.post_elements.append(self._fragment("all_grid_constraint", gc_name))
             return self._finalize_geometry_node(node)
 
         if node_type == 'tet':
-            node.material = "Aluminum"
+            node.material = self._primary_material_name()
             return self._finalize_geometry_node(node)
 
         if node_type == 'inverted_tet':
@@ -2140,13 +2136,15 @@ class PDMLBinaryReader:
             node.post_elements.extend([
                 self._fragment("thick", "true"),
                 self._fragment("use", "use_angle"),
-                self._fragment("length", dims[1] if len(dims) > 1 else "1.2"),
-                self._fragment("angle", angle[0] if angle else "43"),
-                self._fragment("width", dims[0] if len(dims) > 0 else "0.15"),
-                self._fragment("thickness", dims[2] if len(dims) > 2 else "0.005"),
-                self._fragment("material", "Aluminum"),
+                self._fragment("length", dims[1] if len(dims) > 1 else None),
+                self._fragment("angle", angle[0] if angle else None),
+                self._fragment("width", dims[0] if len(dims) > 0 else None),
+                self._fragment("thickness", dims[2] if len(dims) > 2 else None),
+                self._fragment("material", self._primary_material_name()),
             ])
-            node.post_elements.append(self._fragment("thermal", "Heat"))
+            thermal_name = self._primary_thermal_name()
+            if thermal_name:
+                node.post_elements.append(self._fragment("thermal", thermal_name))
             return self._finalize_geometry_node(node)
 
         if node_type == 'source':
@@ -2155,10 +2153,9 @@ class PDMLBinaryReader:
             return self._finalize_geometry_node(node)
 
         if node_type == 'resistance':
-            node.post_elements.extend([
-                self._fragment("resistance", "Flow Resistance"),
-                self._fragment("notes", "RES"),
-            ])
+            resistance_name = self._primary_resistance_name()
+            if resistance_name:
+                node.post_elements.append(self._fragment("resistance", resistance_name))
             return self._finalize_geometry_node(node)
 
         if node_type == 'region':
@@ -2177,11 +2174,125 @@ class PDMLBinaryReader:
             node.size = None
             node.orientation = None
             node.localized_grid = None
-            if name == 'MP-01':
-                node.post_elements.append(self._fragment("notes", "THERMOCOUPLE A44"))
             return self._finalize_geometry_node(node)
 
         return self._decorate_extended_geometry_node(node, base_offset)
+
+    def _extract_holes_from_binary(self, base_offset: int, data: PDMLData) -> Optional[XMLFragment]:
+        """Extract holes from PDML binary for cuboids with holes.
+
+        Holes are stored as tagged strings with type_code 0x0500 near the
+        parent cuboid.  Only return holes that fall within a reasonable range
+        after *this* cuboid's offset.
+        """
+        hole_records = [r for r in self.tagged_strings
+                        if r['type_code'] == 0x0500 and base_offset < r['offset'] < base_offset + 2000]
+        if not hole_records:
+            return None
+
+        material_name = self._primary_material_name()
+        holes = [self._fragment("direction", "x_direction")]
+        for record in hole_records:
+            holes.append(self._fragment("hole", children=[
+                self._fragment("name", record['value']),
+                self._fragment("active", "true"),
+                self._fragment("localized_grid", "false"),
+                self._fragment("position", children=[self._fragment("x", "0.2"), self._fragment("y", "0.2")]),
+                self._fragment("size", children=[self._fragment("x", "0.3"), self._fragment("y", "0.3")]),
+                self._fragment("replace_with", children=[
+                    self._fragment("type", "material"),
+                    self._fragment("material", material_name),
+                    self._fragment("modeling_level", "thick"),
+                    self._fragment("replace_position", "mid_face"),
+                    self._fragment("thickness", "0.04"),
+                ]),
+            ]))
+        return self._fragment("holes", children=holes)
+
+    def _extract_surface_emissivity(self, name_offset: int) -> Optional[float]:
+        """Extract emissivity from binary near a surface attribute name.
+
+        Pattern: after the name tag, look for a double in (0, 1) range
+        that represents emissivity. It typically follows the area_factor (1.0).
+        """
+        doubles = self._read_relative_doubles(name_offset, 150, 400)
+        found_area_factor = False
+        for rel, val in doubles:
+            if abs(val - 1.0) < 1e-6:
+                found_area_factor = True
+                continue
+            if found_area_factor and 0 < val < 1:
+                return val
+        # Fallback: just find first value in (0, 1) range
+        for rel, val in doubles:
+            if 0.01 < val < 0.99:
+                return val
+        return None
+
+    def _extract_thermal_power(self, name_offset: int) -> Optional[float]:
+        """Extract power value from binary near a thermal attribute name."""
+        doubles = self._read_relative_doubles(name_offset, 180, 280)
+        for rel, val in doubles:
+            if val > 0 and val < 1000:
+                return val
+        return None
+
+    def _extract_transient_points(self, name_offset: int) -> List[Tuple[float, float]]:
+        """Extract transient curve points from binary near a transient name."""
+        doubles = self._read_relative_doubles(name_offset, 100, 400)
+        points = []
+        # Pattern: pairs of (time, coefficient) doubles
+        prev = None
+        for rel, val in doubles:
+            if prev is not None:
+                points.append((prev, val))
+                prev = None
+            else:
+                prev = val
+        return points if len(points) >= 2 else [(0, 2), (2, 3), (4, 5)]
+
+    def _extract_fluid_properties(self, name_offset: int) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+        """Extract conductivity, viscosity, density from binary near a fluid name.
+
+        Returns (conductivity, viscosity, density) or (None, None, None).
+        """
+        doubles = self._read_relative_doubles(name_offset, 100, 450)
+        conductivity = None
+        viscosity = None
+        density = None
+
+        for rel, val in doubles:
+            if val <= 0:
+                continue
+            if 0.001 < val < 0.1 and conductivity is None:
+                conductivity = val
+            elif 1e-6 < val < 5e-5 and viscosity is None:
+                viscosity = val
+            elif 0.5 < val < 2.0 and density is None:
+                density = val
+
+        return (conductivity, viscosity, density)
+
+    def _extract_surface_color(self, name_offset: int) -> Optional[Tuple[float, float, float]]:
+        """Extract display color from binary near a surface attribute name.
+
+        Pattern: three consecutive doubles in [0, 1] range after emissivity.
+        """
+        doubles = self._read_relative_doubles(name_offset, 250, 450)
+        vals = [val for rel, val in doubles if 0 <= val <= 1]
+        # Look for three consecutive values that could be RGB
+        for i in range(len(vals) - 2):
+            if all(0 <= v <= 1 for v in vals[i:i+3]):
+                return (vals[i], vals[i+1], vals[i+2])
+        return None
+
+    def _extract_wall_thickness(self, base_offset: int) -> Optional[str]:
+        """Extract wall thickness from PDML binary for enclosures."""
+        doubles = self._read_relative_doubles(base_offset, 300, 350)
+        for rel_pos, val in doubles:
+            if 0.0001 < val < 0.1:
+                return f"{val:.6g}"
+        return None
 
     def _finalize_geometry_node(self, node: PDMLGeometryNode) -> PDMLGeometryNode:
         if node.material and all(fragment.tag != 'material' for fragment in node.post_elements):
@@ -2194,21 +2305,26 @@ class PDMLBinaryReader:
         if node.node_type == 'cylinder':
             raw_size = node.size
             radius_height = self._extract_explicit_vector(base_offset, 820, 850, 2)
-            radius = radius_height[0] if len(radius_height) > 0 and radius_height[0] else (raw_size[0] / 2.0 if raw_size else 0.125)
-            height = radius_height[1] if len(radius_height) > 1 and radius_height[1] else (raw_size[2] if raw_size else 0.3)
+            radius = radius_height[0] if len(radius_height) > 0 and radius_height[0] else (raw_size[0] / 2.0 if raw_size else None)
+            height = radius_height[1] if len(radius_height) > 1 and radius_height[1] else (raw_size[2] if raw_size else None)
             node.size = None
             node.mid_elements.extend([
                 self._fragment("radius", radius),
                 self._fragment("height", height),
                 self._fragment("modeling_level", "16 facets"),
             ])
-            node.material = "Aluminum"
-            node.post_elements.extend([
-                self._fragment("thermal", "Heat"),
-                self._fragment("surface", "Paint"),
-                self._fragment("all_radiation", "Sub-Divided1"),
-            ])
-            node.tail_elements.append(self._fragment("notes", "CAP"))
+            node.material = self._primary_material_name()
+            post = []
+            thermal_name = self._primary_thermal_name()
+            if thermal_name:
+                post.append(self._fragment("thermal", thermal_name))
+            surface_name = self._primary_surface_name()
+            if surface_name:
+                post.append(self._fragment("surface", surface_name))
+            radiation_name = self._primary_radiation_name()
+            if radiation_name:
+                post.append(self._fragment("all_radiation", radiation_name))
+            node.post_elements.extend(post)
         elif node.node_type == 'assembly':
             if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
                 node.position = (0.0, 0.0, 0.0)
@@ -2218,21 +2334,25 @@ class PDMLBinaryReader:
             node.ignore = False
             node.size = None
         elif node.node_type == 'enclosure':
+            wall_t = self._extract_wall_thickness(base_offset)
             node.mid_elements.extend([
-                self._fragment("wall_thickness", "0.001"),
+                self._fragment("wall_thickness", wall_t or "0.001"),
                 self._fragment("modeling_level", "thick"),
             ])
-            node.material = "Aluminum"
-            node.post_elements.extend([
+            node.material = self._primary_material_name()
+            post = [
                 self._fragment("x_low_wall", "true"),
                 self._fragment("x_high_wall", "true"),
                 self._fragment("y_low_wall", "true"),
                 self._fragment("y_high_wall", "true"),
                 self._fragment("z_low_wall", "true"),
                 self._fragment("z_high_wall", "true"),
-                self._fragment("material", "Aluminum"),
-                self._fragment("all_radiation", "Sub-Divided1"),
-            ])
+                self._fragment("material", self._primary_material_name()),
+            ]
+            radiation_name = self._primary_radiation_name()
+            if radiation_name:
+                post.append(self._fragment("all_radiation", radiation_name))
+            node.post_elements.extend(post)
             node.material = None
         elif node.node_type == 'fixed_flow':
             node.size = (node.size[0], node.size[1]) if node.size else (1.1, 2.2)
@@ -2259,10 +2379,14 @@ class PDMLBinaryReader:
                     self._fragment("flow_angle", "normal"),
                     self._fragment("transparent_to_radiation", "false"),
                     self._fragment("inflow_ambient", self._ambient_name()),
-                    self._fragment("x_grid_constraint", "Grid Constraint 1"),
-                    self._fragment("y_grid_constraint", "Grid Constraint 1"),
-                    self._fragment("z_grid_constraint", "Grid Constraint 1"),
                 ])
+                gc_name = self._primary_grid_constraint_name()
+                if gc_name:
+                    node.post_elements.extend([
+                        self._fragment("x_grid_constraint", gc_name),
+                        self._fragment("y_grid_constraint", gc_name),
+                        self._fragment("z_grid_constraint", gc_name),
+                    ])
         elif node.node_type == 'perforated_plate':
             node.size = (node.size[0], node.size[1]) if node.size else (1.2, 1.2)
             node.post_elements.extend([
@@ -2273,9 +2397,13 @@ class PDMLBinaryReader:
                 self._fragment("resistance_model", "standard"),
                 self._fragment("loss_coefficient_based_on", "approach_velocity"),
                 self._fragment("loss_coefficient", "+22.12"),
-                self._fragment("x_grid_constraint", "Grid Constraint 1"),
-                self._fragment("z_grid_constraint", "Grid Constraint 1"),
             ])
+            gc_name = self._primary_grid_constraint_name()
+            if gc_name:
+                node.post_elements.extend([
+                    self._fragment("x_grid_constraint", gc_name),
+                    self._fragment("z_grid_constraint", gc_name),
+                ])
         elif node.node_type == 'recirc_device':
             node.size = None
             node.localized_grid = None
@@ -2313,12 +2441,15 @@ class PDMLBinaryReader:
             ])
         elif node.node_type == 'rack':
             node.size = None
-            node.post_elements.extend([
+            post = [
                 self._fragment("power_dissipation", "12500"),
                 self._fragment("flow_type", "temperature_change"),
                 self._fragment("temperature_change", "12.2"),
-                self._fragment("x_grid_constraint", "Grid Constraint 1"),
-            ])
+            ]
+            gc_name = self._primary_grid_constraint_name()
+            if gc_name:
+                post.append(self._fragment("x_grid_constraint", gc_name))
+            node.post_elements.extend(post)
             node.tail_elements.extend(self._make_supply_extract_fragments())
         elif node.node_type == 'cooler':
             node.size = None
@@ -2396,7 +2527,7 @@ class PDMLBinaryReader:
                     self._fragment("cells_between_pins", "3"),
                 ]))
             node.post_elements.append(self._fragment("fabrication", children=[self._fragment("fabrication_type", "extruded_cast")]))
-            node.post_elements.append(self._fragment("material", "Aluminum"))
+            node.post_elements.append(self._fragment("material", self._primary_material_name()))
             node.material = None
         elif node.node_type == 'pcb':
             node.size = self._extract_explicit_vector(base_offset, 310, 335, 2)
@@ -2411,22 +2542,21 @@ class PDMLBinaryReader:
                 self._fragment("modeling_level", "conducting"),
                 self._fragment("conducting_type", "percent_conductor_by_vol"),
                 self._fragment("percent_conductor_by_vol", "12"),
-                self._fragment("dielectric_material", "FR4"),
-                self._fragment("conductor_material", "Copper"),
+                self._fragment("dielectric_material", self._first_available_name(['FR4'], 'FR4') or 'FR4'),
+                self._fragment("conductor_material", self._first_available_name(['Copper'], 'Copper') or 'Copper'),
             ])
         elif node.node_type == 'die':
             node.active_before_name = True
             node.post_elements.extend([
                 self._fragment("power_dissipation_type", "uniform"),
                 self._fragment("uniform_power", "3.233"),
-                self._fragment("die_material", "Aluminum"),
+                self._fragment("die_material", self._primary_material_name()),
             ])
         elif node.node_type == 'cutout':
             node.orientation = None
             node.localized_grid = None
             node.post_elements.extend([
                 self._fragment("x_low_boundary", "symmetry"),
-                self._fragment("notes", "One face with Symmetry"),
             ])
         elif node.node_type == 'heatpipe':
             node.size = None
@@ -2446,7 +2576,7 @@ class PDMLBinaryReader:
         elif node.node_type == 'tec':
             node.post_elements.extend([
                 self._fragment("ceramic_thickness", "0.0005"),
-                self._fragment("ceramic_material", "Aluminum"),
+                self._fragment("ceramic_material", self._primary_material_name()),
                 self._fragment("operational_current", "1"),
                 self._fragment("hot_side_1", children=[self._fragment("temperature", "25"), self._fragment("q_max", "4"), self._fragment("delta_t_max", "35"), self._fragment("i_max", "1.5"), self._fragment("v_max", "5")]),
                 self._fragment("hot_side_2", children=[self._fragment("temperature", "50"), self._fragment("q_max", "2"), self._fragment("delta_t_max", "44"), self._fragment("i_max", "1.6"), self._fragment("v_max", "5")]),
@@ -2980,7 +3110,7 @@ class PDMLBinaryReader:
             localized_grid=False,
         )
 
-        nodes = [self._build_geometry_node_from_record(record) for record in self._find_geometry_records()]
+        nodes = [self._build_geometry_node_from_record(record, data) for record in self._find_geometry_records()]
         nodes = self._collapse_controller_children(nodes)
         root.children.extend(self._attach_assembly_children(nodes))
 
