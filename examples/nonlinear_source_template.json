@@ -1,0 +1,15 @@
+{
+  "sources": [
+    {
+      "name": "Chip_Power",
+      "applies_to": "temperature",
+      "curve": [
+        {"temperature": 25, "power": 0},
+        {"temperature": 40, "power": 5},
+        {"temperature": 60, "power": 12},
+        {"temperature": 85, "power": 15},
+        {"temperature": 100, "power": 18}
+      ]
+    }
+  ]
+}
