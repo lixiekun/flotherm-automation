@@ -16,10 +16,57 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import xml.etree.ElementTree as ET
+
+
+# ============================================================================
+# Formula evaluation
+# ============================================================================
+
+_SAFE_NAMES = {
+    "abs": abs, "min": min, "max": max,
+    "exp": math.exp, "log": math.log, "log10": math.log10,
+    "sqrt": math.sqrt, "pow": pow,
+    "pi": math.pi, "e": math.e,
+}
+
+
+def _eval_formula(formula: str, temperature: float) -> float:
+    """Evaluate P = f(T) formula string.
+
+    Supports: T variable, +, -, *, /, ^, **, and math functions.
+    """
+    # Normalize: ^ -> ** for Python power
+    expr = formula.replace("^", "**")
+    ns = dict(_SAFE_NAMES)
+    ns["T"] = temperature
+    ns["t"] = temperature
+    try:
+        return float(eval(expr, {"__builtins__": {}}, ns))
+    except Exception as e:
+        raise ValueError(f"Formula eval failed at T={temperature}: '{formula}' → {e}")
+
+
+def curve_from_formula(
+    formula: str,
+    t_min: float = -40,
+    t_max: float = 150,
+    n_points: int = 20,
+) -> List[Dict[str, float]]:
+    """Generate curve points from a P = f(T) formula."""
+    if n_points < 2:
+        n_points = 2
+    step = (t_max - t_min) / (n_points - 1)
+    points = []
+    for i in range(n_points):
+        t = t_min + i * step
+        p = _eval_formula(formula, t)
+        points.append({"temperature": round(t, 6), "power": round(p, 6)})
+    return points
 
 
 # ============================================================================
@@ -97,6 +144,7 @@ def _apply_source(sources_section: ET.Element, cfg: Dict) -> Optional[ET.Element
     Accepts two formats:
       1. Simple: {"name", "applies_to", "curve": [...]}
       2. Full extract format: {"name", "source_options": [{"applies_to", "curve": [...]}]}
+      3. Formula: {"name", "formula": "P=f(T)", "t_min", "t_max", "n_points"}
 
     Sources without a curve are silently skipped (allows round-trip with pdml_extract_sources).
     """
@@ -105,19 +153,29 @@ def _apply_source(sources_section: ET.Element, cfg: Dict) -> Optional[ET.Element
 
     # Collect (applies_to, curve) pairs from either format
     curve_pairs: List[tuple] = []
+    applies_to = cfg.get("applies_to", "temperature")
+
+    # Format 3: formula → generate curve
+    formula = cfg.get("formula")
+    if formula:
+        curve = curve_from_formula(
+            formula,
+            t_min=cfg.get("t_min", -40),
+            t_max=cfg.get("t_max", 150),
+            n_points=cfg.get("n_points", 20),
+        )
+        curve_pairs.append((applies_to, curve))
 
     # Format 2: source_options list (from pdml_extract_sources)
-    source_options = cfg.get("source_options")
-    if source_options and isinstance(source_options, list):
-        for opt in source_options:
+    elif cfg.get("source_options") and isinstance(cfg["source_options"], list):
+        for opt in cfg["source_options"]:
             curve = opt.get("curve", [])
             if curve:
                 curve_pairs.append((opt.get("applies_to", "temperature"), curve))
-    else:
-        # Format 1: simple top-level curve
-        curve = cfg.get("curve", [])
-        if curve:
-            curve_pairs.append((cfg.get("applies_to", "temperature"), curve))
+
+    # Format 1: simple top-level curve
+    elif cfg.get("curve"):
+        curve_pairs.append((applies_to, cfg["curve"]))
 
     if not curve_pairs:
         return None
@@ -249,7 +307,7 @@ Examples:
   # From CSV file
   python -m floxml_tools.floxml_nonlinear_source input.xml --csv curve.csv --source "Chip" -o output.xml
 
-JSON config format:
+JSON config format (explicit curve):
   {
     "sources": [
       {
@@ -263,6 +321,22 @@ JSON config format:
       }
     ]
   }
+
+JSON config format (formula):
+  {
+    "sources": [
+      {
+        "name": "Chip_Power",
+        "formula": "0.002 * T^2 + 0.05 * T",
+        "t_min": -40,
+        "t_max": 150,
+        "n_points": 20
+      }
+    ]
+  }
+
+Supported in formula: T (temperature), +, -, *, /, ^, **,
+  abs, min, max, exp, log, log10, sqrt, pow, pi, e
 
 CSV format (temperature,power):
   temperature,power

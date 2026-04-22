@@ -2,6 +2,15 @@
   "sources": [
     {
       "name": "Chip_Power",
+      "comment": "P = 0.002*T^2 + 0.05*T, example formula",
+      "formula": "0.002 * T^2 + 0.05 * T",
+      "t_min": -40,
+      "t_max": 150,
+      "n_points": 20
+    },
+    {
+      "name": "Explicit_Curve_Example",
+      "comment": "也可以直接写 curve 数组，不用 formula",
       "applies_to": "temperature",
       "curve": [
         {"temperature": 25, "power": 0},
