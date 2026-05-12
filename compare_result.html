@@ -1,0 +1,642 @@
+<html><head><meta charset="utf-8">
+<title>Model Comparison: Heatsink vs heatsink_converted</title>
+<style>
+body { font-family: "Microsoft YaHei", Arial, sans-serif; margin: 20px; font-size: 14px; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+th, td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
+th { background-color: #2c3e50; color: white; }
+tr:nth-child(even) { background-color: #f8f8f8; }
+.pass { color: #27ae60; }
+.fail { color: #e74c3c; font-weight: bold; }
+.warn { color: #f39c12; }
+.summary-box { background: #ecf0f1; padding: 15px; border-radius: 8px; margin: 15px 0; }
+.section-title { background: #34495e; color: white; padding: 8px 12px; margin-top: 20px; }
+.identical { background: #d5f5e3; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center; font-size: 18px; }
+.different { background: #fadbd8; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center; font-size: 18px; }
+</style></head><body>
+<h1>模型对比验证报告</h1>
+<p>生成时间: 2026-05-12 09:54:10</p>
+<p>对比: <b>Heatsink</b> vs <b>heatsink_converted</b> | 数值容差: 0.01</p>
+<div class="different">✗ 发现 4 处差异</div>
+<div class="summary-box">
+匹配: <b class="pass">580</b> | 
+差异: <b class="fail">4</b> | 
+总计: 584
+</div>
+<div class="section-title">模型设置 — <span class="pass">全部匹配</span></div>
+<table>
+<tr><th>项目</th><th>A</th><th>B</th><th>差异</th><th>状态</th></tr>
+<tr><td>flow_type</td><td>Flow and Heat Transfer</td><td>Flow and Heat Transfer</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>dimension</td><td>3-Dimensional</td><td>3-Dimensional</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>radiation</td><td>Radiation Off</td><td>Radiation Off</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>state</td><td>Steady State</td><td>Steady State</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>solar</td><td>Solar Off</td><td>Solar Off</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+</table>
+<div class="section-title">湍流/重力 — <span class="pass">全部匹配</span></div>
+<table>
+<tr><th>项目</th><th>A</th><th>B</th><th>差异</th><th>状态</th></tr>
+<tr><td>turbulence_type</td><td>Turbulent</td><td>Turbulent</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>turbulence_model</td><td>Automatic</td><td>Automatic</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>gravity_type</td><td>Normal</td><td>Normal</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>gravity_direction</td><td>Negative Y-Direction</td><td>Negative Y-Direction</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+</table>
+<div class="section-title">流体/全局设置 — <span class="pass">全部匹配</span></div>
+<table>
+<tr><th>项目</th><th>A</th><th>B</th><th>差异</th><th>状态</th></tr>
+<tr><td>fluid</td><td>Air</p></td><td>Air</p></td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>datum_pressure</td><td>101325</td><td>101325</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>ext_radiant_temp</td><td>45</td><td>45</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>ext_ambient_temp</td><td>45</td><td>45</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+</table>
+<div class="section-title">几何结构 — <span class="fail">2 处差异</span></div>
+<table>
+<tr><th>项目</th><th>A</th><th>B</th><th>差异</th><th>状态</th></tr>
+<tr><td>.x</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>.y</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>.z</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>.sx</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>.sy</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>.sz</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Base.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Base.y</td><td>-0.005</td><td>-0.005</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Base.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Base.sx</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Base.sy</td><td>0.005</td><td>0.005</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Base.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Base.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Base.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 1.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 1.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 1.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 1.sx</td><td>0.004</td><td>0.004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 1.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 1.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 1.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 1.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 10.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 10.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 10.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 10.sx</td><td>0.004</td><td>0.004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 10.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 10.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 10.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 10.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 2.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 2.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 2.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 2.sx</td><td>0.004</td><td>0.004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 2.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 2.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 2.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 2.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 3.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 3.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 3.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 3.sx</td><td>0.004</td><td>0.004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 3.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 3.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 3.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 3.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 4.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 4.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 4.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 4.sx</td><td>0.004</td><td>0.004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 4.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 4.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 4.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 4.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 5.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 5.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 5.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 5.sx</td><td>0.004</td><td>0.004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 5.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 5.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 5.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 5.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 6.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 6.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 6.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 6.sx</td><td>0.004</td><td>0.004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 6.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 6.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 6.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 6.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 7.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 7.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 7.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 7.sx</td><td>0.004</td><td>0.004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 7.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 7.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 7.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 7.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 8.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 8.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 8.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 8.sx</td><td>0.004</td><td>0.004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 8.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 8.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 8.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 8.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 9.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 9.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 9.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 9.sx</td><td>0.004</td><td>0.004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 9.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 9.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 9.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fin 9.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fixed Flow.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fixed Flow.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fixed Flow.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fixed Flow.sx</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fixed Flow.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fixed Flow.sz</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fixed Flow.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Fixed Flow.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>FixedFlowPrimitive.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>FixedFlowPrimitive.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>FixedFlowPrimitive.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>FixedFlowPrimitive.sx</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>FixedFlowPrimitive.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>FixedFlowPrimitive.sz</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>FixedFlowPrimitive.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>FixedFlowPrimitive.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Geometry Model.x</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Geometry Model.y</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Geometry Model.z</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Geometry Model.sx</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Geometry Model.sy</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Geometry Model.sz</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Geometry Model.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Geometry Model.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Sink Geometry.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Sink Geometry.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Sink Geometry.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Sink Geometry.sx</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Sink Geometry.sy</td><td>0.02</td><td>0.02</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Sink Geometry.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Sink Geometry.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Sink Geometry.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Source.x</td><td>0.0175</td><td>0.0175</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Source.y</td><td>-0.005</td><td>-0.005</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Source.z</td><td>0.0175</td><td>0.0175</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Source.sx</td><td>0.005</td><td>0.005</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Source.sy</td><td>0.0005</td><td>0.0005</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Source.sz</td><td>0.005</td><td>0.005</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Source.heat_spec</td><td>1</td><td>1</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Heat Source.heat_applied</td><td>1</td><td>1</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 1.x</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 1.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 1.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 1.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 1.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 1.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 1.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 1.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 10.x</td><td>0.036</td><td>0.036</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 10.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 10.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 10.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 10.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 10.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 10.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 10.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 2.x</td><td>0.004</td><td>0.004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 2.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 2.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 2.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 2.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 2.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 2.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 2.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 3.x</td><td>0.008</td><td>0.008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 3.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 3.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 3.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 3.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 3.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 3.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 3.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 4.x</td><td>0.012</td><td>0.012</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 4.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 4.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 4.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 4.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 4.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 4.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 4.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 5.x</td><td>0.016</td><td>0.016</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 5.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 5.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 5.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 5.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 5.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 5.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 5.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 6.x</td><td>0.02</td><td>0.02</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 6.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 6.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 6.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 6.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 6.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 6.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 6.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 7.x</td><td>0.024</td><td>0.024</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 7.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 7.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 7.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 7.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 7.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 7.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 7.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 8.x</td><td>0.028</td><td>0.028</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 8.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 8.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 8.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 8.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 8.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 8.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 8.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 9.x</td><td>0.032</td><td>0.032</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 9.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 9.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 9.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 9.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 9.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 9.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low A - 9.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 1.x</td><td>0.0032</td><td>0.0032</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 1.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 1.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 1.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 1.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 1.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 1.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 1.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 10.x</td><td>0.0392</td><td>0.0392</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 10.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 10.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 10.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 10.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 10.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 10.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 10.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 2.x</td><td>0.0072</td><td>0.0072</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 2.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 2.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 2.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 2.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 2.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 2.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 2.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 3.x</td><td>0.0112</td><td>0.0112</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 3.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 3.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 3.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 3.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 3.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 3.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 3.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 4.x</td><td>0.0152</td><td>0.0152</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 4.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 4.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 4.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 4.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 4.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 4.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 4.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 5.x</td><td>0.0192</td><td>0.0192</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 5.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 5.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 5.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 5.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 5.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 5.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 5.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 6.x</td><td>0.0232</td><td>0.0232</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 6.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 6.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 6.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 6.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 6.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 6.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 6.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 7.x</td><td>0.0272</td><td>0.0272</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 7.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 7.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 7.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 7.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 7.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 7.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 7.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 8.x</td><td>0.0312</td><td>0.0312</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 8.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 8.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 8.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 8.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 8.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 8.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 8.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 9.x</td><td>0.0352</td><td>0.0352</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 9.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 9.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 9.sx</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 9.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 9.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 9.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Low B - 9.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Root Assembly.x</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Root Assembly.y</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Root Assembly.z</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Root Assembly.sx</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Root Assembly.sy</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Root Assembly.sz</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Root Assembly.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Root Assembly.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Source Temperature.x</td><td>0.02</td><td>0</td><td class="fail">0.02</td><td><span class="fail">✗</span></td></tr>
+<tr><td>Source Temperature.y</td><td>-0.00475</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Source Temperature.z</td><td>0.02</td><td>0</td><td class="fail">0.02</td><td><span class="fail">✗</span></td></tr>
+<tr><td>Source Temperature.sx</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Source Temperature.sy</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Source Temperature.sz</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Source Temperature.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Source Temperature.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>TOTALS.x</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>TOTALS.y</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>TOTALS.z</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>TOTALS.sx</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>TOTALS.sy</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>TOTALS.sz</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>TOTALS.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>TOTALS.heat_applied</td><td>1</td><td>1</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 1.x</td><td>0.0012</td><td>0.0012</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 1.y</td><td>0.0146</td><td>0.0146</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 1.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 1.sx</td><td>0.0016</td><td>0.0016</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 1.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 1.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 1.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 1.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 10.x</td><td>0.0372</td><td>0.0372</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 10.y</td><td>0.0146</td><td>0.0146</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 10.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 10.sx</td><td>0.0016</td><td>0.0016</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 10.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 10.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 10.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 10.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 2.x</td><td>0.0052</td><td>0.0052</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 2.y</td><td>0.0146</td><td>0.0146</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 2.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 2.sx</td><td>0.0016</td><td>0.0016</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 2.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 2.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 2.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 2.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 3.x</td><td>0.0092</td><td>0.0092</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 3.y</td><td>0.0146</td><td>0.0146</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 3.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 3.sx</td><td>0.0016</td><td>0.0016</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 3.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 3.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 3.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 3.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 4.x</td><td>0.0132</td><td>0.0132</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 4.y</td><td>0.0146</td><td>0.0146</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 4.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 4.sx</td><td>0.0016</td><td>0.0016</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 4.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 4.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 4.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 4.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 5.x</td><td>0.0172</td><td>0.0172</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 5.y</td><td>0.0146</td><td>0.0146</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 5.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 5.sx</td><td>0.0016</td><td>0.0016</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 5.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 5.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 5.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 5.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 6.x</td><td>0.0212</td><td>0.0212</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 6.y</td><td>0.0146</td><td>0.0146</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 6.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 6.sx</td><td>0.0016</td><td>0.0016</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 6.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 6.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 6.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 6.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 7.x</td><td>0.0252</td><td>0.0252</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 7.y</td><td>0.0146</td><td>0.0146</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 7.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 7.sx</td><td>0.0016</td><td>0.0016</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 7.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 7.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 7.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 7.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 8.x</td><td>0.0292</td><td>0.0292</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 8.y</td><td>0.0146</td><td>0.0146</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 8.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 8.sx</td><td>0.0016</td><td>0.0016</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 8.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 8.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 8.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 8.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 9.x</td><td>0.0332</td><td>0.0332</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 9.y</td><td>0.0146</td><td>0.0146</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 9.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 9.sx</td><td>0.0016</td><td>0.0016</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 9.sy</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 9.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 9.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Upper - 9.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 1.x</td><td>0.0008</td><td>0.0008</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 1.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 1.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 1.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 1.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 1.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 1.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 1.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 10.x</td><td>0.0368</td><td>0.0368</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 10.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 10.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 10.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 10.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 10.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 10.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 10.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 2.x</td><td>0.0048</td><td>0.0048</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 2.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 2.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 2.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 2.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 2.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 2.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 2.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 3.x</td><td>0.0088</td><td>0.0088</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 3.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 3.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 3.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 3.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 3.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 3.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 3.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 4.x</td><td>0.0128</td><td>0.0128</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 4.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 4.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 4.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 4.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 4.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 4.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 4.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 5.x</td><td>0.0168</td><td>0.0168</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 5.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 5.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 5.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 5.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 5.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 5.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 5.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 6.x</td><td>0.0208</td><td>0.0208</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 6.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 6.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 6.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 6.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 6.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 6.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 6.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 7.x</td><td>0.0248</td><td>0.0248</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 7.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 7.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 7.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 7.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 7.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 7.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 7.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 8.x</td><td>0.0288</td><td>0.0288</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 8.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 8.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 8.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 8.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 8.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 8.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 8.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 9.x</td><td>0.0328</td><td>0.0328</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 9.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 9.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 9.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 9.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 9.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 9.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical A - 9.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 1.x</td><td>0.0028</td><td>0.0028</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 1.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 1.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 1.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 1.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 1.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 1.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 1.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 10.x</td><td>0.0388</td><td>0.0388</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 10.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 10.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 10.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 10.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 10.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 10.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 10.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 2.x</td><td>0.0068</td><td>0.0068</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 2.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 2.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 2.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 2.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 2.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 2.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 2.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 3.x</td><td>0.0108</td><td>0.0108</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 3.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 3.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 3.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 3.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 3.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 3.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 3.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 4.x</td><td>0.0148</td><td>0.0148</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 4.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 4.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 4.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 4.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 4.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 4.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 4.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 5.x</td><td>0.0188</td><td>0.0188</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 5.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 5.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 5.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 5.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 5.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 5.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 5.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 6.x</td><td>0.0228</td><td>0.0228</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 6.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 6.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 6.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 6.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 6.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 6.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 6.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 7.x</td><td>0.0268</td><td>0.0268</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 7.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 7.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 7.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 7.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 7.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 7.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 7.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 8.x</td><td>0.0308</td><td>0.0308</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 8.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 8.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 8.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 8.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 8.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 8.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 8.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 9.x</td><td>0.0348</td><td>0.0348</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 9.y</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 9.z</td><td>0</td><td>0</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 9.sx</td><td>0.0004</td><td>0.0004</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 9.sy</td><td>0.015</td><td>0.015</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 9.sz</td><td>0.04</td><td>0.04</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 9.heat_spec</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Vertical B - 9.heat_applied</td><td>-</td><td>-</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+</table>
+<div class="section-title">Fixed Flows — <span class="pass">全部匹配</span></div>
+<table>
+<tr><th>项目</th><th>A</th><th>B</th><th>差异</th><th>状态</th></tr>
+<tr><td>FixedFlow[0].volume_flow</td><td>0.001</td><td>0.001</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>FixedFlow[0].mass_flow</td><td>0.0011614</td><td>0.0011614</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>FixedFlow[0].heat_flow</td><td>-0.018765</td><td>-0.018765</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>FixedFlow[0].mean_temp</td><td>45</td><td>45</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>FixedFlow[0].max_temp</td><td>46.135</td><td>46.135</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+</table>
+<div class="section-title">Overall/Cutouts — <span class="pass">全部匹配</span></div>
+<table>
+<tr><th>项目</th><th>A</th><th>B</th><th>差异</th><th>状态</th></tr>
+<tr><td>Domain.Z-High.max_solid_temp</td><td>46.195</td><td>46.195</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Domain.Z-High.mean_solid_temp</td><td>46.1589</td><td>46.1589</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Domain.Z-Low.max_solid_temp</td><td>46.143</td><td>46.143</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+<tr><td>Domain.Z-Low.mean_solid_temp</td><td>46.126</td><td>46.126</td><td class=""></td><td><span class="pass">✓</span></td></tr>
+</table>
+<div class="section-title">Temperature Monitor — <span class="fail">1 处差异</span></div>
+<table>
+<tr><th>项目</th><th>A</th><th>B</th><th>差异</th><th>状态</th></tr>
+<tr><td>Source Temperature</td><td>46.6684</td><td>46.1048</td><td class="fail">0.5636</td><td><span class="fail">✗</span></td></tr>
+</table>
+<div class="section-title">Source Temperature — <span class="fail">1 处差异</span></div>
+<table>
+<tr><th>项目</th><th>A</th><th>B</th><th>差异</th><th>状态</th></tr>
+<tr><td>Source_0</td><td>46.6684</td><td>46.1048</td><td class="fail">0.5636</td><td><span class="fail">✗</span></td></tr>
+</table>
+</body></html>
