@@ -201,6 +201,80 @@ def _apply_source(sources_section: ET.Element, cfg: Dict) -> Optional[ET.Element
 
 
 # ============================================================================
+# Geometry source attachment
+# ============================================================================
+
+def _find_all_source_elements(root: ET.Element) -> List[ET.Element]:
+    """Find all <source> geometry elements recursively."""
+    results: List[ET.Element] = []
+    _collect_source_elements(root, results)
+    return results
+
+
+def _collect_source_elements(node: ET.Element, results: List[ET.Element]) -> None:
+    """Recursively collect <source> geometry elements."""
+    for child in node:
+        if child.tag == "source":
+            results.append(child)
+        # Recurse into assemblies and other containers
+        if child.tag in ("geometry", "assembly", "cuboid", "block",
+                         "rectangular_vent", "circular_vent", "fan",
+                         "blower", "heat_sink", "contact_resistance"):
+            _collect_source_elements(child, results)
+
+
+def _attach_source_to_geometry(
+    root: ET.Element,
+    source_att_name: str,
+    target_names: Optional[List[str]] = None,
+) -> int:
+    """Update geometry <source> elements to reference the given source_att.
+
+    Args:
+        root: FloXML root element.
+        source_att_name: Name of the source_att in library.
+        target_names: If provided, only update <source> elements whose <name>
+            matches one of these. If None, update all <source> elements that
+            currently reference a different source_att (or have no attachment).
+
+    Returns:
+        Number of geometry source elements updated.
+    """
+    all_sources = _find_all_source_elements(root)
+    if not all_sources:
+        print("[INFO] No <source> geometry elements found in model")
+        return 0
+
+    updated = 0
+    for src_elem in all_sources:
+        geo_name = (src_elem.findtext("name") or "").strip()
+
+        # Filter by target_names if specified
+        if target_names is not None:
+            if geo_name not in target_names:
+                continue
+
+        # Update the <source> attachment
+        source_ref = src_elem.find("source")
+        old_ref = (source_ref.text or "").strip() if source_ref is not None else ""
+
+        if old_ref == source_att_name:
+            continue  # Already referencing the correct source_att
+
+        if source_ref is None:
+            source_ref = ET.SubElement(src_elem, "source")
+        source_ref.text = source_att_name
+        updated += 1
+
+        if old_ref:
+            print(f"  [OK] '{geo_name}': {old_ref} -> {source_att_name}")
+        else:
+            print(f"  [OK] '{geo_name}': (none) -> {source_att_name}")
+
+    return updated
+
+
+# ============================================================================
 # Public API
 # ============================================================================
 
@@ -217,6 +291,14 @@ def apply_nonlinear_sources(root: ET.Element, config: Dict) -> ET.Element:
         result = _apply_source(sources_section, cfg)
         if result is not None:
             applied += 1
+
+            # Attach to geometry <source> elements if attach_to is specified
+            source_name = cfg.get("name", "Source")
+            attach_to = cfg.get("attach_to")
+            if attach_to:
+                n = _attach_source_to_geometry(root, source_name, attach_to)
+                if n:
+                    print(f"  [OK] Attached '{source_name}' to {n} geometry source(s)")
 
     if applied == 0:
         print("[WARN] No non-linear curves found in config (all sources skipped)")
@@ -307,7 +389,7 @@ Examples:
   # From CSV file
   python -m floxml_tools.floxml_nonlinear_source input.xml --csv curve.csv --source "Chip" -o output.xml
 
-JSON config format (explicit curve):
+JSON config format (explicit curve + geometry attachment):
   {
     "sources": [
       {
@@ -317,7 +399,8 @@ JSON config format (explicit curve):
           {"temperature": 25, "power": 0},
           {"temperature": 50, "power": 10},
           {"temperature": 100, "power": 15}
-        ]
+        ],
+        "attach_to": ["Heat Source", "Source-1"]
       }
     ]
   }
@@ -330,10 +413,14 @@ JSON config format (formula):
         "formula": "0.002 * T^2 + 0.05 * T",
         "t_min": -40,
         "t_max": 150,
-        "n_points": 20
+        "n_points": 20,
+        "attach_to": ["Heat Source"]
       }
     ]
   }
+
+The "attach_to" field is optional. When provided, it updates the <source>
+child of matching geometry <source> elements to reference this source_att.
 
 Supported in formula: T (temperature), +, -, *, /, ^, **,
   abs, min, max, exp, log, log10, sqrt, pow, pi, e
@@ -370,6 +457,7 @@ CSV format (temperature,power):
                         {"temperature": 85, "power": 15},
                         {"temperature": 100, "power": 18},
                     ],
+                    "attach_to": ["Heat Source"],
                 }
             ]
         }
