@@ -595,6 +595,137 @@ def list_tables(report: ParsedReport) -> str:
 
 
 # ============================================================================
+# Summary mode: key solving results
+# ============================================================================
+
+# Key result tables and which columns to show
+# Column patterns matched by substring; only matched columns are shown
+_KEY_TABLES: dict[str, list[str]] = {
+    "Cuboid Name": [
+        "Minimum (degC)", "Maximum (degC)", "Mean (degC)",
+    ],
+    "Solid Conductors Summary": [
+        "Max. S-F Surface Temperature (degC)",
+        "Max. S-S Surface Temperature (degC)",
+        "Cond Heat Net (W)",
+        "Total Heat Net (W)",
+    ],
+    "Temperature Monitor Summary": [
+        "Temperature (degC)",
+    ],
+    "Overall/Cutouts": [
+        "Temperature In (degC)", "Temperature Out (degC)",
+        "Heat Flow Net (W)",
+        "Maximum Solid Temperature(degC)", "Mean Solid Temperature(degC)",
+    ],
+    "Fixed Flows": [
+        "Mean Temperature (degC)", "Max Temperature (degC)",
+        "Heat Flow (W)",
+    ],
+}
+
+# Column name substrings for matching
+_KEY_COL_PATTERNS: dict[str, list[str]] = {}
+for _tbl, _cols in _KEY_TABLES.items():
+    _KEY_COL_PATTERNS[_tbl] = [c.split("(")[0].strip().rstrip() for c in _cols]
+
+
+def _is_key_column(table_title: str, col_name: str) -> bool:
+    """Check if a column is a key result column for the given table."""
+    if table_title not in _KEY_COL_PATTERNS:
+        return False
+    for pat in _KEY_COL_PATTERNS[table_title]:
+        if pat in col_name:
+            return True
+    return False
+
+
+def format_summary(result: CompareResult) -> str:
+    """Format a focused summary of key solving result differences."""
+    lines: list[str] = []
+    ra, rb = result.report_a, result.report_b
+
+    lines.append(f"{'=' * 70}")
+    lines.append(f"  FloTHERM 求解结果对比摘要")
+    lines.append(f"  基准: {ra.path.name} ({ra.project_name})")
+    lines.append(f"  对比: {rb.path.name} ({rb.project_name})")
+    lines.append(f"  容差: {result.tolerance:.2f}%")
+    lines.append(f"{'=' * 70}")
+
+    total_key_pass = 0
+    total_key_fail = 0
+    found_any = False
+
+    for td in result.table_diffs:
+        # Only process key tables
+        if td.title not in _KEY_TABLES:
+            continue
+        found_any = True
+
+        # Filter rows and cells to key columns only
+        table_pass = 0
+        table_fail = 0
+        diff_lines: list[str] = []
+
+        for rd in td.rows:
+            if rd.status in ("only_a", "only_b"):
+                label = "仅基准" if rd.status == "only_a" else "仅对比"
+                diff_lines.append(f"    {rd.key:<35s}  [{label}]")
+                continue
+
+            filtered_cells: list[CellDiff] = []
+            for cd in rd.cells:
+                if _is_key_column(td.title, cd.column):
+                    filtered_cells.append(cd)
+                    if cd.status == "diff":
+                        table_fail += 1
+                    elif cd.status == "match":
+                        table_pass += 1
+
+            if not filtered_cells:
+                continue
+
+            has_diff = any(c.status == "diff" for c in filtered_cells)
+
+            # Only show rows with differences in summary mode
+            if has_diff:
+                for cd in filtered_cells:
+                    if cd.status != "diff":
+                        continue
+                    tag = _status_tag(cd.status)
+                    if cd.value_a is not None and cd.value_b is not None:
+                        diff_lines.append(
+                            f"    {rd.key:<35s} | {cd.column:<40s} | "
+                            f"{_fmt_num(cd.value_a)} | {_fmt_num(cd.value_b)} | "
+                            f"{_fmt_num(cd.abs_diff)} | {_fmt_pct(cd.pct_diff)} | {tag}"
+                        )
+                    else:
+                        diff_lines.append(
+                            f"    {rd.key:<35s} | {cd.column:<40s} | "
+                            f"{cd.raw_a:>10s} | {cd.raw_b:>10s} | {'':>10s} | {'':>7s} | {tag}"
+                        )
+
+        total_key_pass += table_pass
+        total_key_fail += table_fail
+
+        status = "PASS" if table_fail == 0 else "FAIL"
+        lines.append(f"\n  {td.title}  [{status}]  "
+                     f"{table_pass} match, {table_fail} differ")
+        lines.extend(diff_lines)
+
+    if not found_any:
+        lines.append("\n  [INFO] 未找到关键求解结果表格")
+        return "\n".join(lines)
+
+    overall = "PASS" if total_key_fail == 0 else "FAIL"
+    lines.append(f"\n{'=' * 70}")
+    lines.append(f"  关键结果汇总: {total_key_pass} match, {total_key_fail} differ  [{overall}]")
+    lines.append(f"{'=' * 70}")
+
+    return "\n".join(lines)
+
+
+# ============================================================================
 # CLI
 # ============================================================================
 
@@ -606,6 +737,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         epilog="""
 示例:
     python tools/html_report_compare.py report1.html report2.html
+    python tools/html_report_compare.py report1.html report2.html --summary
     python tools/html_report_compare.py report1.html report2.html --table "Solid*"
     python tools/html_report_compare.py report1.html report2.html --tolerance 0.5 --csv diff.csv
     python tools/html_report_compare.py report1.html --list-tables
@@ -614,6 +746,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("report_a", type=Path, help="基准报告 HTML 文件")
     parser.add_argument("report_b", type=Path, nargs="?", help="对比报告 HTML 文件")
     parser.add_argument("--list-tables", action="store_true", help="列出报告中所有表格")
+    parser.add_argument("--summary", action="store_true", help="只显示关键求解结果（温度、热流）")
     parser.add_argument("--table", help="只比较匹配的表格名（支持通配符，如 'Solid*'）")
     parser.add_argument("--tolerance", type=float, default=1.0, help="容差阈值 (%%), 默认 1.0")
     parser.add_argument("--csv", type=Path, help="导出 CSV 文件")
@@ -653,9 +786,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         table_filter=args.table,
     )
 
-    only_diffs = not args.all
-    output = format_console(result, verbose=args.verbose, only_diffs=only_diffs)
-    print(output)
+    if args.summary:
+        print(format_summary(result))
+    else:
+        only_diffs = not args.all
+        output = format_console(result, verbose=args.verbose, only_diffs=only_diffs)
+        print(output)
 
     if args.csv:
         with args.csv.open("w", encoding="utf-8", newline="") as f:
