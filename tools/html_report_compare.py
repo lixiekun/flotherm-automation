@@ -581,6 +581,135 @@ def format_json(result: CompareResult) -> str:
     return json.dumps(data, indent=2, ensure_ascii=False)
 
 
+def format_html(result: CompareResult, summary_only: bool = False) -> str:
+    """Format comparison result as a styled HTML report."""
+    ra, rb = result.report_a, result.report_b
+    from datetime import datetime
+
+    total_pass = sum(td.pass_count for td in result.table_diffs)
+    total_fail = sum(td.fail_count for td in result.table_diffs)
+    overall = result.overall_pass
+
+    # Build key tables set for summary mode
+    key_table_titles = set(_KEY_TABLES.keys()) if summary_only else None
+
+    parts: list[str] = []
+    parts.append('<!DOCTYPE html>')
+    parts.append('<html lang="zh"><head><meta charset="utf-8">')
+    parts.append(f'<title>FloTHERM Report Comparison: {ra.path.name} vs {rb.path.name}</title>')
+    parts.append('''<style>
+body { font-family: -apple-system, "Segoe UI", Arial, sans-serif; margin: 20px; background: #f5f6fa; color: #2c3e50; font-size: 14px; }
+h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
+.meta { background: #fff; padding: 15px 20px; border-radius: 8px; margin: 15px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.summary-box { padding: 20px; border-radius: 8px; margin: 15px 0; text-align: center; font-size: 20px; font-weight: bold; }
+.pass-box { background: #d5f5e3; color: #1e8449; }
+.fail-box { background: #fadbd8; color: #c0392b; }
+.stats { display: flex; gap: 30px; justify-content: center; margin: 15px 0; }
+.stat { background: #fff; padding: 12px 24px; border-radius: 6px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.stat-num { font-size: 28px; font-weight: bold; }
+.stat-label { font-size: 12px; color: #7f8c8d; }
+.stat-pass .stat-num { color: #27ae60; }
+.stat-fail .stat-num { color: #e74c3c; }
+.stat-skip .stat-num { color: #95a5a6; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0 20px 0; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-radius: 6px; overflow: hidden; }
+th { background: #34495e; color: white; padding: 8px 12px; text-align: left; font-size: 13px; }
+td { padding: 6px 12px; border-bottom: 1px solid #ecf0f1; font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+tr:hover { background: #f8f9fa; }
+.section-header { background: #2c3e50; color: white; padding: 10px 16px; border-radius: 6px 6px 0 0; margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
+.section-header.pass { background: #27ae60; }
+.section-header.fail { background: #e74c3c; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 12px; font-weight: bold; }
+.tag-ok { background: #d5f5e3; color: #1e8449; }
+.tag-warn { background: #fadbd8; color: #c0392b; }
+.tag-skip { background: #eaecee; color: #7f8c8d; }
+.num { font-family: "SF Mono", "Consolas", monospace; }
+.diff-val { color: #e74c3c; font-weight: 600; }
+</style></head><body>''')
+
+    # Title
+    parts.append(f'<h1>FloTHERM Report Comparison</h1>')
+    parts.append(f'<p>Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>')
+
+    # Meta info
+    parts.append(f'<div class="meta">')
+    parts.append(f'<b>Report A:</b> {ra.path.name} (Project: {ra.project_name}, Created: {ra.created})<br>')
+    parts.append(f'<b>Report B:</b> {rb.path.name} (Project: {rb.project_name}, Created: {rb.created})<br>')
+    parts.append(f'<b>Tolerance:</b> {result.tolerance:.2f}%')
+    parts.append(f'</div>')
+
+    # Overall result
+    if overall:
+        parts.append(f'<div class="summary-box pass-box">PASS - All values match within tolerance</div>')
+    else:
+        parts.append(f'<div class="summary-box fail-box">FAIL - {total_fail} differences found</div>')
+
+    # Stats
+    total_skip = sum(td.skip_count for td in result.table_diffs)
+    parts.append(f'<div class="stats">')
+    parts.append(f'<div class="stat stat-pass"><div class="stat-num">{total_pass}</div><div class="stat-label">Match</div></div>')
+    parts.append(f'<div class="stat stat-fail"><div class="stat-num">{total_fail}</div><div class="stat-label">Differ</div></div>')
+    parts.append(f'<div class="stat stat-skip"><div class="stat-num">{total_skip}</div><div class="stat-label">Skipped</div></div>')
+    parts.append(f'</div>')
+
+    # Tables
+    for td in result.table_diffs:
+        # Skip non-key tables in summary mode
+        if summary_only and td.title not in _KEY_TABLES:
+            continue
+
+        is_pass = td.fail_count == 0
+        header_class = "pass" if is_pass else "fail"
+        parts.append(f'<div class="section-header {header_class}">')
+        parts.append(f'<span>{td.title}</span>')
+        parts.append(f'<span>{td.pass_count} match, {td.fail_count} differ, {td.skip_count} skipped</span>')
+        parts.append(f'</div>')
+
+        parts.append(f'<table>')
+        parts.append(f'<tr><th>Name</th><th>Column</th><th>Report A</th><th>Report B</th><th>Abs Diff</th><th>% Diff</th><th>Status</th></tr>')
+
+        for rd in td.rows:
+            if rd.status in ("only_a", "only_b"):
+                label = "Only in A" if rd.status == "only_a" else "Only in B"
+                parts.append(f'<tr><td colspan="7">{rd.key} <span class="tag tag-skip">{label}</span></td></tr>')
+                continue
+
+            for cd in rd.cells:
+                # In summary mode, only show key columns and diff rows
+                if summary_only:
+                    if not _is_key_column(td.title, cd.column):
+                        continue
+                    if cd.status != "diff":
+                        continue
+
+                tag_class = {"match": "tag-ok", "diff": "tag-warn"}.get(cd.status, "tag-skip")
+                tag_text = {"match": "OK", "diff": "WARN", "non_numeric": "-", "missing": "MISS"}.get(cd.status, "-")
+
+                val_a = f'{cd.value_a:.6g}' if cd.value_a is not None else cd.raw_a or '-'
+                val_b = f'{cd.value_b:.6g}' if cd.value_b is not None else cd.raw_b or '-'
+                abs_str = f'{cd.abs_diff:.4g}' if cd.abs_diff is not None else '-'
+                pct_str = f'{cd.pct_diff:.2f}%' if cd.pct_diff is not None else '-'
+
+                diff_class = ' class="diff-val"' if cd.status == "diff" else ''
+
+                parts.append(
+                    f'<tr>'
+                    f'<td>{rd.key}</td>'
+                    f'<td>{cd.column}</td>'
+                    f'<td class="num">{val_a}</td>'
+                    f'<td class="num">{val_b}</td>'
+                    f'<td class="num"{diff_class}>{abs_str}</td>'
+                    f'<td class="num"{diff_class}>{pct_str}</td>'
+                    f'<td><span class="tag {tag_class}">{tag_text}</span></td>'
+                    f'</tr>'
+                )
+
+        parts.append(f'</table>')
+
+    parts.append('</body></html>')
+    return "\n".join(parts)
+
+
 def list_tables(report: ParsedReport) -> str:
     """List all tables in a report."""
     lines: list[str] = []
@@ -740,6 +869,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     python tools/html_report_compare.py report1.html report2.html --summary
     python tools/html_report_compare.py report1.html report2.html --table "Solid*"
     python tools/html_report_compare.py report1.html report2.html --tolerance 0.5 --csv diff.csv
+    python tools/html_report_compare.py report1.html report2.html --html diff.html
     python tools/html_report_compare.py report1.html --list-tables
         """,
     )
@@ -751,6 +881,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--tolerance", type=float, default=1.0, help="容差阈值 (%%), 默认 1.0")
     parser.add_argument("--csv", type=Path, help="导出 CSV 文件")
     parser.add_argument("--json", type=Path, help="导出 JSON 文件")
+    parser.add_argument("--html", type=Path, help="导出 HTML 可视化对比报告")
     parser.add_argument("--verbose", "-v", action="store_true", help="显示所有数值（包括匹配的）")
     parser.add_argument("--only-diffs", action="store_true", default=True, help="只显示有差异的行（默认开启）")
     parser.add_argument("--all", action="store_true", help="显示所有行（等价于取消 --only-diffs）")
@@ -802,6 +933,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         with args.json.open("w", encoding="utf-8") as f:
             f.write(format_json(result))
         print(f"[OK] JSON 已导出: {args.json}")
+
+    if args.html:
+        summary_only = args.summary
+        with args.html.open("w", encoding="utf-8") as f:
+            f.write(format_html(result, summary_only=summary_only))
+        print(f"[OK] HTML 已导出: {args.html}")
 
     return 0 if result.overall_pass else 1
 
