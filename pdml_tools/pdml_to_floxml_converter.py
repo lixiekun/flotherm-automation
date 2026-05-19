@@ -150,6 +150,7 @@ class PDMLGridSettings:
     smoothing: bool = True
     smoothing_type: str = "v3"
     dynamic_update: bool = True
+    max_aspect_ratio: int = 4
     x_grid: PDMLGridAxis = field(default_factory=PDMLGridAxis)
     y_grid: PDMLGridAxis = field(default_factory=PDMLGridAxis)
     z_grid: PDMLGridAxis = field(default_factory=PDMLGridAxis)
@@ -1935,95 +1936,100 @@ class PDMLBinaryReader:
         """Extract grid settings from PDML binary using structured section parsing.
 
         Grid section (0x0520) sub-fields:
-          field 1: smoothing (ref: val=2=true)
-          field 2: dynamic_update (ref: val=2=true)
-          field 4: x_grid doubles [min_size, ?]
-          field 5: y_grid doubles [min_size, ?]
-          field 6: z_grid doubles [min_size, ?]
-          field 7: grid_type (ref: val=1=max_size)
-          field 8: smoothing_type (ref: val=2=v3)
-          field 9: flag
-          field 10: flag
+          field 1: smoothing (ref 0x06A0: val=2=true)
+          field 2: dynamic_update (ref 0x06A0: val=2=true)
+          field 4: x_grid doubles [min_size, max_size]
+          field 5: y_grid doubles [min_size, max_size]
+          field 6: z_grid doubles [min_size, max_size]
+          field 7: grid_type (ref 0x06A0) + max_aspect_ratio (ref 0x07E0)
+          field 8: smoothing_type (ref 0x06A0: val=2=v3)
+          field 9: flag (ref 0x03E0)
+          field 10: flag (ref 0x06A0)
         """
         self._apply_sample_grid_defaults(grid)
 
-        # Find the FIRST grid_smooth section
         offset = self._find_section_by_string('grid smooth')
         if offset is None:
             return
 
-        # Parse sub-fields using type code 0x0520
         tc_hi, tc_lo = 0x05, 0x20
         scan_start = offset + 10 + len('grid smooth')
         scan_end = min(scan_start + 400, len(self.data) - 10)
 
-        raw_fields: Dict[int, Any] = {}
+        # Parse all sub-fields, capturing multiple refs per field
+        raw_fields: Dict[int, Dict[str, Any]] = {}
         i = scan_start
         while i < scan_end - 5:
             if (self.data[i] == 0x0A and self.data[i+1] == 0x02
                     and self.data[i+2] == tc_hi and self.data[i+3] == tc_lo):
                 field_idx = self.data[i+4]
                 i += 5
-                if self.data[i] == 0x0C and i + 4 < scan_end:
-                    val = self.data[i+4]
-                    raw_fields[field_idx] = {'ref': val}
-                    i += 5
-                elif self.data[i] == 0x06 and i + 8 < scan_end:
-                    doubles = []
-                    while i < scan_end and self.data[i] == 0x06 and i + 8 < scan_end:
+                refs: List[Tuple[int, int]] = []
+                doubles: List[float] = []
+
+                while i < scan_end:
+                    if self.data[i] == 0x0C and i + 4 < scan_end:
+                        ref_type = struct.unpack('>H', self.data[i+2:i+4])[0]
+                        ref_val = self.data[i+4]
+                        refs.append((ref_type, ref_val))
+                        i += 5
+                    elif self.data[i] == 0x06 and i + 8 < scan_end:
                         val = struct.unpack('>d', self.data[i+1:i+9])[0]
                         doubles.append(val)
                         i += 9
-                    raw_fields[field_idx] = {'doubles': doubles}
-                    # skip trailing 03/0C patterns
-                    while i < scan_end:
-                        if self.data[i] == 0x03 and i + 4 < scan_end:
-                            i += 5
-                        elif self.data[i] == 0x0C and i + 4 < scan_end:
-                            i += 5
-                        else:
-                            break
-                else:
-                    break
+                    elif self.data[i] == 0x03 and i + 4 < scan_end:
+                        i += 5
+                    else:
+                        break
+
+                raw_fields[field_idx] = {'refs': refs, 'doubles': doubles}
             else:
                 if self.data[i:i+2] == b'\x07\x02':
                     break
                 i += 1
 
         # Apply extracted values
+        def _ref_val(field: Dict, ref_type: int) -> Optional[int]:
+            for rt, rv in field.get('refs', []):
+                if rt == ref_type:
+                    return rv
+            return None
+
         # Smoothing flags
         f1 = raw_fields.get(1)
-        if f1 and f1.get('ref') == 2:
+        if f1 and _ref_val(f1, 0x06A0) == 2:
             grid.smoothing = True
         f2 = raw_fields.get(2)
-        if f2 and f2.get('ref') == 2:
+        if f2 and _ref_val(f2, 0x06A0) == 2:
             grid.dynamic_update = True
 
         # Smoothing type
         f8 = raw_fields.get(8)
         if f8:
             _SMOOTHING_MAP = {1: 'v1', 2: 'v3'}
-            grid.smoothing_type = _SMOOTHING_MAP.get(f8.get('ref', 0), 'v3')
+            grid.smoothing_type = _SMOOTHING_MAP.get(_ref_val(f8, 0x06A0) or 0, 'v3')
 
         # Axis data: field 4=x, 5=y, 6=z
         axis_map = {4: grid.x_grid, 5: grid.y_grid, 6: grid.z_grid}
         for field_idx, axis in axis_map.items():
             f = raw_fields.get(field_idx)
-            if f and 'doubles' in f:
-                doubles = f['doubles']
-                if len(doubles) >= 1:
-                    axis.min_size = doubles[0]
-                if len(doubles) >= 2:
-                    # Second double usage TBD — not max_size
-                    pass
+            if f:
+                ds = f.get('doubles', [])
+                if len(ds) >= 1:
+                    axis.min_size = ds[0]
+                if len(ds) >= 2:
+                    axis.max_size = ds[1]
 
-        # Grid type
+        # Grid type + max_aspect_ratio from field 7
         f7 = raw_fields.get(7)
         if f7:
             _GRID_TYPE_MAP = {1: 'max_size', 2: 'min_number'}
-            gt = _GRID_TYPE_MAP.get(f7.get('ref', 0), 'max_size')
+            gt = _GRID_TYPE_MAP.get(_ref_val(f7, 0x06A0) or 0, 'max_size')
             for axis in [grid.x_grid, grid.y_grid, grid.z_grid]:
                 axis.grid_type = gt
+            mar = _ref_val(f7, 0x07E0)
+            if mar is not None:
+                grid.max_aspect_ratio = mar
 
     def _extract_region_grid_constraint(self, base_offset: int) -> Tuple[Optional[str], bool]:
         """Extract grid constraint name reference and localized_grid from a region's binary data.
