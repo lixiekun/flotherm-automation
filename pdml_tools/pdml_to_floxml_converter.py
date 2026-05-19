@@ -1932,49 +1932,98 @@ class PDMLBinaryReader:
             model.initial_variables = iv
 
     def _extract_grid_settings(self, grid: PDMLGridSettings):
-        """提取网格设置
+        """Extract grid settings from PDML binary using structured section parsing.
 
-        PDML 网格设置结构：
-        - grid section 包含 min_size 等参数
-        - max_size 通常由求解器根据几何体自动计算
-        - 使用样例校准的网格参数确保一致性
+        Grid section (0x0520) sub-fields:
+          field 1: smoothing (ref: val=2=true)
+          field 2: dynamic_update (ref: val=2=true)
+          field 4: x_grid doubles [min_size, ?]
+          field 5: y_grid doubles [min_size, ?]
+          field 6: z_grid doubles [min_size, ?]
+          field 7: grid_type (ref: val=1=max_size)
+          field 8: smoothing_type (ref: val=2=v3)
+          field 9: flag
+          field 10: flag
         """
-        # 先应用默认值
         self._apply_sample_grid_defaults(grid)
 
-        # 尝试从 PDML 提取 min_size 参数
-        if 'grid' in self.sections:
-            section_start = self.sections['grid']
-            # 在 grid section 中搜索合理的网格尺寸值
-            doubles = self._find_double_near(section_start, 600)
+        # Find the FIRST grid_smooth section
+        offset = self._find_section_by_string('grid smooth')
+        if offset is None:
+            return
 
-            # 收集可能是 min_size 的值 (通常在 0.0001 - 0.001 范围)
-            min_size_candidates = []
-            for pos, val in doubles:
-                if 1e-5 <= val <= 0.001:
-                    min_size_candidates.append(val)
+        # Parse sub-fields using type code 0x0520
+        tc_hi, tc_lo = 0x05, 0x20
+        scan_start = offset + 10 + len('grid smooth')
+        scan_end = min(scan_start + 400, len(self.data) - 10)
 
-            # 提取唯一的 min_size 值
-            unique_mins = sorted(set(min_size_candidates))
+        raw_fields: Dict[int, Any] = {}
+        i = scan_start
+        while i < scan_end - 5:
+            if (self.data[i] == 0x0A and self.data[i+1] == 0x02
+                    and self.data[i+2] == tc_hi and self.data[i+3] == tc_lo):
+                field_idx = self.data[i+4]
+                i += 5
+                if self.data[i] == 0x0C and i + 4 < scan_end:
+                    val = self.data[i+4]
+                    raw_fields[field_idx] = {'ref': val}
+                    i += 5
+                elif self.data[i] == 0x06 and i + 8 < scan_end:
+                    doubles = []
+                    while i < scan_end and self.data[i] == 0x06 and i + 8 < scan_end:
+                        val = struct.unpack('>d', self.data[i+1:i+9])[0]
+                        doubles.append(val)
+                        i += 9
+                    raw_fields[field_idx] = {'doubles': doubles}
+                    # skip trailing 03/0C patterns
+                    while i < scan_end:
+                        if self.data[i] == 0x03 and i + 4 < scan_end:
+                            i += 5
+                        elif self.data[i] == 0x0C and i + 4 < scan_end:
+                            i += 5
+                        else:
+                            break
+                else:
+                    break
+            else:
+                if self.data[i:i+2] == b'\x07\x02':
+                    break
+                i += 1
 
-            # PDML 中通常存储三个轴的 min_size
-            # 按顺序分配给 X, Y, Z
-            if len(unique_mins) >= 3:
-                grid.x_grid.min_size = unique_mins[0]
-                grid.y_grid.min_size = unique_mins[1] if len(unique_mins) > 1 else unique_mins[0]
-                grid.z_grid.min_size = unique_mins[2] if len(unique_mins) > 2 else unique_mins[0]
-            elif len(unique_mins) >= 1:
-                # 所有轴使用相同的 min_size
-                grid.x_grid.min_size = unique_mins[0]
-                grid.y_grid.min_size = unique_mins[0]
-                grid.z_grid.min_size = unique_mins[0]
+        # Apply extracted values
+        # Smoothing flags
+        f1 = raw_fields.get(1)
+        if f1 and f1.get('ref') == 2:
+            grid.smoothing = True
+        f2 = raw_fields.get(2)
+        if f2 and f2.get('ref') == 2:
+            grid.dynamic_update = True
 
-            # max_size 使用样例校准值（PDML 不直接存储）
-            # 这些值是从原始样例 FloXML 中提取的，已证明可以生成一致的网格
-            if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
-                grid.x_grid.max_size = 0.001
-                grid.y_grid.max_size = 0.0011
-                grid.z_grid.max_size = 0.001
+        # Smoothing type
+        f8 = raw_fields.get(8)
+        if f8:
+            _SMOOTHING_MAP = {1: 'v1', 2: 'v3'}
+            grid.smoothing_type = _SMOOTHING_MAP.get(f8.get('ref', 0), 'v3')
+
+        # Axis data: field 4=x, 5=y, 6=z
+        axis_map = {4: grid.x_grid, 5: grid.y_grid, 6: grid.z_grid}
+        for field_idx, axis in axis_map.items():
+            f = raw_fields.get(field_idx)
+            if f and 'doubles' in f:
+                doubles = f['doubles']
+                if len(doubles) >= 1:
+                    axis.min_size = doubles[0]
+                if len(doubles) >= 2:
+                    # Second double usage TBD — not max_size
+                    pass
+
+        # Grid type
+        f7 = raw_fields.get(7)
+        if f7:
+            _GRID_TYPE_MAP = {1: 'max_size', 2: 'min_number'}
+            gt = _GRID_TYPE_MAP.get(f7.get('ref', 0), 'max_size')
+            for axis in [grid.x_grid, grid.y_grid, grid.z_grid]:
+                axis.grid_type = gt
 
     def _extract_region_grid_constraint(self, base_offset: int) -> Tuple[Optional[str], bool]:
         """Extract grid constraint name reference and localized_grid from a region's binary data.
