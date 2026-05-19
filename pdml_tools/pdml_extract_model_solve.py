@@ -14,11 +14,12 @@
 """
 
 import argparse
+import json
 import os
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -243,22 +244,110 @@ def _print_solve(solve: ET.Element) -> None:
 
 
 # ============================================================================
+# JSON output
+# ============================================================================
+
+def _text_to_value(text: Optional[str]) -> Any:
+    """Convert XML text to int/float/bool/str."""
+    if text is None or not text.strip():
+        return None
+    text = text.strip()
+    if text.lower() in ("true", "false"):
+        return text.lower()
+    try:
+        return int(text)
+    except ValueError:
+        pass
+    try:
+        return float(text)
+    except ValueError:
+        pass
+    return text
+
+
+def _elem_to_dict(elem: ET.Element) -> Dict[str, Any]:
+    """Recursively convert XML element children to dict."""
+    result: Dict[str, Any] = {}
+    for child in elem:
+        ctag = _strip_tag(child.tag)
+        sub_children = list(child)
+        if sub_children:
+            result[ctag] = _elem_to_dict(child)
+        else:
+            result[ctag] = _text_to_value(child.text)
+    return result
+
+
+def _is_list_section(section: ET.Element) -> bool:
+    """Check if a section contains repeated child elements (list) vs unique tags (dict).
+
+    A section is a list if all children share the same tag (e.g. variable_controls
+    containing multiple variable_control elements, or solver_controls with 1 solver_control).
+    """
+    children = list(section)
+    if not children:
+        return False
+    tags = [_strip_tag(c.tag) for c in children]
+    return len(set(tags)) == 1
+
+
+def to_json_dict(root: ET.Element) -> Dict[str, Any]:
+    """Convert model/solve XML tree to a JSON-serializable dict."""
+    result: Dict[str, Any] = {}
+
+    name_elem = root.find("name")
+    if name_elem is not None and name_elem.text:
+        result["name"] = name_elem.text
+
+    model = root.find("model")
+    if model is not None:
+        model_dict: Dict[str, Any] = {}
+        for section in model:
+            tag = _strip_tag(section.tag)
+            section_dict = _elem_to_dict(section)
+            if section_dict:
+                model_dict[tag] = section_dict
+        if model_dict:
+            result["model"] = model_dict
+
+    solve = root.find("solve")
+    if solve is not None:
+        solve_dict: Dict[str, Any] = {}
+        for section in solve:
+            tag = _strip_tag(section.tag)
+            if _is_list_section(section):
+                # List section: variable_controls → [variable_control, ...]
+                entries = [_elem_to_dict(item) for item in section]
+                solve_dict[tag] = [e for e in entries if e]
+            else:
+                section_dict = _elem_to_dict(section)
+                if section_dict:
+                    solve_dict[tag] = section_dict
+        if solve_dict:
+            result["solve"] = solve_dict
+
+    return result
+
+
+# ============================================================================
 # CLI
 # ============================================================================
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Extract model setup and solver control from PDML/FloXML to FloXML",
+        description="Extract model setup and solver control from PDML/FloXML",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   python pdml_tools/pdml_extract_model_solve.py model.pdml -o model_solve.xml
-  python pdml_tools/pdml_extract_model_solve.py model.xml -o model_solve.xml
-  python pdml_tools/pdml_extract_model_solve.py model.pdml --summary
+  python pdml_tools/pdml_extract_model_solve.py model.pdml -o model_solve.json --json
+  python pdml_tools/pdml_extract_model_solve.py model.xml --summary
+  python pdml_tools/pdml_extract_model_solve.py model.pdml --json
         """,
     )
     parser.add_argument("input", help="Input PDML or FloXML file")
-    parser.add_argument("-o", "--output", help="Output FloXML file path")
+    parser.add_argument("-o", "--output", help="Output file path")
+    parser.add_argument("--json", action="store_true", help="Output as JSON instead of XML")
     parser.add_argument("--summary", action="store_true", help="Print summary")
 
     args = parser.parse_args()
@@ -282,11 +371,20 @@ Examples:
     if args.summary or not args.output:
         print_summary(xml_case)
 
-    if args.output:
+    if args.json:
+        result = to_json_dict(xml_case)
+        if args.output:
+            output_path = Path(args.output)
+            with output_path.open("w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+            print(f"[OK] JSON output: {output_path}")
+        else:
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+    elif args.output:
         xml_str = _prettify(xml_case)
         output_path = Path(args.output)
         output_path.write_text(xml_str, encoding="utf-8")
-        print(f"[OK] Output: {output_path}")
+        print(f"[OK] XML output: {output_path}")
 
     return 0
 
