@@ -384,6 +384,8 @@ class PDMLBinaryReader:
     # Section 标记字符串
     SECTION_MARKERS = {
         'gravity': 'model',
+        'global': 'global',
+        'turbulence': 'turbulence',
         'overall control': 'solve',
         'grid smooth': 'grid',
         'modeldata': 'attributes',
@@ -559,6 +561,63 @@ class PDMLBinaryReader:
             except:
                 pass
         return None
+
+    def _find_section_by_string(self, name: str) -> Optional[int]:
+        """Find a tagged string section by its string value, return offset of the 0x0702 marker."""
+        for ts in self.tagged_strings:
+            if ts['value'] == name:
+                return ts['offset']
+        return None
+
+    def _parse_section_subfields(self, section_name: str, max_scan: int = 500) -> Dict[int, Any]:
+        """
+        Parse structured sub-fields from a named PDML section.
+
+        Scans for 0A 02 <2-byte-section-tc> <field-idx> patterns in the binary,
+        then reads the following data as either a double or a ref value.
+
+        Returns {field_index: {'double': float} | {'ref': int, 'value': int}}
+        """
+        offset = self._find_section_by_string(section_name)
+        if offset is None:
+            return {}
+
+        section_tc = struct.unpack('>H', self.data[offset+2:offset+4])[0]
+        tc_hi = (section_tc >> 8) & 0xFF
+        tc_lo = section_tc & 0xFF
+
+        # Scan range: from section string to max_scan bytes after
+        scan_start = offset + 10 + struct.unpack('>I', self.data[offset+6:offset+10])[0]
+        scan_end = min(scan_start + max_scan, len(self.data) - 10)
+
+        results: Dict[int, Any] = {}
+        i = scan_start
+        while i < scan_end - 5:
+            # Match: 0A 02 <tc_hi> <tc_lo> <field_idx>
+            if (self.data[i] == 0x0A and self.data[i+1] == 0x02
+                    and self.data[i+2] == tc_hi and self.data[i+3] == tc_lo):
+                field_idx = self.data[i+4]
+                i += 5
+
+                if i < scan_end and self.data[i] == 0x06 and i + 8 < len(self.data):
+                    val = struct.unpack('>d', self.data[i+1:i+9])[0]
+                    results[field_idx] = {'double': val}
+                    i += 9
+                    # Skip optional 0C 03 ... ref (5 bytes)
+                    if i + 4 < scan_end and self.data[i] == 0x0C:
+                        i += 5
+                elif i + 4 < scan_end and self.data[i] == 0x0C:
+                    # Ref: 0C 03 HH LL VV
+                    ref_tc = struct.unpack('>H', self.data[i+2:i+4])[0]
+                    val = self.data[i+4]
+                    results[field_idx] = {'ref': ref_tc, 'value': val}
+                    i += 5
+                else:
+                    break
+            else:
+                i += 1
+
+        return results
 
     def _find_double_near(self, pos: int, range_size: int = 100) -> List[Tuple[int, float]]:
         """在指定位置附近查找所有 double 值"""
@@ -1040,24 +1099,16 @@ class PDMLBinaryReader:
         return fragments
 
     def _apply_sample_model_defaults(self, model: PDMLModelSettings):
-        """Apply sample-calibrated defaults before attempting generic extraction."""
+        """Apply reasonable defaults before structured extraction overrides them."""
+        # These fields will be overwritten by _extract_model_settings if found in binary
         model.solution = "flow_heat"
         model.dimensionality = "3d"
         model.turbulence_type = "turbulent"
         model.turbulence_model = "auto_algebraic"
         model.gravity_type = "normal"
-        if self.profile == self.COMPACT_FORCED_FLOW_LAYOUT:
-            model.radiation = "off"
-            model.transient = False
-            model.gravity_direction = "neg_y"
-            model.gravity_value = 9.81
-            model.radiant_temperature = 318.15
-            model.ambient_temperature = 318.15
-        else:
-            model.radiation = "on"
-            model.transient = True
-            model.gravity_direction = "neg_z"
-            model.gravity_value = 12.0
+        model.gravity_direction = "neg_z"
+        model.radiation = "off"
+        model.transient = False
 
     def _apply_sample_solve_defaults(self, solve: PDMLSolveSettings):
         """Apply sample-calibrated solver defaults before scanning nearby values."""
@@ -1516,34 +1567,43 @@ class PDMLBinaryReader:
         """提取模型设置"""
         self._apply_sample_model_defaults(model)
 
-        # 查找 gravity section
-        if 'model' in self.sections:
-            section_start = self.sections['model']
-            # 在附近查找重力值，优先使用样例里明确出现的 12
-            doubles = self._find_double_near(section_start, 200)
-            for pos, val in doubles:
-                if 11.5 < val < 12.5:
-                    model.gravity_value = val
-                    break
+        # --- Extract global settings (pressure, temperatures) from 0x0060 section ---
+        global_fields = self._parse_section_subfields('global')
+        if global_fields:
+            f = global_fields.get(1)
+            if f and 'double' in f:
+                model.datum_pressure = f['double']
+            f = global_fields.get(2)
+            if f and 'double' in f:
+                model.radiant_temperature = f['double'] + 273.15
+            f = global_fields.get(3)
+            if f and 'double' in f:
+                model.ambient_temperature = f['double'] + 273.15
 
-        # 查找 ambient temperature (300K)
-        for pos, s in self.strings.items():
-            if 'ambient' in s.lower() or 'temperature' in s.lower():
-                doubles = self._find_double_near(pos, 100)
-                for dpos, val in doubles:
-                    if 250 < val < 350:
-                        model.ambient_temperature = val
-                        model.radiant_temperature = val
-                        break
+        # --- Extract gravity settings from 0x0070 section ---
+        gravity_fields = self._parse_section_subfields('gravity')
+        if gravity_fields:
+            # field 2: ref 0x0080 → gravity_direction enum
+            f = gravity_fields.get(2)
+            if f and 'value' in f:
+                _GRAVITY_DIR_MAP = {
+                    1: ('normal', 'pos_x'),
+                    2: ('normal', 'neg_x'),
+                    3: ('normal', 'pos_y'),
+                    4: ('normal', 'neg_y'),
+                    5: ('normal', 'pos_z'),
+                    6: ('normal', 'neg_z'),
+                }
+                mapping = _GRAVITY_DIR_MAP.get(f['value'])
+                if mapping:
+                    model.gravity_type, model.gravity_direction = mapping
 
-        # 查找 datum pressure (101325 Pa)
-        for pos, s in self.strings.items():
-            if 'pressure' in s.lower() or 'datum' in s.lower():
-                doubles = self._find_double_near(pos, 100)
-                for dpos, val in doubles:
-                    if 100000 < val < 102000:
-                        model.datum_pressure = val
-                        break
+            # field 3: 3 doubles → angled direction (handled by field count)
+
+            # field 5: double → gravity_value
+            f = gravity_fields.get(5)
+            if f and 'double' in f:
+                model.gravity_value = f['double']
 
     def _extract_solve_settings(self, solve: PDMLSolveSettings):
         """提取求解设置"""
