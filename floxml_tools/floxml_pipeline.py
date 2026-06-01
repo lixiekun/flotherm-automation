@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-"""FloXML build pipeline: combine wrap, grid/regions, and solve settings in one pass.
+"""FloXML build pipeline: combine wrap, grid/regions, solve settings, and boundary conditions in one pass.
 
 Usage:
-    # Single config for both grid and solve
+    # Single config for grid, solve, and boundary conditions
     python -m floxml_tools.floxml_pipeline geometry.xml -c config.json --wrap -o project.xml
 
-    # Separate configs still supported
-    python -m floxml_tools.floxml_pipeline base.xml --grid grid.json --solve solve.json -o out.xml
+    # Separate configs
+    python -m floxml_tools.floxml_pipeline base.xml --grid grid.json --solve solve.json --boundary bc.json -o out.xml
 
     # Grid only
     python -m floxml_tools.floxml_pipeline base.xml --grid grid.json -o out.xml
 
     # Solve only
     python -m floxml_tools.floxml_pipeline base.xml --solve solve.json -o out.xml
+
+    # Boundary only
+    python -m floxml_tools.floxml_pipeline base.xml --boundary bc.json -o out.xml
 """
 
 from __future__ import annotations
@@ -38,6 +41,10 @@ from floxml_tools.floxml_add_volume_regions import (
 from floxml_tools.floxml_add_solve_settings import (
     apply_solve_settings,
     load_config as load_solve_config,
+)
+from floxml_tools.floxml_boundary_conditions import (
+    apply_boundary_conditions,
+    load_config as load_boundary_config,
 )
 from floxml_tools.wrap_geometry_floxml_as_project import (
     _build_default_model,
@@ -146,19 +153,25 @@ _SOLVE_KEYS = {
     "modeling", "turbulence", "gravity", "global", "initial_variables",
     "overall_control", "variable_controls", "solver_controls", "transient",
 }
+# Keys recognized by apply_boundary_conditions
+_BOUNDARY_KEYS = {
+    "ambients", "solution_domain", "surfaces", "radiations", "sources",
+    "surface_exchanges", "thermals", "face_conditions",
+}
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="FloXML build pipeline: wrap, grid/regions, and solve settings in one pass"
+        description="FloXML build pipeline: wrap, grid/regions, solve settings, and boundary conditions in one pass"
     )
     parser.add_argument("input", help="Input FloXML file (.xml)")
     parser.add_argument(
         "-c", "--config",
-        help="Unified config file (.json) containing both grid and solve settings",
+        help="Unified config file (.json) containing grid, solve, and/or boundary settings",
     )
     parser.add_argument("--grid", help="Grid/regions config file (.json or .xlsx)")
     parser.add_argument("--solve", help="Solve settings config file (.json or .xlsx)")
+    parser.add_argument("--boundary", help="Boundary conditions config file (.json or .xlsx)")
     parser.add_argument(
         "--wrap",
         action="store_true",
@@ -184,8 +197,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if not any([args.config, args.grid, args.solve, args.wrap]):
-        parser.error("At least one of -c, --grid, --solve, or --wrap is required")
+    if not any([args.config, args.grid, args.solve, args.boundary, args.wrap]):
+        parser.error("At least one of -c, --grid, --solve, --boundary, or --wrap is required")
 
     input_path = Path(args.input).resolve()
     if not input_path.is_file():
@@ -198,9 +211,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         else input_path.with_name(f"{input_path.stem}_built.xml")
     )
 
-    # Resolve config sources: -c splits into grid + solve; --grid/--solve override
+    # Resolve config sources: -c splits into grid + solve + boundary; individual flags override
     grid_config = None
     solve_config = None
+    boundary_config = None
 
     if args.config:
         config_path = Path(args.config).resolve()
@@ -211,13 +225,16 @@ def main(argv: Optional[list[str]] = None) -> int:
         # Split by recognized keys
         grid_part = {k: v for k, v in unified.items() if k in _GRID_KEYS}
         solve_part = {k: v for k, v in unified.items() if k in _SOLVE_KEYS}
-        unknown = set(unified) - _GRID_KEYS - _SOLVE_KEYS
+        boundary_part = {k: v for k, v in unified.items() if k in _BOUNDARY_KEYS}
+        unknown = set(unified) - _GRID_KEYS - _SOLVE_KEYS - _BOUNDARY_KEYS
         if unknown:
             print(f"[WARN] Unknown keys in config ignored: {unknown}", file=sys.stderr)
         if grid_part:
             grid_config = grid_part
         if solve_part:
             solve_config = solve_part
+        if boundary_part:
+            boundary_config = boundary_part
 
     if args.grid:
         grid_config_path = Path(args.grid).resolve()
@@ -232,6 +249,13 @@ def main(argv: Optional[list[str]] = None) -> int:
             print(f"[ERROR] Solve config not found: {solve_config_path}", file=sys.stderr)
             return 1
         solve_config = load_solve_config(solve_config_path)
+
+    if args.boundary:
+        boundary_config_path = Path(args.boundary).resolve()
+        if not boundary_config_path.is_file():
+            print(f"[ERROR] Boundary config not found: {boundary_config_path}", file=sys.stderr)
+            return 1
+        boundary_config = load_boundary_config(boundary_config_path)
 
     try:
         tree = ET.parse(input_path)
@@ -254,7 +278,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         if solve_config:
             root = apply_solve_settings(root, solve_config)
 
-        # Step 4: Indent and write
+        # Step 4: Add boundary conditions (if config has boundary keys)
+        if boundary_config:
+            root = apply_boundary_conditions(root, boundary_config)
+
+        # Step 5: Indent and write
         indent_xml(root)
         out_tree = ET.ElementTree(root)
         out_tree.write(output_path, encoding="utf-8", xml_declaration=True)
@@ -270,6 +298,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         steps.append("added grid/regions")
     if solve_config:
         steps.append("applied solve settings")
+    if boundary_config:
+        steps.append("applied boundary conditions")
     print(f"[OK] {' -> '.join(steps)}: {output_path}")
     return 0
 
