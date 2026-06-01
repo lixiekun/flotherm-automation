@@ -691,7 +691,84 @@ def slide_typical_usage(prs):
 
 
 # ========================================================================
-# Slide 11: JSON config files summary
+# Slide 11: floxml_pipeline — one-pass pipeline
+# ========================================================================
+def slide_pipeline(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s, RGBColor(0x2C, 0x3E, 0x50))
+
+    _txt(s, Inches(0.6), Inches(0.3), Inches(9), Inches(0.5),
+         "floxml_pipeline.py", sz=28, color=DARK_BLUE, bold=True)
+    _txt(s, Inches(0.6), Inches(0.8), Inches(9), Inches(0.4),
+         "一键流水线 — 三个修改脚本合并为一次执行  |  308 行", sz=16, color=RGBColor(0x2C, 0x3E, 0x50))
+    _rect(s, Inches(0.6), Inches(1.2), Inches(12), Inches(0.02), RGBColor(0x2C, 0x3E, 0x50))
+
+    _txt(s, Inches(0.6), Inches(1.4), Inches(12), Inches(0.4),
+         "将前面 3 个注入步骤合并成一条命令，支持分步或统一配置。",
+         sz=15, color=DARK_GRAY, bold=True)
+
+    # Left: execution flow
+    _rect(s, Inches(0.5), Inches(2.0), Inches(7.2), Inches(4.8), LIGHT_GRAY)
+    _txt(s, Inches(0.7), Inches(2.1), Inches(6.8), Inches(0.35),
+         "执行流程", sz=16, color=DARK_BLUE, bold=True)
+
+    flow_items = [
+        ("Step 1", "--wrap", "包装几何文件为完整项目 (可选)", ACCENT_BLUE),
+        ("Step 2", "--grid", "注入体积区域 + 网格约束", GREEN),
+        ("Step 3", "--solve", "注入求解设置 + 瞬态设置", ORANGE),
+        ("Step 4", "--boundary", "注入边界条件 (环境/热源/表面/辐射)", PURPLE),
+    ]
+    for i, (label, flag, desc, color) in enumerate(flow_items):
+        y = Inches(2.6) + i * Inches(0.9)
+        _rect(s, Inches(0.7), y, Inches(1.0), Inches(0.5), color)
+        _txt(s, Inches(0.7), y + Inches(0.07), Inches(1.0), Inches(0.35),
+             label, sz=11, color=WHITE, bold=True, align=PP_ALIGN.CENTER)
+        _txt(s, Inches(1.9), y + Inches(0.07), Inches(1.2), Inches(0.35),
+             flag, sz=12, color=color, bold=True, font="Menlo")
+        _txt(s, Inches(3.2), y + Inches(0.07), Inches(4.2), Inches(0.35),
+             desc, sz=12, color=DARK_GRAY)
+        if i < 3:
+            _txt(s, Inches(1.1), y + Inches(0.5), Inches(0.5), Inches(0.3),
+                 "↓", sz=16, color=MED_GRAY, align=PP_ALIGN.CENTER)
+
+    # unified config note
+    _rect(s, Inches(0.7), Inches(6.1), Inches(6.8), Inches(0.5), LIGHT_BLUE)
+    _txt(s, Inches(0.9), Inches(6.15), Inches(6.4), Inches(0.4),
+         "-c config.json 会按 key 自动拆分到 grid / solve / boundary",
+         sz=11, color=DARK_BLUE, bold=True)
+
+    # Right: usage examples
+    _rect(s, Inches(8.0), Inches(2.0), Inches(4.8), Inches(4.8), LIGHT_GRAY)
+    _txt(s, Inches(8.2), Inches(2.1), Inches(4.4), Inches(0.35),
+         "命令行用法", sz=16, color=DARK_BLUE, bold=True)
+
+    usage = (
+        "# 统一配置一步到位\n"
+        "python -m floxml_tools.\n"
+        "  floxml_pipeline project.xml \\\n"
+        "  -c config.json -o output.xml\n\n"
+        "# 分别指定三个配置\n"
+        "python -m floxml_tools.\n"
+        "  floxml_pipeline project.xml \\\n"
+        "  --grid regions.json \\\n"
+        "  --solve solve.json \\\n"
+        "  --boundary bc.json \\\n"
+        "  -o output.xml\n\n"
+        "# 只跑其中一步\n"
+        "python -m floxml_tools.\n"
+        "  floxml_pipeline project.xml \\\n"
+        "  --boundary bc.json \\\n"
+        "  -o output.xml"
+    )
+    _txt(s, Inches(8.2), Inches(2.5), Inches(4.4), Inches(4.0),
+         usage, sz=10, color=DARK_GRAY, font="Menlo")
+
+    _footer(s)
+
+
+# ========================================================================
+# Slide 12: JSON config files summary
 # ========================================================================
 def slide_config_summary(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
@@ -993,6 +1070,7 @@ def main():
     slide_boundary_conditions(prs)
     slide_boundary_config(prs)
     slide_typical_usage(prs)
+    slide_pipeline(prs)
     slide_config_summary(prs)
     slide_xsd_overview(prs)
     slide_xsd_details(prs)
