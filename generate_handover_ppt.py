@@ -986,7 +986,180 @@ def slide_xsd_details(prs):
 
 
 # ========================================================================
-# Slide 14: Summary
+# Slide 14: Command-line solving
+# ========================================================================
+def slide_cli_solve(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s, RED)
+    _section_title(s, "命令行求解 & 结果保存")
+
+    _txt(s, Inches(0.6), Inches(1.1), Inches(12), Inches(0.4),
+         "修改完 FloXML 后，通过命令行调用 FloTHERM 求解，保存为 .pack 项目和 HTML 求解报告。",
+         sz=14, color=MED_GRAY)
+
+    # Single file solve
+    _rect(s, Inches(0.5), Inches(1.7), Inches(6.0), Inches(2.3), LIGHT_GRAY)
+    _txt(s, Inches(0.7), Inches(1.8), Inches(5.6), Inches(0.35),
+         "单文件求解", sz=15, color=RED, bold=True)
+    solve_cmd = (
+        "# ECXML 直接求解 → 保存 .pack + HTML 报告\n"
+        "flotherm -b model.ecxml \\\n"
+        "  -z output.pack -r report.html\n\n"
+        "# FloXML 求解\n"
+        "flotherm -b project.xml\n\n"
+        "# FloSCRIPT 脚本求解 (最灵活)\n"
+        "flotherm -b -f solve_script.xml"
+    )
+    _txt(s, Inches(0.7), Inches(2.2), Inches(5.6), Inches(1.6),
+         solve_cmd, sz=11, color=DARK_GRAY, font="Menlo")
+
+    # Key flags
+    _rect(s, Inches(6.8), Inches(1.7), Inches(6.0), Inches(2.3), LIGHT_BLUE)
+    _txt(s, Inches(7.0), Inches(1.8), Inches(5.6), Inches(0.35),
+         "关键参数说明", sz=15, color=DARK_BLUE, bold=True)
+    flags = [
+        "-b              batch mode (无 GUI)",
+        "-f script.xml   执行 FloSCRIPT 脚本",
+        "-z output.pack  保存结果为 .pack 文件",
+        "-r report.html  生成 HTML 求解报告",
+        "--timeout N     求解超时 (秒)",
+    ]
+    _bullets(s, Inches(7.0), Inches(2.2), Inches(5.6), Inches(1.6),
+             flags, sz=12, color=DARK_GRAY, gap=Pt(4))
+
+    # Pack file operations
+    _rect(s, Inches(0.5), Inches(4.2), Inches(6.0), Inches(2.8), LIGHT_GRAY)
+    _txt(s, Inches(0.7), Inches(4.3), Inches(5.6), Inches(0.35),
+         ".pack 文件操作", sz=15, color=ACCENT_BLUE, bold=True)
+    pack_cmd = (
+        "# 查看 pack 内容\n"
+        "python pack_editor.py model.pack --list\n\n"
+        "# 解压 pack 文件\n"
+        "python pack_editor.py model.pack \\\n"
+        "  --extract ./extracted\n\n"
+        "# 修改 pack 中的功耗\n"
+        "python pack_editor.py model.pack \\\n"
+        "  --set-power U1_CPU 15.0 \\\n"
+        "  -o modified.pack"
+    )
+    _txt(s, Inches(0.7), Inches(4.7), Inches(5.6), Inches(2.0),
+         pack_cmd, sz=11, color=DARK_GRAY, font="Menlo")
+
+    # Python solve tools
+    _rect(s, Inches(6.8), Inches(4.2), Inches(6.0), Inches(2.8), LIGHT_GRAY)
+    _txt(s, Inches(7.0), Inches(4.3), Inches(5.6), Inches(0.35),
+         "Python 求解工具", sz=15, color=ORANGE, bold=True)
+    py_cmd = (
+        "# 批量求解文件夹\n"
+        "python batch_ecxml_solver.py \\\n"
+        "  ./input_folder -o ./output\n\n"
+        "# FloSCRIPT 运行器 (支持功耗修改)\n"
+        "python floscript_runner.py model.floxml \\\n"
+        "  -o ./output --power U1_CPU=15.0\n\n"
+        "# 批量求解器 (支持多种格式)\n"
+        "python flotherm_batch_solver.py model.xml \\\n"
+        "  -o ./output --mode auto"
+    )
+    _txt(s, Inches(7.0), Inches(4.7), Inches(5.6), Inches(2.0),
+         py_cmd, sz=11, color=DARK_GRAY, font="Menlo")
+
+    _footer(s)
+
+
+# ========================================================================
+# Slide 15: Batch simulation
+# ========================================================================
+def slide_batch_sim(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s, RGBColor(0x8E, 0x44, 0xAD))
+    _section_title(s, "批量求解 — batch_simulation")
+
+    _txt(s, Inches(0.6), Inches(1.1), Inches(12), Inches(0.4),
+         "batch_simulation/ 目录提供完整的批量仿真工具，通过 FloSCRIPT 宏自动加载、修改参数、求解、保存结果。",
+         sz=14, color=MED_GRAY)
+
+    # Left: workflow
+    _rect(s, Inches(0.5), Inches(1.7), Inches(6.0), Inches(2.5), LIGHT_GRAY)
+    _txt(s, Inches(0.7), Inches(1.8), Inches(5.6), Inches(0.35),
+         "批量求解流程", sz=15, color=DARK_BLUE, bold=True)
+    workflow = (
+        "1. 准备 JSON 配置 (input_pack + modifications)\n"
+        "2. batch_sim.py 生成 FloSCRIPT XML 脚本\n"
+        "3. FlothermExecutor 调用 flotherm.exe 执行\n"
+        "4. 每次求解: load → modify → solve → save_as .pack\n"
+        "5. extract 命令提取结果到 JSON / CSV"
+    )
+    _txt(s, Inches(0.7), Inches(2.2), Inches(5.6), Inches(1.8),
+         workflow, sz=12, color=DARK_GRAY)
+
+    # Right: CLI commands
+    _rect(s, Inches(6.8), Inches(1.7), Inches(6.0), Inches(2.5), LIGHT_GRAY)
+    _txt(s, Inches(7.0), Inches(1.8), Inches(5.6), Inches(0.35),
+         "四个子命令", sz=15, color=DARK_BLUE, bold=True)
+    cli = (
+        "# 生成 FloSCRIPT 脚本\n"
+        "python batch_simulation/batch_sim.py \\\n"
+        "  generate config.json -o ./scripts\n\n"
+        "# 生成 + 执行\n"
+        "python batch_simulation/batch_sim.py \\\n"
+        "  run config.json --timeout 7200\n\n"
+        "# 提取求解结果\n"
+        "python batch_simulation/batch_sim.py \\\n"
+        "  extract solved.pack -o results.json\n\n"
+        "# 创建空白 FloXML 项目\n"
+        "python batch_simulation/batch_sim.py \\\n"
+        "  create-floxml -n MyProject -o project.xml"
+    )
+    _txt(s, Inches(7.0), Inches(2.2), Inches(5.6), Inches(1.8),
+         cli, sz=10, color=DARK_GRAY, font="Menlo")
+
+    # Bottom left: example configs
+    _rect(s, Inches(0.5), Inches(4.4), Inches(6.0), Inches(2.8), LIGHT_GRAY)
+    _txt(s, Inches(0.7), Inches(4.5), Inches(5.6), Inches(0.35),
+         "example_config.json — 单次修改求解", sz=13, color=GREEN, bold=True)
+    single_json = (
+        '{\n'
+        '  "input_pack": "model.pack",\n'
+        '  "output_pack": "output.pack",\n'
+        '  "modifications": [\n'
+        '    {"type": "power", "component": "U1_CPU",\n'
+        '     "value": 15.0},\n'
+        '    {"type": "solver", "max_iterations": 500}\n'
+        '  ],\n'
+        '  "solve": true\n'
+        '}'
+    )
+    _txt(s, Inches(0.7), Inches(4.9), Inches(5.6), Inches(2.0),
+         single_json, sz=10, color=DARK_GRAY, font="Menlo")
+
+    # Bottom right: param sweep
+    _rect(s, Inches(6.8), Inches(4.4), Inches(6.0), Inches(2.8), LIGHT_BLUE)
+    _txt(s, Inches(7.0), Inches(4.5), Inches(5.6), Inches(0.35),
+         "example_param_sweep.json — 参数扫描", sz=13, color=ORANGE, bold=True)
+    sweep_json = (
+        '{\n'
+        '  "input_pack": "model.pack",\n'
+        '  "output_pack": "output_{value}.pack",\n'
+        '  "parameter_sweep": {\n'
+        '    "component": "U1_CPU",\n'
+        '    "parameter": "power",\n'
+        '    "values": [5.0, 10.0, 15.0, 20.0]\n'
+        '  },\n'
+        '  "solve": true\n'
+        '}\n'
+        "# 自动生成 4 个脚本:\n"
+        "# output_5.0.pack / output_10.0.pack / ..."
+    )
+    _txt(s, Inches(7.0), Inches(4.9), Inches(5.6), Inches(2.0),
+         sweep_json, sz=10, color=DARK_GRAY, font="Menlo")
+
+    _footer(s)
+
+
+# ========================================================================
+# Slide 16: Summary
 # ========================================================================
 def slide_summary(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
@@ -1014,11 +1187,12 @@ def slide_summary(prs):
          "核心要点", sz=20, color=DARK_BLUE, bold=True)
 
     points = [
-        "1. 工作流: FloTHERM 导出 ECXML → ecxml_to_floxml_converter 转换 → 三个 JSON 配置修改 FloXML → 导入求解",
-        "2. 三个配置修改脚本各司其职: solve_settings / volume_regions / boundary_conditions",
-        "3. JSON 配置驱动: 修改参数只需改 JSON，不需要手动编辑 XML",
-        "4. 所有模块都有命令行入口，支持 -h 查看帮助",
-        "5. 每个模块有完整 docstring，包含用法示例和参数说明",
+        "1. 工作流: 导出 ECXML → 转换 FloXML → JSON 配置修改 → 命令行求解 → 保存 .pack + HTML 报告",
+        "2. 三个配置修改脚本: solve_settings / volume_regions / boundary_conditions",
+        "3. pipeline 可一键组合三个修改步骤",
+        "4. 命令行求解: flotherm -b model.ecxml -z output.pack -r report.html",
+        "5. 批量求解: batch_simulation/ 支持 JSON 配置驱动的参数扫描",
+        "6. 所有模块都有命令行入口，支持 -h 查看帮助",
     ]
     _bullets(s, Inches(0.6), Inches(3.7), Inches(12), Inches(2.5),
              points, sz=14, color=DARK_GRAY, gap=Pt(6))
@@ -1074,6 +1248,8 @@ def main():
     slide_config_summary(prs)
     slide_xsd_overview(prs)
     slide_xsd_details(prs)
+    slide_cli_solve(prs)
+    slide_batch_sim(prs)
     slide_summary(prs)
     slide_thankyou(prs)
 
