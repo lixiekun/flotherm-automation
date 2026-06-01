@@ -738,7 +738,178 @@ def slide_config_summary(prs):
 
 
 # ========================================================================
-# Slide 12: Summary
+# Slide 12: XSD Schema — overview
+# ========================================================================
+def slide_xsd_overview(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s, RGBColor(0x34, 0x49, 0x5E))
+    _section_title(s, "FloXML XSD Schema 参考文档")
+
+    _txt(s, Inches(0.6), Inches(1.1), Inches(12), Inches(0.4),
+         "examples/DCIM Development Toolkit/Schema Files/FloXML/ — 4,001 行 XSD 定义了 FloXML 完整结构规范。",
+         sz=14, color=MED_GRAY)
+
+    # File overview cards
+    xsd_files = [
+        ("xmlSchema.xsd", "140 行", "主入口", "定义 <xml_case> 根元素\nmodel / solve / grid /\nattributes / geometry /\nsolution_domain 的\n嵌套顺序", ACCENT_BLUE),
+        ("XmlDefinitions.xsd", "331 行", "公共类型", "基础类型库:\ntriplet / direction /\ntrueFalse / ratio /\nvariable_types 等\n枚举值定义", MID_BLUE),
+        ("XmlAttributes.xsd", "783 行", "属性定义", "材料 / 热源 / 环境 /\n表面 / 辐射 / 风扇 /\n流阻 / 网格约束 /\n瞬态函数\n每种属性的字段和枚举", GREEN),
+        ("XmlEntities.xsd", "615 行", "求解/网格", "model 求解模式\nsolve 求解器控制\ngrid 系统网格\npatches 局部加密\n全部字段和合法值", ORANGE),
+        ("XmlGeometry.xsd", "2,132 行", "几何体", "cuboid / plate / prism /\nassembly / fan / vent /\nsource / monitor_point\n每个几何体的字段\n和可引用的属性", PURPLE),
+    ]
+
+    cw = Inches(2.3)
+    ch = Inches(4.4)
+    cg = Inches(0.12)
+    cx = Inches(0.4)
+    cy = Inches(1.7)
+
+    for i, (fname, lines, role, desc, color) in enumerate(xsd_files):
+        x = cx + i * (cw + cg)
+        _rect(s, x, cy, cw, Inches(0.45), color)
+        _txt(s, x + Inches(0.05), cy + Inches(0.05), cw - Inches(0.1), Inches(0.35),
+             f"{role}  ({lines})", sz=11, color=WHITE, bold=True, align=PP_ALIGN.CENTER)
+        _rect(s, x, cy + Inches(0.45), cw, ch - Inches(0.45), LIGHT_GRAY)
+        _txt(s, x + Inches(0.08), cy + Inches(0.55), cw - Inches(0.16), Inches(0.4),
+             fname, sz=10, color=color, bold=True, font="Menlo")
+        _txt(s, x + Inches(0.08), cy + Inches(1.0), cw - Inches(0.16), ch - Inches(1.1),
+             desc, sz=10, color=DARK_GRAY)
+
+    # Bottom: reading order + XSD syntax tips
+    _rect(s, Inches(0.5), Inches(6.3), Inches(5.8), Inches(0.6), LIGHT_BLUE)
+    _txt(s, Inches(0.7), Inches(6.35), Inches(5.4), Inches(0.5),
+         "推荐阅读顺序: Definitions → Attributes → Entities → Geometry → Schema",
+         sz=12, color=DARK_BLUE, bold=True)
+
+    _rect(s, Inches(6.6), Inches(6.3), Inches(6.0), Inches(0.6), LIGHT_GRAY)
+    _txt(s, Inches(6.8), Inches(6.35), Inches(5.6), Inches(0.5),
+         "用途: 写 JSON 配置时查 XSD 确认字段名、枚举值、必填/可选",
+         sz=12, color=DARK_GRAY)
+
+    _footer(s)
+
+
+# ========================================================================
+# Slide 13: XSD Schema — key details
+# ========================================================================
+def slide_xsd_details(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s, RGBColor(0x34, 0x49, 0x5E))
+    _section_title(s, "XSD Schema — 关键内容速查")
+
+    # Left: xml_case structure
+    _rect(s, Inches(0.5), Inches(1.1), Inches(4.0), Inches(5.8), LIGHT_GRAY)
+    _txt(s, Inches(0.7), Inches(1.2), Inches(3.6), Inches(0.35),
+         "xml_case 整体结构", sz=14, color=ACCENT_BLUE, bold=True)
+    structure = (
+        "<xml_case>\n"
+        "  <name/>             必填\n"
+        "  <model/>            求解模式\n"
+        "  <solve/>            求解器\n"
+        "  <grid/>             网格\n"
+        "  <attributes>\n"
+        "    materials         材料库\n"
+        "    surfaces          表面属性\n"
+        "    surface_exchanges 表面换热\n"
+        "    thermals          热模型\n"
+        "    sources           热源\n"
+        "    ambients          环境条件\n"
+        "    fluids            流体\n"
+        "    grid_constraints  网格约束\n"
+        "    radiations        辐射模型\n"
+        "    transients        瞬态函数\n"
+        "    fans / resistances\n"
+        "  </attributes>\n"
+        "  <geometry/>         几何模型\n"
+        "  <solution_domain/>  求解域\n"
+        "</xml_case>"
+    )
+    _txt(s, Inches(0.7), Inches(1.6), Inches(3.6), Inches(5.0),
+         structure, sz=10, color=DARK_GRAY, font="Menlo")
+
+    # Middle: attribute types
+    _rect(s, Inches(4.7), Inches(1.1), Inches(4.0), Inches(5.8), LIGHT_GRAY)
+    _txt(s, Inches(4.9), Inches(1.2), Inches(3.6), Inches(0.35),
+         "属性类型 (Attributes)", sz=14, color=GREEN, bold=True)
+    attrs = (
+        "isotropic_material_att\n"
+        "  各向同性材料 (k, rho, cp)\n"
+        "orthotropic_material_att\n"
+        "  正交各向异性 (kx, ky, kz)\n"
+        "biaxial_material_att\n"
+        "  双轴材料 (in_plane, normal)\n"
+        "\n"
+        "source_att\n"
+        "  total / volume / area / fixed\n"
+        "  / linear / non_linear\n"
+        "\n"
+        "surface_att\n"
+        "  emissivity, roughness\n"
+        "radiation_att\n"
+        "  non_radiating / single /\n"
+        "  subdivided_radiating\n"
+        "ambient_att\n"
+        "  temperature, pressure,\n"
+        "  velocity, HTC\n"
+        "thermal_att\n"
+        "  conduction / convection /\n"
+        "  fixed_temperature\n"
+        "fan_att\n"
+        "  normal / angled / swirl\n"
+        "  + fan_curve_points"
+    )
+    _txt(s, Inches(4.9), Inches(1.6), Inches(3.6), Inches(5.0),
+         attrs, sz=10, color=DARK_GRAY, font="Menlo")
+
+    # Right: geometry + XSD reading tips
+    _rect(s, Inches(8.9), Inches(1.1), Inches(4.0), Inches(3.4), LIGHT_GRAY)
+    _txt(s, Inches(9.1), Inches(1.2), Inches(3.6), Inches(0.35),
+         "几何体类型", sz=14, color=PURPLE, bold=True)
+    geom = (
+        "cuboid       长方体 (最常用)\n"
+        "plate        薄板 (PCB 等)\n"
+        "prism        棱柱体\n"
+        "assembly     装配体 (嵌套)\n"
+        "fan          风扇\n"
+        "vent         通风口\n"
+        "source       热源几何\n"
+        "monitor_point 监控点\n"
+        "sloping_block 斜块\n"
+        "opening      开口\n"
+        "\n"
+        "每个几何体可引用:\n"
+        " material / thermal / surface\n"
+        " radiation / source / fan\n"
+        " ambient / resistance\n"
+        " grid_constraint (按面)"
+    )
+    _txt(s, Inches(9.1), Inches(1.6), Inches(3.6), Inches(2.8),
+         geom, sz=10, color=DARK_GRAY, font="Menlo")
+
+    # XSD syntax tips
+    _rect(s, Inches(8.9), Inches(4.7), Inches(4.0), Inches(2.2), LIGHT_BLUE)
+    _txt(s, Inches(9.1), Inches(4.8), Inches(3.6), Inches(0.35),
+         "XSD 语法速查", sz=14, color=DARK_BLUE, bold=True)
+    tips = (
+        'minOccurs="0"    可选字段\n'
+        'minOccurs="1"    必填字段\n'
+        'enumeration      合法枚举值\n'
+        'restriction      值约束 (范围)\n'
+        '<xs:all>         无序, 最多一次\n'
+        '<xs:sequence>    有序\n'
+        '<xs:choice>      多选一\n'
+        'maxOccurs="unbounded"  可重复'
+    )
+    _txt(s, Inches(9.1), Inches(5.2), Inches(3.6), Inches(1.5),
+         tips, sz=10, color=DARK_GRAY, font="Menlo")
+
+    _footer(s)
+
+
+# ========================================================================
+# Slide 14: Summary
 # ========================================================================
 def slide_summary(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
@@ -823,6 +994,8 @@ def main():
     slide_boundary_config(prs)
     slide_typical_usage(prs)
     slide_config_summary(prs)
+    slide_xsd_overview(prs)
+    slide_xsd_details(prs)
     slide_summary(prs)
     slide_thankyou(prs)
 
