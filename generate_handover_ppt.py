@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Generate work handover PPT for floxml_tools module."""
+"""Generate work handover PPT for floxml_tools — focused on core workflow."""
 
 from pptx import Presentation
-from pptx.util import Inches, Pt, Emu
+from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_SHAPE
 import os
 
-# ── Color palette ──
+# ── Colors ──
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-BLACK = RGBColor(0x00, 0x00, 0x00)
 DARK_BLUE = RGBColor(0x1B, 0x3A, 0x5C)
 ACCENT_BLUE = RGBColor(0x2E, 0x75, 0xB6)
 LIGHT_BLUE = RGBColor(0xD6, 0xE4, 0xF0)
@@ -20,624 +19,817 @@ MED_GRAY = RGBColor(0x66, 0x66, 0x66)
 LIGHT_GRAY = RGBColor(0xF2, 0xF2, 0xF2)
 ORANGE = RGBColor(0xED, 0x7D, 0x31)
 GREEN = RGBColor(0x70, 0xAD, 0x47)
+PURPLE = RGBColor(0x8E, 0x44, 0xAD)
+RED = RGBColor(0xC0, 0x39, 0x2B)
 
-SLIDE_WIDTH = Inches(13.333)
-SLIDE_HEIGHT = Inches(7.5)
+SLIDE_W = Inches(13.333)
+SLIDE_H = Inches(7.5)
 
 
-def set_slide_bg(slide, color):
-    bg = slide.background
-    fill = bg.fill
+def _bg(slide, color):
+    fill = slide.background.fill
     fill.solid()
     fill.fore_color.rgb = color
 
 
-def add_shape(slide, left, top, width, height, fill_color=None, border_color=None):
-    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, width, height)
-    shape.line.fill.background()
-    if fill_color:
-        shape.fill.solid()
-        shape.fill.fore_color.rgb = fill_color
-    if border_color:
-        shape.line.color.rgb = border_color
-        shape.line.width = Pt(1)
-    return shape
+def _rect(slide, l, t, w, h, fill=None):
+    s = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, l, t, w, h)
+    s.line.fill.background()
+    if fill:
+        s.fill.solid()
+        s.fill.fore_color.rgb = fill
+    return s
 
 
-def add_text_box(slide, left, top, width, height, text, font_size=18,
-                 color=DARK_GRAY, bold=False, alignment=PP_ALIGN.LEFT,
-                 font_name="Microsoft YaHei"):
-    txBox = slide.shapes.add_textbox(left, top, width, height)
-    tf = txBox.text_frame
+def _txt(slide, l, t, w, h, text, sz=18, color=DARK_GRAY,
+         bold=False, align=PP_ALIGN.LEFT, font="Microsoft YaHei"):
+    tb = slide.shapes.add_textbox(l, t, w, h)
+    tf = tb.text_frame
     tf.word_wrap = True
     p = tf.paragraphs[0]
     p.text = text
-    p.font.size = Pt(font_size)
+    p.font.size = Pt(sz)
     p.font.color.rgb = color
     p.font.bold = bold
-    p.font.name = font_name
-    p.alignment = alignment
-    return txBox
+    p.font.name = font
+    p.alignment = align
+    return tb
 
 
-def add_bullet_list(slide, left, top, width, height, items, font_size=14,
-                    color=DARK_GRAY, spacing=Pt(6), bold_items=None):
-    txBox = slide.shapes.add_textbox(left, top, width, height)
-    tf = txBox.text_frame
+def _bullets(slide, l, t, w, h, items, sz=14, color=DARK_GRAY, gap=Pt(6)):
+    tb = slide.shapes.add_textbox(l, t, w, h)
+    tf = tb.text_frame
     tf.word_wrap = True
     for i, item in enumerate(items):
-        if i == 0:
-            p = tf.paragraphs[0]
-        else:
-            p = tf.add_paragraph()
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         p.text = item
-        p.font.size = Pt(font_size)
+        p.font.size = Pt(sz)
         p.font.color.rgb = color
         p.font.name = "Microsoft YaHei"
-        p.space_after = spacing
-        p.level = 0
-        if bold_items and i in bold_items:
-            p.font.bold = True
-    return txBox
+        p.space_after = gap
+    return tb
 
 
-def add_footer(slide, text="floxml_tools 工作交接"):
-    add_text_box(slide, Inches(0.5), Inches(7.0), Inches(12), Inches(0.4),
-                 text, font_size=9, color=MED_GRAY, alignment=PP_ALIGN.LEFT)
+def _footer(slide):
+    _txt(slide, Inches(0.5), Inches(7.0), Inches(12), Inches(0.4),
+         "floxml_tools 工作交接  |  2026-06-01", sz=9, color=MED_GRAY)
 
 
-def make_title_slide(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank
-    set_slide_bg(slide, WHITE)
-
-    # Top accent bar
-    add_shape(slide, Inches(0), Inches(0), SLIDE_WIDTH, Inches(0.08), ACCENT_BLUE)
-
-    # Center block
-    add_shape(slide, Inches(1.5), Inches(1.8), Inches(10.3), Inches(3.6), LIGHT_BLUE)
-
-    add_text_box(slide, Inches(2), Inches(2.0), Inches(9.3), Inches(1.2),
-                 "floxml_tools", font_size=48, color=DARK_BLUE, bold=True)
-    add_text_box(slide, Inches(2), Inches(3.0), Inches(9.3), Inches(0.8),
-                 "FloTHERM FloXML 自动化工具集", font_size=28, color=ACCENT_BLUE)
-    add_text_box(slide, Inches(2), Inches(3.8), Inches(9.3), Inches(0.6),
-                 "工作交接文档", font_size=22, color=MED_GRAY)
-
-    add_text_box(slide, Inches(2), Inches(5.5), Inches(9.3), Inches(0.4),
-                 "日期: 2026-06-01", font_size=14, color=MED_GRAY)
-    add_text_box(slide, Inches(2), Inches(5.9), Inches(9.3), Inches(0.4),
-                 "代码规模: 16 个 Python 模块 / 约 10,800 行代码", font_size=14, color=MED_GRAY)
+def _accent_bar(slide, color=ACCENT_BLUE):
+    _rect(slide, Inches(0), Inches(0), SLIDE_W, Inches(0.08), color)
 
 
-def make_overview_slide(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    set_slide_bg(slide, WHITE)
-    add_shape(slide, Inches(0), Inches(0), SLIDE_WIDTH, Inches(0.08), ACCENT_BLUE)
+def _section_title(slide, title, color=DARK_BLUE):
+    _txt(slide, Inches(0.6), Inches(0.3), Inches(12), Inches(0.7),
+         title, sz=32, color=color, bold=True)
 
-    add_text_box(slide, Inches(0.6), Inches(0.3), Inches(12), Inches(0.7),
-                 "模块总览", font_size=32, color=DARK_BLUE, bold=True)
 
-    add_text_box(slide, Inches(0.6), Inches(1.1), Inches(12), Inches(0.5),
-                 "floxml_tools 是一套完整的 FloTHERM FloXML 项目自动化工具，覆盖从模型创建到求解配置的全流程。",
-                 font_size=16, color=MED_GRAY)
+# ========================================================================
+# Slide 1: Cover
+# ========================================================================
+def slide_cover(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s)
+    _rect(s, Inches(1.5), Inches(1.8), Inches(10.3), Inches(3.6), LIGHT_BLUE)
+    _txt(s, Inches(2), Inches(2.0), Inches(9.3), Inches(1.0),
+         "floxml_tools", sz=48, color=DARK_BLUE, bold=True)
+    _txt(s, Inches(2), Inches(3.0), Inches(9.3), Inches(0.8),
+         "FloTHERM FloXML 自动化工具集 — 工作交接", sz=26, color=ACCENT_BLUE)
+    _txt(s, Inches(2), Inches(4.0), Inches(9.3), Inches(0.6),
+         "ECXML 导出 → FloXML 转换 → JSON 配置修改 → 求解", sz=18, color=MED_GRAY)
+    _txt(s, Inches(2), Inches(5.5), Inches(9.3), Inches(0.4),
+         "2026-06-01", sz=14, color=MED_GRAY)
 
-    # 4 category boxes
-    categories = [
-        ("模型构建", "floxml_builder.py\nfloxml_boundary_conditions.py\nfloxml_nonlinear_source.py",
-         "程序化构建完整的\nFloXML 项目文件", ACCENT_BLUE),
-        ("格式转换", "ecxml_to_floxml_converter.py\nwrap_geometry_floxml_as_project.py",
-         "ECXML → FloXML\n几何 → 完整项目", MID_BLUE),
-        ("配置注入", "config_injector.py\nfloxml_add_volume_regions.py\nfloxml_add_solve_settings.py\n"
-         "grid_config.py\nfloxml_grid_parser.py",
-         "网格/区域/求解/边界\nJSON 配置注入", GREEN),
-        ("流程编排", "floxml_pipeline.py\ninject_grid_from_floxml.py\ninject_config.py\n"
-         "floxml_inject_grid.py\nfloxml_inject_model_solve.py",
-         "一键式流水线\n组合多个步骤", ORANGE),
+
+# ========================================================================
+# Slide 2: Workflow overview
+# ========================================================================
+def slide_workflow(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s)
+    _section_title(s, "核心工作流")
+
+    _txt(s, Inches(0.6), Inches(1.1), Inches(12), Inches(0.5),
+         "从项目导出 ECXML，转换为 FloXML，通过 JSON 配置修改后求解。",
+         sz=16, color=MED_GRAY)
+
+    # 4-step flow
+    steps = [
+        ("Step 1", "从 FloTHERM 项目\n导出 ECXML", "项目 → Export\n→ model.ecxml", ACCENT_BLUE),
+        ("Step 2", "ECXML → FloXML\n格式转换", "ecxml_to_floxml\n_converter.py", MID_BLUE),
+        ("Step 3", "JSON 配置\n修改 FloXML", "volume_regions\nsolve_settings\nboundary_conditions", GREEN),
+        ("Step 4", "导入 FloTHERM\n求解", "完整项目文件\n→ Solve", RED),
     ]
 
-    box_w = Inches(2.9)
-    box_h = Inches(4.8)
-    gap = Inches(0.25)
-    start_x = Inches(0.5)
-    start_y = Inches(1.7)
+    box_w = Inches(2.7)
+    box_h = Inches(3.2)
+    gap = Inches(0.3)
+    sx = Inches(0.5)
+    sy = Inches(1.8)
 
-    for i, (title, modules, desc, color) in enumerate(categories):
-        x = start_x + i * (box_w + gap)
-        # Header bar
-        add_shape(slide, x, start_y, box_w, Inches(0.5), color)
-        add_text_box(slide, x + Inches(0.15), start_y + Inches(0.05), box_w - Inches(0.3), Inches(0.4),
-                     title, font_size=18, color=WHITE, bold=True, alignment=PP_ALIGN.CENTER)
+    for i, (label, title, detail, color) in enumerate(steps):
+        x = sx + i * (box_w + gap)
+        # Label
+        _rect(s, x, sy, box_w, Inches(0.45), color)
+        _txt(s, x, sy + Inches(0.05), box_w, Inches(0.35),
+             label, sz=14, color=WHITE, bold=True, align=PP_ALIGN.CENTER)
         # Body
-        body_shape = add_shape(slide, x, start_y + Inches(0.5), box_w, box_h - Inches(0.5),
-                               fill_color=LIGHT_GRAY)
-        add_text_box(slide, x + Inches(0.15), start_y + Inches(0.6), box_w - Inches(0.3), Inches(1.0),
-                     desc, font_size=13, color=ACCENT_BLUE, bold=True)
-        add_text_box(slide, x + Inches(0.15), start_y + Inches(1.5), box_w - Inches(0.3), box_h - Inches(1.5),
-                     modules, font_size=11, color=MED_GRAY)
+        _rect(s, x, sy + Inches(0.45), box_w, box_h - Inches(0.45), LIGHT_GRAY)
+        _txt(s, x + Inches(0.15), sy + Inches(0.55), box_w - Inches(0.3), Inches(1.0),
+             title, sz=15, color=color, bold=True)
+        _txt(s, x + Inches(0.15), sy + Inches(1.6), box_w - Inches(0.3), Inches(1.5),
+             detail, sz=12, color=MED_GRAY)
 
-    add_footer(slide)
+        # Arrow
+        if i < 3:
+            ax = x + box_w + Inches(0.05)
+            _txt(s, ax, sy + Inches(1.2), gap - Inches(0.1), Inches(0.5),
+                 "→", sz=28, color=MED_GRAY, align=PP_ALIGN.CENTER)
 
-
-def make_dataflow_slide(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    set_slide_bg(slide, WHITE)
-    add_shape(slide, Inches(0), Inches(0), SLIDE_WIDTH, Inches(0.08), ACCENT_BLUE)
-
-    add_text_box(slide, Inches(0.6), Inches(0.3), Inches(12), Inches(0.7),
-                 "数据处理流程", font_size=32, color=DARK_BLUE, bold=True)
-
-    # Flow: boxes with arrows
-    flow_items = [
-        ("ECXML / 几何文件\n(ECXML / geometry XML)", ACCENT_BLUE),
-        ("格式转换\necxml_to_floxml_converter\nwrap_geometry_floxml_as_project", MID_BLUE),
-        ("FloXML 基础项目\n(xml_case)", GREEN),
-        ("配置注入\nvolume_regions / solve\ngrid / boundary / nonlinear", ORANGE),
-        ("完整 FloXML 项目\n可直接导入 FloTHERM", RGBColor(0xC0, 0x39, 0x2B)),
-    ]
-
-    box_w = Inches(2.1)
-    box_h = Inches(1.6)
-    start_x = Inches(0.4)
-    arrow_w = Inches(0.35)
-    start_y = Inches(1.5)
-
-    for i, (text, color) in enumerate(flow_items):
-        x = start_x + i * (box_w + arrow_w)
-        shape = add_shape(slide, x, start_y, box_w, box_h, color)
-        add_text_box(slide, x + Inches(0.1), start_y + Inches(0.15),
-                     box_w - Inches(0.2), box_h - Inches(0.3),
-                     text, font_size=12, color=WHITE, bold=True, alignment=PP_ALIGN.CENTER)
-
-        if i < len(flow_items) - 1:
-            # Arrow text
-            arrow_x = x + box_w + Inches(0.05)
-            add_text_box(slide, arrow_x, start_y + Inches(0.5),
-                         arrow_w - Inches(0.1), Inches(0.5),
-                         "→", font_size=24, color=MED_GRAY, alignment=PP_ALIGN.CENTER)
-
-    # Pipeline shortcut
-    add_text_box(slide, Inches(0.6), Inches(3.5), Inches(12), Inches(0.5),
-                 "快捷方式: floxml_pipeline.py 可一步完成上述所有步骤", font_size=14, color=ORANGE, bold=True)
-
-    # JSON config section
-    add_shape(slide, Inches(0.5), Inches(4.2), Inches(5.8), Inches(2.8), LIGHT_GRAY)
-    add_text_box(slide, Inches(0.7), Inches(4.3), Inches(5.4), Inches(0.4),
-                 "JSON 配置文件 (输入)", font_size=16, color=DARK_BLUE, bold=True)
+    # JSON config summary at bottom
+    _rect(s, Inches(0.5), Inches(5.3), Inches(12.1), Inches(1.5), LIGHT_BLUE)
+    _txt(s, Inches(0.7), Inches(5.4), Inches(11.7), Inches(0.35),
+         "Step 3 的三个 JSON 配置文件（与三个 Python 脚本一一对应）", sz=14, color=DARK_BLUE, bold=True)
     configs = [
-        "• solve_settings.example.json — 求解器配置",
-        "• floxml_volume_regions.example.json — 体积区域定义",
-        "• transient_only.example.json — 瞬态设置",
-        "• floxml_converter_config.example.json — 转换配置",
-        "• floxml_template.example.json — 模板配置",
+        "• solve_settings.example.json  →  floxml_add_solve_settings.py  —  求解器参数、瞬态设置",
+        "• floxml_volume_regions.example.json  →  floxml_add_volume_regions.py  —  体积区域、网格约束",
+        "• boundary_conditions_*.json  →  floxml_boundary_conditions.py  —  环境条件、热源、表面属性、辐射",
     ]
-    add_bullet_list(slide, Inches(0.7), Inches(4.8), Inches(5.4), Inches(2.0),
-                    configs, font_size=12, color=DARK_GRAY, spacing=Pt(4))
+    _bullets(s, Inches(0.7), Inches(5.8), Inches(11.7), Inches(1.0),
+             configs, sz=12, color=DARK_GRAY, gap=Pt(3))
 
-    # Module dependency
-    add_shape(slide, Inches(6.8), Inches(4.2), Inches(5.8), Inches(2.8), LIGHT_GRAY)
-    add_text_box(slide, Inches(7.0), Inches(4.3), Inches(5.4), Inches(0.4),
-                 "模块调用关系 (核心)", font_size=16, color=DARK_BLUE, bold=True)
-    deps = [
-        "• floxml_pipeline → floxml_builder + inject_*",
-        "• config_injector → floxml_add_volume_regions",
-        "• floxml_inject_model_solve → pdml_tools",
-        "• floxml_inject_grid → pdml_tools",
-        "• ecxml_to_floxml_converter → (独立)",
-        "• floxml_builder → (独立, 基础模块)",
+    _footer(s)
+
+
+# ========================================================================
+# Slide 3: ecxml_to_floxml_converter
+# ========================================================================
+def slide_ecxml_converter(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s, MID_BLUE)
+
+    _txt(s, Inches(0.6), Inches(0.3), Inches(9), Inches(0.5),
+         "ecxml_to_floxml_converter.py", sz=28, color=DARK_BLUE, bold=True)
+    _txt(s, Inches(0.6), Inches(0.8), Inches(9), Inches(0.4),
+         "ECXML → FloXML 核心转换器  |  1,851 行", sz=16, color=MID_BLUE)
+    _rect(s, Inches(0.6), Inches(1.2), Inches(12), Inches(0.02), MID_BLUE)
+
+    _txt(s, Inches(0.6), Inches(1.4), Inches(12), Inches(0.4),
+         "将 JEDEC JEP181 ECXML 器件热模型转换为 FloTHERM FloXML 项目格式，自动补充缺失配置。",
+         sz=15, color=DARK_GRAY, bold=True)
+
+    # Left: details
+    _rect(s, Inches(0.5), Inches(2.0), Inches(7.2), Inches(4.8), LIGHT_GRAY)
+    _txt(s, Inches(0.7), Inches(2.1), Inches(6.8), Inches(0.4),
+         "功能说明", sz=16, color=DARK_BLUE, bold=True)
+    details = [
+        "• ECXML 是 JEDEC JEP181 器件级热模型交换标准格式",
+        "• ECXML 缺少: 网格(grid)、求解器(solve)、模型设置(model)、求解域(solution_domain)",
+        "• 本工具自动补充这些缺失部分，生成可直接导入 FloTHERM 的完整项目",
+        "• 支持 JSON 配置文件自定义转换参数（网格、求解、区域等）",
+        "• 完整保留 ECXML 中的几何体、材料、热源等定义",
     ]
-    add_bullet_list(slide, Inches(7.0), Inches(4.8), Inches(5.4), Inches(2.0),
-                    deps, font_size=12, color=DARK_GRAY, spacing=Pt(4))
+    _bullets(s, Inches(0.7), Inches(2.5), Inches(6.8), Inches(2.0),
+             details, sz=13, color=DARK_GRAY, gap=Pt(5))
 
-    add_footer(slide)
+    # Right: usage
+    _rect(s, Inches(8.0), Inches(2.0), Inches(4.8), Inches(4.8), LIGHT_BLUE)
+    _txt(s, Inches(8.2), Inches(2.1), Inches(4.4), Inches(0.4),
+         "命令行用法", sz=16, color=DARK_BLUE, bold=True)
+    usage = (
+        "# 基本转换\n"
+        "python -m floxml_tools.\n"
+        "  ecxml_to_floxml_converter\n"
+        "  model.ecxml -o project.xml\n\n"
+        "# 带 JSON 配置\n"
+        "python -m floxml_tools.\n"
+        "  ecxml_to_floxml_converter\n"
+        "  model.ecxml --config\n"
+        "  config.json -o project.xml"
+    )
+    _txt(s, Inches(8.2), Inches(2.5), Inches(4.4), Inches(4.0),
+         usage, sz=12, color=DARK_GRAY, font="Menlo")
+
+    _footer(s)
 
 
-def make_module_detail_slides(prs):
-    """Create individual slides for each major module."""
+# ========================================================================
+# Slide 4: floxml_add_solve_settings
+# ========================================================================
+def slide_solve_settings(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s, ORANGE)
 
-    modules = [
-        {
-            "title": "ecxml_to_floxml_converter.py",
-            "subtitle": "ECXML → FloXML 核心转换器",
-            "lines": "1,851 行",
-            "desc": "将 JEDEC JEP181 ECXML 器件热模型转换为 FloTHERM FloXML 项目格式。",
-            "details": [
-                "ECXML 是器件级热模型交换标准格式",
-                "ECXML 缺少: 网格(grid)、求解器(solve)、模型设置(model)、求解域(solution_domain)",
-                "本工具自动补充这些配置，生成完整可导入的 FloXML 项目",
-                "支持命令行: python -m floxml_tools.ecxml_to_floxml_converter model.ecxml -o output.xml",
-                "支持 JSON 配置文件自定义转换参数",
-            ],
-            "key_classes": "ECXMLToFloXMLConverter (核心转换类)\n支持多种 ECXML 元素映射",
-            "color": MID_BLUE,
-        },
-        {
-            "title": "floxml_builder.py",
-            "subtitle": "FloXML 项目生成器",
-            "lines": "1,554 行",
-            "desc": "程序化构建完整的 FloXML 项目文件，覆盖 FloTHERM V10.1 Schema 全部对象。",
-            "details": [
-                "从 Siemens 官方 VBA 代码 (7196 行) 转换而来",
-                "使用 xml.etree.ElementTree 构建 XML",
-                "支持: model/solve/grid/attributes/geometry/solution_domain 全部节",
-                "提供 Pythonic 的上下文管理器 API (with b.model_section(): ...)",
-                "命令行也可直接生成: python -m floxml_tools.floxml_builder -o output.xml",
-            ],
-            "key_classes": "FloXMLBuilder — 主构建类\n链式 API 设计",
-            "color": ACCENT_BLUE,
-        },
-        {
-            "title": "floxml_add_solve_settings.py",
-            "subtitle": "求解设置注入器",
-            "lines": "1,187 行",
-            "desc": "往 FloXML 注入求解设置和瞬态设置，支持 JSON 和 Excel 两种配置方式。",
-            "details": [
-                "<solve>: overall_control / variable_controls / solver_controls",
-                "<model>: modeling / turbulence / gravity / global / initial_variables / transient",
-                "支持 JSON 配置: python -m ... model.xml --config solve.json",
-                "支持 Excel 配置: python -m ... model.xml --config solve.xlsx",
-                "可生成配置模板: python -m ... --create-template template.xlsx",
-            ],
-            "key_classes": "支持迭代次数、求解器类型、收敛判据、松弛因子等完整求解参数",
-            "color": ORANGE,
-        },
-        {
-            "title": "floxml_add_volume_regions.py",
-            "subtitle": "体积区域注入器",
-            "lines": "1,225 行",
-            "desc": "通过 JSON 配置向 FloXML 项目添加体积区域 (region) 和网格约束。",
-            "details": [
-                "支持显式定义: position + size",
-                "支持从已有几何体 bounding box 自动推导 (bbox_from)",
-                "支持通配符匹配几何体名称",
-                "可创建 grid_constraint_att 定义并分配到几何体",
-                "区域可插入到根 geometry 或指定 assembly 下",
-            ],
-            "key_classes": "支持 include_names / include_patterns / include_tags 多模式匹配",
-            "color": GREEN,
-        },
-        {
-            "title": "floxml_boundary_conditions.py",
-            "subtitle": "边界条件注入器",
-            "lines": "921 行",
-            "desc": "通过 JSON 配置向 FloXML 添加/修改边界条件。",
-            "details": [
-                "Ambient (环境): 温度、压力、换热系数、速度、辐射",
-                "Solution Domain (求解域): 各面边界类型",
-                "Surface Property (表面属性): 发射率、粗糙度等",
-                "Radiation (辐射): 表面类型、面积阈值",
-                "Source (热源): 总功率/定温/体积热源",
-                "Surface Exchange (表面交换): 对流换热方法",
-                "Thermal Model (热模型): 导热/对流模型",
-            ],
-            "key_classes": "7 种边界条件类型，完整覆盖 FloTHERM 边界设置",
-            "color": RGBColor(0x8E, 0x44, 0xAD),
-        },
-        {
-            "title": "config_injector.py",
-            "subtitle": "统一 JSON 配置注入器",
-            "lines": "548 行",
-            "desc": "读取单个 JSON 配置文件，统一注入 FloXML 所需的全部属性。",
-            "details": [
-                "属性定义: surfaces, surface_exchanges, radiations, resistances, fans, thermals",
-                "属性分配: 将引用设置到 geometry 元素 (cuboid, assembly, source 等)",
-                "Volume regions / grid constraints: 委托 floxml_add_volume_regions",
-                "支持 standalone 使用或被 converter 调用",
-                "设计为 ConfigInjector 类，inject(root) 方法就地修改",
-            ],
-            "key_classes": "ConfigInjector — 统一注入入口",
-            "color": ACCENT_BLUE,
-        },
-        {
-            "title": "grid 相关模块 (3个)",
-            "subtitle": "grid_config + floxml_grid_parser + inject_grid",
-            "lines": "1,599 行 (合计)",
-            "desc": "网格配置读取、解析和注入的完整工具链。",
-            "details": [
-                "grid_config.py (794行): 从 Excel 读取网格配置 (system_grid / patches / constraints)",
-                "floxml_grid_parser.py (679行): 解析/修改 FloXML 中的网格设置",
-                "floxml_inject_grid.py (126行): 将网格 XML 注入到 FloXML 项目",
-                "inject_grid_from_floxml.py (277行): 从已有 FloXML 提取网格注入到新项目",
-                "支持 PDML 二进制文件输入 (自动转换为 FloXML)",
-            ],
-            "key_classes": "SystemGridDirection / GridAxis 数据类",
-            "color": MID_BLUE,
-        },
-        {
-            "title": "流程编排模块 (3个)",
-            "subtitle": "pipeline + inject_config + inject_model_solve",
-            "lines": "730 行 (合计)",
-            "desc": "一键式流水线，组合多个注入步骤为单一操作。",
-            "details": [
-                "floxml_pipeline.py (278行): 组合 wrap + grid/regions + solve 为一次执行",
-                "inject_config.py (170行): ECXML→FloXML + 属性注入一步到位",
-                "floxml_inject_model_solve.py (282行): model/solve 设置注入",
-                "支持: --grid / --solve 分步执行或 -c config.json 统一执行",
-                "支持 --wrap 自动包装几何文件为完整项目",
-            ],
-            "key_classes": "命令行工具，通过 argparse 串联流程",
-            "color": ORANGE,
-        },
-        {
-            "title": "辅助模块",
-            "subtitle": "floxml_nonlinear_source + wrap_geometry",
-            "lines": "871 行 (合计)",
-            "desc": "非线性热源和几何包装等辅助功能。",
-            "details": [
-                "floxml_nonlinear_source.py (498行): 功率-温度曲线注入",
-                "  - 支持 JSON 查找表和 CSV 数据",
-                "  - 支持数学公式定义曲线",
-                "  - 生成 power_temp_curve_point 节点",
-                "wrap_geometry_floxml_as_project.py (373行): 包装几何文件",
-                "  - 将仅含 attributes + geometry 的文件包装为完整项目",
-                "  - 自动补充 model/solve/grid/solution_domain",
-            ],
-            "key_classes": "适用于表格生成的紧凑模型 XML 文件",
-            "color": GREEN,
-        },
+    _txt(s, Inches(0.6), Inches(0.3), Inches(9), Inches(0.5),
+         "floxml_add_solve_settings.py", sz=28, color=DARK_BLUE, bold=True)
+    _txt(s, Inches(0.6), Inches(0.8), Inches(9), Inches(0.4),
+         "求解设置注入  |  1,187 行", sz=16, color=ORANGE)
+    _rect(s, Inches(0.6), Inches(1.2), Inches(12), Inches(0.02), ORANGE)
+
+    _txt(s, Inches(0.6), Inches(1.4), Inches(12), Inches(0.4),
+         "通过 JSON 或 Excel 配置向 FloXML 注入求解器设置和瞬态设置。",
+         sz=15, color=DARK_GRAY, bold=True)
+
+    # Left: what it configures
+    _rect(s, Inches(0.5), Inches(2.0), Inches(7.2), Inches(4.8), LIGHT_GRAY)
+    _txt(s, Inches(0.7), Inches(2.1), Inches(6.8), Inches(0.4),
+         "可配置项", sz=16, color=DARK_BLUE, bold=True)
+
+    items = [
+        "• <model> 部分:",
+        "    modeling — 求解类型 (flow_heat / conduction_only 等), 辐射开关",
+        "    turbulence — 层流/湍流模型",
+        "    gravity — 重力方向和大小",
+        "    global — 基准压力、环境温度",
+        "    initial_variables — 初始值设置",
+        "    transient — 瞬态时间设置 (时间段、保存时刻、时间片)",
+        "",
+        "• <solve> 部分:",
+        "    overall_control — 迭代次数、求解器类型、收敛判据",
+        "    variable_controls — 各变量 (速度/温度) 的虚假时间步等",
+        "    solver_controls — 压力/温度线性松弛因子",
+    ]
+    _bullets(s, Inches(0.7), Inches(2.5), Inches(6.8), Inches(4.0),
+             items, sz=12, color=DARK_GRAY, gap=Pt(2))
+
+    # Right: usage
+    _rect(s, Inches(8.0), Inches(2.0), Inches(4.8), Inches(4.8), LIGHT_GRAY)
+    _txt(s, Inches(8.2), Inches(2.1), Inches(4.4), Inches(0.4),
+         "命令行用法", sz=16, color=DARK_BLUE, bold=True)
+    usage = (
+        "# JSON 配置注入\n"
+        "python -m floxml_tools.\n"
+        "  floxml_add_solve_settings\n"
+        "  model.xml --config solve.json\n"
+        "  -o output.xml\n\n"
+        "# Excel 配置注入\n"
+        "python -m floxml_tools.\n"
+        "  floxml_add_solve_settings\n"
+        "  model.xml --config solve.xlsx\n"
+        "  -o output.xml\n\n"
+        "# 生成配置模板\n"
+        "python -m floxml_tools.\n"
+        "  floxml_add_solve_settings\n"
+        "  --create-template template.xlsx"
+    )
+    _txt(s, Inches(8.2), Inches(2.5), Inches(4.4), Inches(4.0),
+         usage, sz=11, color=DARK_GRAY, font="Menlo")
+
+    _footer(s)
+
+
+# ========================================================================
+# Slide 5: solve_settings JSON config detail
+# ========================================================================
+def slide_solve_config(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s, ORANGE)
+    _section_title(s, "solve_settings.example.json 配置详解")
+
+    # Left half: model section
+    _rect(s, Inches(0.5), Inches(1.1), Inches(6.0), Inches(5.8), LIGHT_GRAY)
+    _txt(s, Inches(0.7), Inches(1.2), Inches(5.6), Inches(0.35),
+         "model 部分 — 求解模型设置", sz=14, color=ORANGE, bold=True)
+    model_json = (
+        '"modeling": {\n'
+        '  "solution": "flow_heat",   // flow_heat / conduction_only\n'
+        '  "radiation": "on",          // on / off\n'
+        '  "dimensionality": "3d"\n'
+        '},\n'
+        '"turbulence": { "type": "laminar" },\n'
+        '"gravity": {\n'
+        '  "type": "normal",\n'
+        '  "normal_direction": "neg_y",\n'
+        '  "value": 9.81\n'
+        '},\n'
+        '"global": {\n'
+        '  "datum_pressure": 101325.0,    // Pa\n'
+        '  "ambient_temperature": 25.0     // °C\n'
+        '}'
+    )
+    _txt(s, Inches(0.7), Inches(1.6), Inches(5.6), Inches(5.0),
+         model_json, sz=11, color=DARK_GRAY, font="Menlo")
+
+    # Right half: solve section
+    _rect(s, Inches(6.8), Inches(1.1), Inches(6.0), Inches(5.8), LIGHT_GRAY)
+    _txt(s, Inches(7.0), Inches(1.2), Inches(5.6), Inches(0.35),
+         "solve 部分 — 迭代控制 + 瞬态", sz=14, color=ORANGE, bold=True)
+    solve_json = (
+        '"overall_control": {\n'
+        '  "outer_iterations": 500,\n'
+        '  "solver_option": "multi_grid",\n'
+        '  "convergence_values": {\n'
+        '    "required_accuracy": 0.2,\n'
+        '    "num_iterations": 45\n'
+        '  }\n'
+        '},\n'
+        '"transient": {\n'
+        '  "overall_transient": {\n'
+        '    "start_time": 0,\n'
+        '    "end_time": 60\n'
+        '  },\n'
+        '  "save_times": [0, 30, 60],\n'
+        '  "time_patches": [{\n'
+        '    "name": "First",\n'
+        '    "start_time": 0,\n'
+        '    "end_time": 30,\n'
+        '    "step_control": "minimum_number",\n'
+        '    "minimum_number": 15\n'
+        '  }]\n'
+        '}'
+    )
+    _txt(s, Inches(7.0), Inches(1.6), Inches(5.6), Inches(5.0),
+         solve_json, sz=11, color=DARK_GRAY, font="Menlo")
+
+    _footer(s)
+
+
+# ========================================================================
+# Slide 6: floxml_add_volume_regions
+# ========================================================================
+def slide_volume_regions(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s, GREEN)
+
+    _txt(s, Inches(0.6), Inches(0.3), Inches(9), Inches(0.5),
+         "floxml_add_volume_regions.py", sz=28, color=DARK_BLUE, bold=True)
+    _txt(s, Inches(0.6), Inches(0.8), Inches(9), Inches(0.4),
+         "体积区域 & 网格约束注入  |  1,225 行", sz=16, color=GREEN)
+    _rect(s, Inches(0.6), Inches(1.2), Inches(12), Inches(0.02), GREEN)
+
+    _txt(s, Inches(0.6), Inches(1.4), Inches(12), Inches(0.4),
+         "通过 JSON 配置向 FloXML 添加体积区域 (region) 和网格约束 (grid_constraint)。",
+         sz=15, color=DARK_GRAY, bold=True)
+
+    # Left: features
+    _rect(s, Inches(0.5), Inches(2.0), Inches(7.2), Inches(4.8), LIGHT_GRAY)
+    _txt(s, Inches(0.7), Inches(2.1), Inches(6.8), Inches(0.4),
+         "两种区域定义方式", sz=16, color=DARK_BLUE, bold=True)
+
+    items = [
+        "1. 显式定义 — 直接指定位置和尺寸:",
+        "     position: [x, y, z]    size: [sx, sy, sz]",
+        "",
+        "2. 从几何体包围盒自动推导 (bbox_from):",
+        "     include_names: [\"PCB\", \"U1\"]   — 按名称匹配",
+        "     include_patterns: [\"R22*\", \"C*\"] — 通配符匹配",
+        "     include_tags: [\"cuboid\"]         — 按类型匹配",
+        "     padding: [px, py, pz]             — 外扩余量",
+        "",
+        "网格约束 (grid_constraint):",
+        "• 先在 grid_constraints 中定义约束（最小尺寸、最小数量等）",
+        "• 再在 regions 中引用约束名，应用到区域或几何体",
+        "• object_constraints 可直接给指定几何体分配约束",
+        "",
+        "区域可放置在根 geometry 或指定 assembly 下",
+    ]
+    _bullets(s, Inches(0.7), Inches(2.5), Inches(6.8), Inches(4.0),
+             items, sz=12, color=DARK_GRAY, gap=Pt(2))
+
+    # Right: usage
+    _rect(s, Inches(8.0), Inches(2.0), Inches(4.8), Inches(4.8), LIGHT_GRAY)
+    _txt(s, Inches(8.2), Inches(2.1), Inches(4.4), Inches(0.4),
+         "命令行用法", sz=16, color=DARK_BLUE, bold=True)
+    usage = (
+        "# 注入体积区域和网格约束\n"
+        "python -m floxml_tools.\n"
+        "  floxml_add_volume_regions\n"
+        "  model.xml --config\n"
+        "  regions.json -o output.xml\n\n"
+        "# 原地修改\n"
+        "python -m floxml_tools.\n"
+        "  floxml_add_volume_regions\n"
+        "  model.xml --config\n"
+        "  regions.json --in-place"
+    )
+    _txt(s, Inches(8.2), Inches(2.5), Inches(4.4), Inches(4.0),
+         usage, sz=11, color=DARK_GRAY, font="Menlo")
+
+    _footer(s)
+
+
+# ========================================================================
+# Slide 7: volume_regions JSON config detail
+# ========================================================================
+def slide_volume_config(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s, GREEN)
+    _section_title(s, "floxml_volume_regions.example.json 配置详解")
+
+    # Left: grid constraints + object constraints
+    _rect(s, Inches(0.5), Inches(1.1), Inches(6.0), Inches(5.8), LIGHT_GRAY)
+    _txt(s, Inches(0.7), Inches(1.2), Inches(5.6), Inches(0.35),
+         "网格约束定义 + 几何体约束分配", sz=14, color=GREEN, bold=True)
+    left_json = (
+        '"grid_constraints": [\n'
+        '  {\n'
+        '    "name": "Grid Constraint 1",\n'
+        '    "enable_min_cell_size": true,\n'
+        '    "min_cell_size": 0.001,\n'
+        '    "min_number": 43,\n'
+        '    "high_inflation": {\n'
+        '      "inflation_type": "size",\n'
+        '      "inflation_size": 0.005,\n'
+        '      "min_number": 23\n'
+        '    }\n'
+        '  }\n'
+        '],\n'
+        '"object_constraints": [\n'
+        '  {\n'
+        '    "target_names": ["PCB"],\n'
+        '    "all_grid_constraint":\n'
+        '      "Grid Constraint 1"\n'
+        '  }\n'
+        ']'
+    )
+    _txt(s, Inches(0.7), Inches(1.6), Inches(5.6), Inches(5.0),
+         left_json, sz=11, color=DARK_GRAY, font="Menlo")
+
+    # Right: regions
+    _rect(s, Inches(6.8), Inches(1.1), Inches(6.0), Inches(5.8), LIGHT_GRAY)
+    _txt(s, Inches(7.0), Inches(1.2), Inches(5.6), Inches(0.35),
+         "体积区域定义 (显式 + bbox)", sz=14, color=GREEN, bold=True)
+    right_json = (
+        '"regions": [\n'
+        '  {\n'
+        '    "name": "Explicit Volume Region",\n'
+        '    "position": [-0.01, -0.01, -0.002],\n'
+        '    "size": [0.12, 0.08, 0.01],\n'
+        '    "localized_grid": true,\n'
+        '    "x_grid_constraint":\n'
+        '      "Grid Constraint 1"\n'
+        '  },\n'
+        '  {\n'
+        '    "name": "BBox Region Around PCB",\n'
+        '    "parent_assembly": "DemoBoard",\n'
+        '    "bbox_from": {\n'
+        '      "include_names": ["PCB"],\n'
+        '      "include_patterns": ["U*"],\n'
+        '      "padding": [0.001, 0.001, 0.0005]\n'
+        '    },\n'
+        '    "all_grid_constraint":\n'
+        '      "Grid Constraint 1"\n'
+        '  }\n'
+        ']'
+    )
+    _txt(s, Inches(7.0), Inches(1.6), Inches(5.6), Inches(5.0),
+         right_json, sz=11, color=DARK_GRAY, font="Menlo")
+
+    _footer(s)
+
+
+# ========================================================================
+# Slide 8: floxml_boundary_conditions
+# ========================================================================
+def slide_boundary_conditions(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s, PURPLE)
+
+    _txt(s, Inches(0.6), Inches(0.3), Inches(9), Inches(0.5),
+         "floxml_boundary_conditions.py", sz=28, color=DARK_BLUE, bold=True)
+    _txt(s, Inches(0.6), Inches(0.8), Inches(9), Inches(0.4),
+         "边界条件注入  |  921 行", sz=16, color=PURPLE)
+    _rect(s, Inches(0.6), Inches(1.2), Inches(12), Inches(0.02), PURPLE)
+
+    _txt(s, Inches(0.6), Inches(1.4), Inches(12), Inches(0.4),
+         "通过 JSON 配置向 FloXML 添加/修改 7 种边界条件类型。",
+         sz=15, color=DARK_GRAY, bold=True)
+
+    # 7 type cards
+    types = [
+        ("Ambient\n(环境)", "温度、压力、换热系数\n速度、辐射温度", ACCENT_BLUE),
+        ("Solution Domain\n(求解域)", "各面边界类型\nambient/symmetry/\nwall/opening", MID_BLUE),
+        ("Surface\n(表面属性)", "发射率、粗糙度\narea_factor", GREEN),
+        ("Radiation\n(辐射)", "表面类型\n面积阈值", ORANGE),
+        ("Source\n(热源)", "总功率 / 定温\n体积热源", RED),
+        ("Surface Exchange\n(表面交换)", "对流换热方法\nHTC 常数/曲线", PURPLE),
+        ("Thermal\n(热模型)", "导热/对流模型", RGBColor(0x2C, 0x3E, 0x50)),
     ]
 
-    for mod in modules:
-        slide = prs.slides.add_slide(prs.slide_layouts[6])
-        set_slide_bg(slide, WHITE)
-        add_shape(slide, Inches(0), Inches(0), SLIDE_WIDTH, Inches(0.08), mod["color"])
+    cw = Inches(1.65)
+    ch = Inches(2.8)
+    cg = Inches(0.12)
+    cx = Inches(0.4)
+    cy = Inches(2.0)
 
-        # Title area
-        add_text_box(slide, Inches(0.6), Inches(0.3), Inches(9), Inches(0.5),
-                     mod["title"], font_size=28, color=DARK_BLUE, bold=True)
-        add_text_box(slide, Inches(0.6), Inches(0.8), Inches(9), Inches(0.4),
-                     f"{mod['subtitle']}  |  {mod['lines']}", font_size=16, color=mod["color"])
+    for i, (name, desc, color) in enumerate(types):
+        x = cx + i * (cw + cg)
+        _rect(s, x, cy, cw, Inches(0.6), color)
+        _txt(s, x + Inches(0.05), cy + Inches(0.05), cw - Inches(0.1), Inches(0.5),
+             name, sz=11, color=WHITE, bold=True, align=PP_ALIGN.CENTER)
+        _rect(s, x, cy + Inches(0.6), cw, ch - Inches(0.6), LIGHT_GRAY)
+        _txt(s, x + Inches(0.08), cy + Inches(0.7), cw - Inches(0.16), ch - Inches(0.8),
+             desc, sz=10, color=DARK_GRAY)
 
-        # Line separator
-        add_shape(slide, Inches(0.6), Inches(1.2), Inches(12), Inches(0.02), mod["color"])
+    # Bottom: face_conditions + usage
+    _rect(s, Inches(0.5), Inches(5.0), Inches(7.0), Inches(2.0), LIGHT_BLUE)
+    _txt(s, Inches(0.7), Inches(5.1), Inches(6.6), Inches(0.35),
+         "face_conditions — 将属性分配到几何体", sz=13, color=DARK_BLUE, bold=True)
+    face_desc = [
+        "• target_names / target_patterns / target_tags 匹配几何体",
+        "• 将 surface / radiation / thermal / source 等属性分配上去",
+        "• 例: Chip_U1 → Paint 表面 + Conduction 热模型",
+    ]
+    _bullets(s, Inches(0.7), Inches(5.5), Inches(6.6), Inches(1.3),
+             face_desc, sz=11, color=DARK_GRAY, gap=Pt(2))
 
-        # Description
-        add_text_box(slide, Inches(0.6), Inches(1.4), Inches(12), Inches(0.5),
-                     mod["desc"], font_size=15, color=DARK_GRAY, bold=True)
+    _rect(s, Inches(7.8), Inches(5.0), Inches(5.0), Inches(2.0), LIGHT_GRAY)
+    _txt(s, Inches(8.0), Inches(5.1), Inches(4.6), Inches(0.35),
+         "命令行", sz=13, color=DARK_BLUE, bold=True)
+    usage = (
+        "python -m floxml_tools.\n"
+        "  floxml_boundary_conditions\n"
+        "  model.xml --config bc.json\n"
+        "  -o output.xml"
+    )
+    _txt(s, Inches(8.0), Inches(5.5), Inches(4.6), Inches(1.3),
+         usage, sz=11, color=DARK_GRAY, font="Menlo")
 
-        # Details - left column
-        add_shape(slide, Inches(0.5), Inches(2.0), Inches(7.2), Inches(4.5), LIGHT_GRAY)
-        add_text_box(slide, Inches(0.7), Inches(2.1), Inches(6.8), Inches(0.4),
-                     "功能要点", font_size=16, color=DARK_BLUE, bold=True)
-        detail_items = [f"• {d}" for d in mod["details"]]
-        add_bullet_list(slide, Inches(0.7), Inches(2.5), Inches(6.8), Inches(3.8),
-                        detail_items, font_size=13, color=DARK_GRAY, spacing=Pt(5))
-
-        # Key info - right column
-        add_shape(slide, Inches(8.0), Inches(2.0), Inches(4.8), Inches(2.2), LIGHT_BLUE)
-        add_text_box(slide, Inches(8.2), Inches(2.1), Inches(4.4), Inches(0.4),
-                     "关键类 / 特性", font_size=16, color=DARK_BLUE, bold=True)
-        add_text_box(slide, Inches(8.2), Inches(2.5), Inches(4.4), Inches(1.5),
-                     mod["key_classes"], font_size=13, color=DARK_GRAY)
-
-        add_footer(slide)
+    _footer(s)
 
 
-def make_usage_slide(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    set_slide_bg(slide, WHITE)
-    add_shape(slide, Inches(0), Inches(0), SLIDE_WIDTH, Inches(0.08), ACCENT_BLUE)
+# ========================================================================
+# Slide 9: boundary_conditions JSON config detail
+# ========================================================================
+def slide_boundary_config(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s, PURPLE)
+    _section_title(s, "boundary_conditions JSON 配置详解")
 
-    add_text_box(slide, Inches(0.6), Inches(0.3), Inches(12), Inches(0.7),
-                 "典型使用场景", font_size=32, color=DARK_BLUE, bold=True)
+    # Left: ambients + solution_domain
+    _rect(s, Inches(0.5), Inches(1.1), Inches(6.0), Inches(5.8), LIGHT_GRAY)
+    _txt(s, Inches(0.7), Inches(1.2), Inches(5.6), Inches(0.35),
+         "环境条件 + 求解域边界", sz=14, color=PURPLE, bold=True)
+    left_json = (
+        '"ambients": [\n'
+        '  {\n'
+        '    "name": "Ambient",\n'
+        '    "pressure": 101325,\n'
+        '    "temperature": 293,      // K\n'
+        '    "heat_transfer_coeff": 12,\n'
+        '    "velocity": [0, 0, 0]\n'
+        '  },\n'
+        '  {\n'
+        '    "name": "Forced Air",\n'
+        '    "temperature": 300,\n'
+        '    "velocity": [0, 0, 2.5],  // m/s\n'
+        '    "heat_transfer_coeff": 25\n'
+        '  }\n'
+        '],\n'
+        '"solution_domain": {\n'
+        '  "x_low_boundary": "ambient",\n'
+        '  "y_low_boundary": "symmetry",\n'
+        '  "z_high_boundary": "opening",\n'
+        '  "x_low_ambient": "Ambient",\n'
+        '  "z_high_ambient": "Forced Air"\n'
+        '}'
+    )
+    _txt(s, Inches(0.7), Inches(1.6), Inches(5.6), Inches(5.0),
+         left_json, sz=11, color=DARK_GRAY, font="Menlo")
 
-    scenarios = [
-        ("场景 1: ECXML 转换 + 求解",
-         "python -m floxml_tools.ecxml_to_floxml_converter model.ecxml \\\n"
-         "  --config config.json -o project.xml\n"
-         "# config.json 中可指定 grid、solve、volume_regions 等全部设置",
+    # Right: sources + face_conditions
+    _rect(s, Inches(6.8), Inches(1.1), Inches(6.0), Inches(2.6), LIGHT_GRAY)
+    _txt(s, Inches(7.0), Inches(1.2), Inches(5.6), Inches(0.35),
+         "热源定义", sz=14, color=PURPLE, bold=True)
+    source_json = (
+        '"sources": [\n'
+        '  {\n'
+        '    "name": "Heat Source",\n'
+        '    "source_options": [{\n'
+        '      "applies_to": "temperature",\n'
+        '      "type": "total",\n'
+        '      "value": 23.3       // W\n'
+        '    }]\n'
+        '  }\n'
+        ']'
+    )
+    _txt(s, Inches(7.0), Inches(1.6), Inches(5.6), Inches(2.0),
+         source_json, sz=11, color=DARK_GRAY, font="Menlo")
+
+    # Bottom right: face_conditions
+    _rect(s, Inches(6.8), Inches(3.9), Inches(6.0), Inches(3.0), LIGHT_BLUE)
+    _txt(s, Inches(7.0), Inches(4.0), Inches(5.6), Inches(0.35),
+         "属性分配 (face_conditions)", sz=14, color=PURPLE, bold=True)
+    face_json = (
+        '"face_conditions": [\n'
+        '  {\n'
+        '    "target_names": ["Heatsink"],\n'
+        '    "surface": "Polished Metal",\n'
+        '    "radiation": "Sub-Divided",\n'
+        '    "thermal": "Conduction"\n'
+        '  },\n'
+        '  {\n'
+        '    "target_names": ["Chip_U1"],\n'
+        '    "surface": "Paint",\n'
+        '    "surface_exchange": "Constant HTC"\n'
+        '  }\n'
+        ']'
+    )
+    _txt(s, Inches(7.0), Inches(4.4), Inches(5.6), Inches(2.3),
+         face_json, sz=11, color=DARK_GRAY, font="Menlo")
+
+    _footer(s)
+
+
+# ========================================================================
+# Slide 10: Typical usage — complete workflow
+# ========================================================================
+def slide_typical_usage(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s)
+    _section_title(s, "典型使用流程")
+
+    steps = [
+        ("1. 从 FloTHERM 导出 ECXML",
+         "在 FloTHERM 中打开项目 → File → Export → ECXML\n保存为 model.ecxml",
          ACCENT_BLUE),
-        ("场景 2: 一键流水线",
-         "python -m floxml_tools.floxml_pipeline geometry.xml \\\n"
-         "  -c config.json --wrap -o project.xml\n"
-         "# 自动: 包装为项目 + 注入网格 + 注入求解设置",
+        ("2. ECXML → FloXML 转换",
+         "python -m floxml_tools.ecxml_to_floxml_converter \\\n"
+         "  model.ecxml -o project.xml",
          MID_BLUE),
-        ("场景 3: 网格复用",
-         "python -m floxml_tools.inject_grid_from_floxml \\\n"
-         "  project.floxml --ecxml model.ecxml -o output.xml\n"
-         "# 从已有项目提取网格应用到新模型",
-         GREEN),
-        ("场景 4: 非线性热源",
-         "python -m floxml_tools.floxml_nonlinear_source \\\n"
-         "  input.xml --csv curve.csv --source \"Chip\" -o out.xml\n"
-         "# 注入功率-温度曲线",
+        ("3. 注入求解设置",
+         "python -m floxml_tools.floxml_add_solve_settings \\\n"
+         "  project.xml --config solve_settings.json -o project.xml",
          ORANGE),
+        ("4. 注入体积区域和网格约束",
+         "python -m floxml_tools.floxml_add_volume_regions \\\n"
+         "  project.xml --config regions.json --in-place",
+         GREEN),
+        ("5. 注入边界条件",
+         "python -m floxml_tools.floxml_boundary_conditions \\\n"
+         "  project.xml --config boundary.json --in-place",
+         PURPLE),
+        ("6. 导入 FloTHERM 求解",
+         "在 FloTHERM 中 File → Import → 选择最终 project.xml → Solve",
+         RED),
     ]
 
-    start_y = Inches(1.2)
-    for i, (title, code, color) in enumerate(scenarios):
-        y = start_y + i * Inches(1.5)
-        add_shape(slide, Inches(0.5), y, Inches(3.0), Inches(1.3), color)
-        add_text_box(slide, Inches(0.7), y + Inches(0.2), Inches(2.6), Inches(0.9),
-                     title, font_size=14, color=WHITE, bold=True, alignment=PP_ALIGN.CENTER)
-        add_shape(slide, Inches(3.7), y, Inches(9.1), Inches(1.3), LIGHT_GRAY)
-        add_text_box(slide, Inches(3.9), y + Inches(0.15), Inches(8.7), Inches(1.0),
-                     code, font_size=11, color=DARK_GRAY, font_name="Menlo")
+    sy = Inches(1.1)
+    step_h = Inches(0.95)
+    for i, (title, code, color) in enumerate(steps):
+        y = sy + i * step_h
+        # Step label
+        _rect(s, Inches(0.4), y, Inches(3.0), step_h - Inches(0.08), color)
+        _txt(s, Inches(0.55), y + Inches(0.12), Inches(2.7), Inches(0.6),
+             title, sz=13, color=WHITE, bold=True)
+        # Code
+        _rect(s, Inches(3.6), y, Inches(9.3), step_h - Inches(0.08), LIGHT_GRAY)
+        _txt(s, Inches(3.8), y + Inches(0.08), Inches(8.9), Inches(0.7),
+             code, sz=11, color=DARK_GRAY, font="Menlo")
 
-    add_footer(slide)
-
-
-def make_config_example_slide(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    set_slide_bg(slide, WHITE)
-    add_shape(slide, Inches(0), Inches(0), SLIDE_WIDTH, Inches(0.08), ACCENT_BLUE)
-
-    add_text_box(slide, Inches(0.6), Inches(0.3), Inches(12), Inches(0.7),
-                 "配置文件示例", font_size=32, color=DARK_BLUE, bold=True)
-
-    # Left: solve settings example
-    add_shape(slide, Inches(0.5), Inches(1.2), Inches(6.0), Inches(5.5), LIGHT_GRAY)
-    add_text_box(slide, Inches(0.7), Inches(1.3), Inches(5.6), Inches(0.4),
-                 "solve_settings.example.json", font_size=14, color=ACCENT_BLUE, bold=True)
-    solve_json = """{
-  "overall_control": {
-    "max_iterations": 1500,
-    "solver_type": "coupled",
-    "convergence_criteria": 1e-4
-  },
-  "modeling": {
-    "solution": "flow_heat",
-    "radiation": "on"
-  },
-  "transient": {
-    "time_steps": [0, 60, 300],
-    "save_times": [60, 300]
-  }
-}"""
-    add_text_box(slide, Inches(0.7), Inches(1.8), Inches(5.6), Inches(4.5),
-                 solve_json, font_size=11, color=DARK_GRAY, font_name="Menlo")
-
-    # Right: volume regions example
-    add_shape(slide, Inches(6.8), Inches(1.2), Inches(6.0), Inches(5.5), LIGHT_GRAY)
-    add_text_box(slide, Inches(7.0), Inches(1.3), Inches(5.6), Inches(0.4),
-                 "floxml_volume_regions.example.json", font_size=14, color=GREEN, bold=True)
-    vr_json = """{
-  "grid_constraint_atts": [
-    {
-      "name": "fine_grid",
-      "max_size": 0.001
-    }
-  ],
-  "volume_regions": [
-    {
-      "name": "chip_region",
-      "bbox_from": {
-        "include_names": ["U1"],
-        "padding": 0.002
-      },
-      "grid_constraint": "fine_grid"
-    }
-  ]
-}"""
-    add_text_box(slide, Inches(7.0), Inches(1.8), Inches(5.6), Inches(4.5),
-                 vr_json, font_size=11, color=DARK_GRAY, font_name="Menlo")
-
-    add_footer(slide)
+    _footer(s)
 
 
-def make_test_status_slide(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    set_slide_bg(slide, WHITE)
-    add_shape(slide, Inches(0), Inches(0), SLIDE_WIDTH, Inches(0.08), ACCENT_BLUE)
+# ========================================================================
+# Slide 11: JSON config files summary
+# ========================================================================
+def slide_config_summary(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s)
+    _section_title(s, "JSON 配置文件汇总")
 
-    add_text_box(slide, Inches(0.6), Inches(0.3), Inches(12), Inches(0.7),
-                 "测试 & 文档状态", font_size=32, color=DARK_BLUE, bold=True)
+    _txt(s, Inches(0.6), Inches(1.1), Inches(12), Inches(0.4),
+         "每个 Python 脚本对应一个或多个 JSON 配置文件，修改 JSON 即可调整 FloXML 项目参数，无需手动编辑 XML。",
+         sz=14, color=MED_GRAY)
 
-    # Test status
-    add_shape(slide, Inches(0.5), Inches(1.3), Inches(5.8), Inches(2.5), LIGHT_GRAY)
-    add_text_box(slide, Inches(0.7), Inches(1.4), Inches(5.4), Inches(0.4),
-                 "单元测试", font_size=18, color=DARK_BLUE, bold=True)
-    tests = [
-        "• test_ecxml_to_floxml_converter_pytest.py — pytest 格式",
-        "• test_ecxml_to_floxml_converter_unittest.py — unittest 格式",
-        "• 测试覆盖: ECXML 转换器核心功能",
-        "• 建议: 其他模块仍需补充单元测试",
+    # Table-like layout
+    headers = ["配置文件", "对应脚本", "用途"]
+    col_widths = [Inches(3.8), Inches(3.8), Inches(4.4)]
+    col_x = [Inches(0.5), Inches(4.4), Inches(8.3)]
+
+    # Header row
+    _rect(s, Inches(0.5), Inches(1.7), Inches(12.1), Inches(0.5), ACCENT_BLUE)
+    for j, h in enumerate(headers):
+        _txt(s, col_x[j], Inches(1.75), col_widths[j], Inches(0.4),
+             h, sz=14, color=WHITE, bold=True)
+
+    rows = [
+        ("solve_settings.example.json", "floxml_add_solve_settings.py", "求解器参数、收敛判据、瞬态时间"),
+        ("solve_settings.example.xlsx", "floxml_add_solve_settings.py", "同上，Excel 格式（可用 --create-template 生成）"),
+        ("transient_only.example.json", "floxml_add_solve_settings.py", "仅瞬态设置（start/end_time, save_times, patches）"),
+        ("transient_maxsize.example.json", "floxml_add_solve_settings.py", "瞬态设置（max_size 控制步长）"),
+        ("floxml_volume_regions.example.json", "floxml_add_volume_regions.py", "体积区域定义 + 网格约束"),
+        ("boundary_conditions_*.json", "floxml_boundary_conditions.py", "环境条件、热源、表面属性、辐射、表面交换"),
     ]
-    add_bullet_list(slide, Inches(0.7), Inches(1.9), Inches(5.4), Inches(1.8),
-                    tests, font_size=13, color=DARK_GRAY, spacing=Pt(4))
 
-    # Documentation
-    add_shape(slide, Inches(6.8), Inches(1.3), Inches(5.8), Inches(2.5), LIGHT_GRAY)
-    add_text_box(slide, Inches(7.0), Inches(1.4), Inches(5.4), Inches(0.4),
-                 "文档", font_size=18, color=DARK_BLUE, bold=True)
-    docs = [
-        "• 每个模块有完整的 docstring (含用法示例)",
-        "• floxml_add_volume_regions.md — 体积区域详细说明",
-        "• GAP_ANALYSIS.md — 功能差距分析",
-        "• README.md — 项目整体说明",
-    ]
-    add_bullet_list(slide, Inches(7.0), Inches(1.9), Inches(5.4), Inches(1.8),
-                    docs, font_size=13, color=DARK_GRAY, spacing=Pt(4))
+    for i, (cfg, script, desc) in enumerate(rows):
+        y = Inches(2.3) + i * Inches(0.6)
+        bg = LIGHT_GRAY if i % 2 == 0 else WHITE
+        _rect(s, Inches(0.5), y, Inches(12.1), Inches(0.55), bg)
+        _txt(s, col_x[0], y + Inches(0.08), col_widths[0], Inches(0.4),
+             cfg, sz=12, color=ACCENT_BLUE, font="Menlo")
+        _txt(s, col_x[1], y + Inches(0.08), col_widths[1], Inches(0.4),
+             script, sz=12, color=DARK_GRAY, font="Menlo")
+        _txt(s, col_x[2], y + Inches(0.08), col_widths[2], Inches(0.4),
+             desc, sz=12, color=DARK_GRAY)
 
-    # TODO / suggestions
-    add_shape(slide, Inches(0.5), Inches(4.2), Inches(12.1), Inches(2.8), LIGHT_BLUE)
-    add_text_box(slide, Inches(0.7), Inches(4.3), Inches(11.7), Inches(0.4),
-                 "后续改进建议", font_size=18, color=DARK_BLUE, bold=True)
-    suggestions = [
-        "• 补充单元测试: 目前仅 ecxml_to_floxml_converter 有完整测试，其他模块建议按优先级逐步补充",
-        "• 统一配置格式: 各模块配置 JSON schema 略有差异，可考虑统一规范",
-        "• 错误处理增强: 部分模块对异常输入处理不够完善",
-        "• 性能优化: 大型 ECXML 文件转换时可考虑流式解析",
-        "• 日志系统: 建议引入 logging 模块替代 print 输出",
-    ]
-    add_bullet_list(slide, Inches(0.7), Inches(4.8), Inches(11.7), Inches(2.0),
-                    suggestions, font_size=13, color=DARK_GRAY, spacing=Pt(4))
-
-    add_footer(slide)
+    _footer(s)
 
 
-def make_summary_slide(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    set_slide_bg(slide, WHITE)
-    add_shape(slide, Inches(0), Inches(0), SLIDE_WIDTH, Inches(0.08), ACCENT_BLUE)
+# ========================================================================
+# Slide 12: Summary
+# ========================================================================
+def slide_summary(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, WHITE)
+    _accent_bar(s)
+    _section_title(s, "交接总结")
 
-    add_text_box(slide, Inches(0.6), Inches(0.3), Inches(12), Inches(0.7),
-                 "交接总结", font_size=32, color=DARK_BLUE, bold=True)
-
-    # Summary stats
-    add_shape(slide, Inches(0.5), Inches(1.3), Inches(12.1), Inches(1.8), LIGHT_BLUE)
+    # Stats
+    _rect(s, Inches(0.5), Inches(1.3), Inches(12.1), Inches(1.5), LIGHT_BLUE)
     stats = [
-        ("16", "Python 模块"),
-        ("~10,800", "行代码"),
-        ("1", "核心转换器 (ECXML→FloXML)"),
+        ("4", "核心 Python 模块"),
+        ("~5,200", "行核心代码"),
+        ("6+", "JSON 配置文件"),
         ("7", "边界条件类型"),
     ]
     for i, (num, label) in enumerate(stats):
         x = Inches(0.7) + i * Inches(3.0)
-        add_text_box(slide, x, Inches(1.4), Inches(2.8), Inches(0.8),
-                     num, font_size=36, color=ACCENT_BLUE, bold=True, alignment=PP_ALIGN.CENTER)
-        add_text_box(slide, x, Inches(2.1), Inches(2.8), Inches(0.5),
-                     label, font_size=13, color=MED_GRAY, alignment=PP_ALIGN.CENTER)
+        _txt(s, x, Inches(1.4), Inches(2.8), Inches(0.7),
+             num, sz=36, color=ACCENT_BLUE, bold=True, align=PP_ALIGN.CENTER)
+        _txt(s, x, Inches(2.0), Inches(2.8), Inches(0.4),
+             label, sz=13, color=MED_GRAY, align=PP_ALIGN.CENTER)
 
-    # Key takeaways
-    add_text_box(slide, Inches(0.6), Inches(3.5), Inches(12), Inches(0.4),
-                 "核心要点", font_size=20, color=DARK_BLUE, bold=True)
+    # Key points
+    _txt(s, Inches(0.6), Inches(3.2), Inches(12), Inches(0.4),
+         "核心要点", sz=20, color=DARK_BLUE, bold=True)
 
-    takeaways = [
-        "1. floxml_tools 是一套完整的 FloTHERM 自动化工具，核心能力是 ECXML → FloXML 转换",
-        "2. 采用 JSON/XLSX 配置驱动，无需手动编辑 XML，降低使用门槛",
-        "3. 模块化设计: 每个功能独立可用，也可通过 pipeline 一键组合",
-        "4. 覆盖全流程: 模型构建 → 格式转换 → 网格配置 → 求解设置 → 边界条件 → 非线性热源",
-        "5. 所有模块均有命令行入口，支持 -h 查看帮助",
-        "6. 注意: 部分注入模块依赖项目根目录下的 pdml_tools 包",
+    points = [
+        "1. 工作流: FloTHERM 导出 ECXML → ecxml_to_floxml_converter 转换 → 三个 JSON 配置修改 FloXML → 导入求解",
+        "2. 三个配置修改脚本各司其职: solve_settings / volume_regions / boundary_conditions",
+        "3. JSON 配置驱动: 修改参数只需改 JSON，不需要手动编辑 XML",
+        "4. 所有模块都有命令行入口，支持 -h 查看帮助",
+        "5. 每个模块有完整 docstring，包含用法示例和参数说明",
     ]
-    add_bullet_list(slide, Inches(0.6), Inches(4.0), Inches(12), Inches(3.0),
-                    takeaways, font_size=14, color=DARK_GRAY, spacing=Pt(6))
+    _bullets(s, Inches(0.6), Inches(3.7), Inches(12), Inches(2.5),
+             points, sz=14, color=DARK_GRAY, gap=Pt(6))
 
-    add_footer(slide)
+    # TODO
+    _rect(s, Inches(0.5), Inches(5.6), Inches(12.1), Inches(1.3), LIGHT_GRAY)
+    _txt(s, Inches(0.7), Inches(5.7), Inches(11.7), Inches(0.3),
+         "后续建议", sz=14, color=DARK_BLUE, bold=True)
+    todos = [
+        "• 补充单元测试（目前仅 ecxml_to_floxml_converter 有测试）",
+        "• 引入 logging 替代 print，便于调试",
+    ]
+    _bullets(s, Inches(0.7), Inches(6.0), Inches(11.7), Inches(0.8),
+             todos, sz=12, color=MED_GRAY, gap=Pt(2))
 
-
-def make_thankyou_slide(prs):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    set_slide_bg(slide, DARK_BLUE)
-
-    add_text_box(slide, Inches(2), Inches(2.5), Inches(9.3), Inches(1.5),
-                 "谢谢", font_size=56, color=WHITE, bold=True, alignment=PP_ALIGN.CENTER)
-    add_text_box(slide, Inches(2), Inches(4.0), Inches(9.3), Inches(0.8),
-                 "如有疑问请参考各模块 docstring 或 README.md",
-                 font_size=18, color=MID_BLUE, alignment=PP_ALIGN.CENTER)
-    add_text_box(slide, Inches(2), Inches(5.0), Inches(9.3), Inches(0.6),
-                 "python -m floxml_tools.<module_name> -h  # 查看任何模块的帮助",
-                 font_size=14, color=LIGHT_BLUE, alignment=PP_ALIGN.CENTER, font_name="Menlo")
+    _footer(s)
 
 
+# ========================================================================
+# Slide 13: Thank you
+# ========================================================================
+def slide_thankyou(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    _bg(s, DARK_BLUE)
+
+    _txt(s, Inches(2), Inches(2.5), Inches(9.3), Inches(1.5),
+         "谢谢", sz=56, color=WHITE, bold=True, align=PP_ALIGN.CENTER)
+    _txt(s, Inches(2), Inches(4.0), Inches(9.3), Inches(0.8),
+         "如有疑问请参考各模块 docstring 或 README.md",
+         sz=18, color=MID_BLUE, align=PP_ALIGN.CENTER)
+    _txt(s, Inches(2), Inches(5.0), Inches(9.3), Inches(0.6),
+         "python -m floxml_tools.<module_name> -h",
+         sz=14, color=LIGHT_BLUE, align=PP_ALIGN.CENTER, font="Menlo")
+
+
+# ========================================================================
 def main():
     prs = Presentation()
-    prs.slide_width = SLIDE_WIDTH
-    prs.slide_height = SLIDE_HEIGHT
+    prs.slide_width = SLIDE_W
+    prs.slide_height = SLIDE_H
 
-    make_title_slide(prs)
-    make_overview_slide(prs)
-    make_dataflow_slide(prs)
-    make_usage_slide(prs)
-    make_module_detail_slides(prs)
-    make_config_example_slide(prs)
-    make_test_status_slide(prs)
-    make_summary_slide(prs)
-    make_thankyou_slide(prs)
+    slide_cover(prs)
+    slide_workflow(prs)
+    slide_ecxml_converter(prs)
+    slide_solve_settings(prs)
+    slide_solve_config(prs)
+    slide_volume_regions(prs)
+    slide_volume_config(prs)
+    slide_boundary_conditions(prs)
+    slide_boundary_config(prs)
+    slide_typical_usage(prs)
+    slide_config_summary(prs)
+    slide_summary(prs)
+    slide_thankyou(prs)
 
-    out_path = os.path.join(os.path.dirname(__file__), "floxml_tools_工作交接.pptx")
+    out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "floxml_tools_工作交接.pptx")
     prs.save(out_path)
-    print(f"PPT saved to: {out_path}")
+    print(f"PPT saved: {out_path}")
     print(f"Total slides: {len(prs.slides)}")
 
 
